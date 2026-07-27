@@ -124,6 +124,7 @@ function tsunamiGameOver(){
   var f=el("rFacts"); f.innerHTML="";
   FACTS.forEach(function(x){ var d=document.createElement("div"); d.className="fact"; d.textContent=x; f.appendChild(d); });
   scoresRecord("tsunami", TS.score);
+  stopCam();
   show("result");
 }
 

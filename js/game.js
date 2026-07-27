@@ -271,6 +271,7 @@ function endGame(){ G.running=false;
   var f=el("rFacts"); f.innerHTML="";
   FACTS.forEach(function(x){ var d=document.createElement("div"); d.className="fact"; d.textContent=x; f.appendChild(d); });
   scoresRecord("sort", G.score);
+  stopCam();
   show("result");
 }
 
@@ -346,14 +347,30 @@ function sliceAlong(x1,y1,x2,y2){
 }
 
 /* ================= controls ================= */
-var camStream=null, hands=null, mpCam=null, mouseHandler=null;
+var camStream=null, hands=null, mpCam=null, mouseHandler=null, camWanted=false;
 function loadScript(src){ return new Promise(function(res,rej){ var s=document.createElement("script"); s.src=src; s.onload=res; s.onerror=rej; document.head.appendChild(s); }); }
+
+/* Release the webcam the moment play ends. Stopping MediaPipe's Camera is NOT
+   enough on its own — the underlying MediaStream tracks keep the hardware (and
+   the recording light) on until each one is stopped explicitly.
+   `hands` is deliberately left alive: with no camera feeding it, it sits idle,
+   and re-initialising its WASM on every game is slow. */
+function stopCam(){
+  camWanted=false;
+  try{ if(mpCam && mpCam.stop) mpCam.stop(); }catch(e){}
+  try{ if(camStream && camStream.getTracks) camStream.getTracks().forEach(function(t){ t.stop(); }); }catch(e){}
+  var v=el("cam");
+  if(v){ try{ v.pause(); }catch(e){} v.srcObject=null; v.classList.add("hidden"); }
+  var c=el("camCap"); if(c) c.classList.add("hidden");
+  mpCam=null; camStream=null;
+}
 function setupMouse(){ var lastMove=0;
   mouseHandler=function(e){ var r=stage.getBoundingClientRect(); BLADE.x=e.clientX-r.left; BLADE.y=e.clientY-r.top; lastMove=performance.now(); BLADE.active=true; };
   stage.addEventListener("pointermove",mouseHandler);
   setInterval(function(){ if(performance.now()-lastMove>90) BLADE.active=false; },60);
 }
 async function setupCam(){
+  camWanted=true;
   el("cam").classList.remove("hidden"); el("camCap").classList.remove("hidden");
   try{
     await loadScript("https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js");
@@ -364,12 +381,14 @@ async function setupCam(){
       if(lm){ var tip=lm[8]; BLADE.x=(1-tip.x)*W; BLADE.y=tip.y*H; BLADE.active=true; } else BLADE.active=false; });
     var v=el("cam"); mpCam=new Camera(v,{onFrame:async function(){ if(controlMode==="cam") await hands.send({image:v}); },width:640,height:480});
     await mpCam.start(); camStream=v.srcObject;
+    if(!camWanted) stopCam();     /* quit during start-up — don't leave the camera running */
   }catch(err){ el("camCap").classList.add("hidden"); el("cam").classList.add("hidden"); controlMode="mouse"; setupMouse(); }
 }
 
 /* ================= VERSUS (2 players, split screen, two webcam hands) ================= */
 var VS={running:false, s1:0, s2:0, t:0, spawnT:0, topicIdx:0, topicT:0};
 async function setupCamVS(){
+  camWanted=true;
   el("cam").classList.remove("hidden"); el("camCap").classList.remove("hidden"); el("camCap").textContent="Two hands = two players";
   try{
     await loadScript("https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js");
@@ -386,6 +405,7 @@ async function setupCamVS(){
     });
     var v=el("cam"); mpCam=new Camera(v,{onFrame:async function(){ if(GMODE==="vs") await hands.send({image:v}); },width:640,height:480});
     await mpCam.start(); camStream=v.srcObject;
+    if(!camWanted) stopCam();     /* quit during start-up — don't leave the camera running */
   }catch(err){ el("cam").classList.add("hidden"); el("camCap").classList.add("hidden"); alert("Versus needs a webcam. Please allow camera access, then try again."); show("start"); }
 }
 function launchVS(){
@@ -439,6 +459,7 @@ function vsGameOver(){
   el("rGrade").textContent=winner;
   var f=el("rFacts"); f.innerHTML=""; var d=document.createElement("div"); d.className="fact"; d.textContent="Slice recyclables (+1) and avoid trash (−1) — most points in 60 seconds wins."; f.appendChild(d);
   scoresHidePanel();                      /* two players on one screen — a personal best has no meaning here */
+  stopCam();
   show("result");
 }
 function drawTrail(trail, now, rgb){
@@ -662,7 +683,7 @@ el("resumeBtn").addEventListener("click", resumeGame);
 el("quitBtn").addEventListener("click", function(){ G.paused=false; G.running=false;
   Q.running=false; TS.running=false; VS.running=false;                       /* quit must stop whichever mode is live */
   el("pauseBtn").textContent="Pause"; el("pauseOvl").classList.add("hidden");
-  el("quizQ").classList.add("hidden"); clearObjs(); try{stopPeer();}catch(e){} show("start"); });
+  el("quizQ").classList.add("hidden"); clearObjs(); try{stopPeer();}catch(e){} stopCam(); show("start"); });
 
 /* ================= controller boot (phone opens with ?ctrl=1&peer=sort-XXXX) ================= */
 function bootController(){

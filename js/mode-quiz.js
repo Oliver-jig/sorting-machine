@@ -170,6 +170,7 @@ function quizGameOver(){
     });
   }
   scoresRecord("quiz", Q.score);
+  stopCam();
   show("result");
 }
 
