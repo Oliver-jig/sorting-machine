@@ -121,3 +121,14 @@
   #dot{background:var(--amber)}
   .fact{background:var(--panel2); border:1px solid var(--line)}
   @media (prefers-reduced-motion: reduce){ *{transition:none !important} .opt:hover,.btn:active{transform:none} }
+
+  /* battery hit — a short jolt, never a loop. Kept out of the reduced-motion
+     path below, where it collapses to a no-op. */
+  @keyframes stageShake{
+    0%,100%{transform:translate(0,0)}
+    15%{transform:translate(-7px,3px)} 30%{transform:translate(6px,-4px)}
+    45%{transform:translate(-5px,-2px)} 60%{transform:translate(4px,3px)}
+    80%{transform:translate(-2px,1px)}
+  }
+  #stage.shake{ animation:stageShake .32s ease-in-out 1 }
+  @media (prefers-reduced-motion: reduce){ #stage.shake{ animation:none } }
