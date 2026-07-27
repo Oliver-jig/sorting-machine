@@ -249,6 +249,7 @@ function showOverlayFor(round){
 }
 function startRound(){ resize(); el("ovl").classList.add("hidden");
   clearObjs(); G.pops=[]; G.parts=[]; G.flashes=[]; BLADE.trail=[]; G.spawnT=0;
+  specialsReset();
   G.roundEndAt=performance.now()+DIFF.round; G.running=true; }
 function endRound(){ G.running=false; G.round++;
   if(G.round>=ROUNDS.length) endGame(); else showOverlayFor(G.round); }
@@ -306,9 +307,15 @@ function spawn(fx){
     spin:(Math.random()-.5)*2, dspin:(Math.random()-.5)*0.05, phase:Math.random()*6, mesh:mesh});
 }
 function updatePhysics(dt){
+  var frozen=PWR.freeze>0;
   for(var i=G.objs.length-1;i>=0;i--){
     var o=G.objs[i];
-    o.vy+=DIFF.g*dt; o.x+=o.vx*dt; o.y+=o.vy*dt; o.spin+=o.dspin;
+    /* frozen items hold position; already-sliced ones still fade out so a
+       freeze never leaves debris stuck mid-air */
+    if(!frozen || o.sliced){
+      specialPull(o,dt);
+      o.vy+=DIFF.g*dt; o.x+=o.vx*dt; o.y+=o.vy*dt; o.spin+=o.dspin;
+    }
     if(o.sliced){ o.a-=0.045; o.scale+=0.03; }
     var w=toWorld(o.x,o.y);
     o.mesh.position.set(w.x,w.y,0);
@@ -326,8 +333,12 @@ function segHit(o,x1,y1,x2,y2){ var dx=x2-x1,dy=y2-y1,len2=dx*dx+dy*dy||1;
 function sliceAlong(x1,y1,x2,y2){
   var R=ROUNDS[G.round];
   for(var i=0;i<G.objs.length;i++){ var o=G.objs[i]; if(o.sliced) continue;
-    if(segHit(o,x1,y1,x2,y2)){ o.sliced=true; o.vy-=0.1; o.dspin=(o.dspin>0?1:-1)*0.28;
-      var correct=R.bins.indexOf(o.it.bin)>=0, pts=correct?15:-12;
+    if(segHit(o,x1,y1,x2,y2)){
+      if(o.it.sp){ specialSlice(o); continue; }                 /* power-ups score nothing themselves */
+      o.sliced=true; o.vy-=0.1; o.dspin=(o.dspin>0?1:-1)*0.28;
+      /* double only multiplies the reward — being punished twice for one
+         mistake reads as unfair */
+      var correct=R.bins.indexOf(o.it.bin)>=0, pts=correct?15*specialMult():-12;
       G.score=Math.max(-999,G.score+pts); el("scoreN").textContent=G.score;
       spawnBurst(o.x,o.y, correct?(BINCOL[o.it.bin]||"#2fae6a"):"#d70015");
       G.pops.push({x:o.x,y:o.y,txt:(pts>0?"+":"")+pts,col:correct?"#1f9d55":"#d70015",a:1}); } }
@@ -526,12 +537,17 @@ function loop(now){
   } else if(GMODE==="vs"){
     if(VS.running && !G.paused){ vsUpdate(dt, now); }
   } else if(G.running && !G.paused){
-    var timeLeft=Math.max(0,G.roundEndAt-now); el("timeFill").style.width=(timeLeft/DIFF.round*100)+"%";
-    G.spawnT-=dt; if(G.spawnT<=0){
-      if(Math.random()<(DIFF.burst||0)){ var seg=(W-160)/3;   /* 3-item wave, spread left/centre/right so they don't cluster */
-        spawn(80+seg*0.5+(Math.random()-0.5)*seg*0.25); spawn(80+seg*1.5+(Math.random()-0.5)*seg*0.25); spawn(80+seg*2.5+(Math.random()-0.5)*seg*0.25);
-        G.spawnT=DIFF.spawnMin+700+Math.random()*DIFF.spawnRange; }
-      else { spawn(); if(Math.random()<DIFF.dbl) spawn(); G.spawnT=DIFF.spawnMin+Math.random()*DIFF.spawnRange; }
+    specialUpdate(dt);
+    /* the +5s clock can push time above a full bar, so clamp the fill */
+    var timeLeft=Math.max(0,G.roundEndAt-now); el("timeFill").style.width=Math.min(100,timeLeft/DIFF.round*100)+"%";
+    if(PWR.freeze<=0){                                  /* a freeze halts the conveyor as well as the items */
+      G.spawnT-=dt; if(G.spawnT<=0){
+        if(Math.random()<(DIFF.burst||0)){ var seg=(W-160)/3;   /* 3-item wave, spread left/centre/right so they don't cluster */
+          spawn(80+seg*0.5+(Math.random()-0.5)*seg*0.25); spawn(80+seg*1.5+(Math.random()-0.5)*seg*0.25); spawn(80+seg*2.5+(Math.random()-0.5)*seg*0.25);
+          G.spawnT=DIFF.spawnMin+700+Math.random()*DIFF.spawnRange; }
+        else { if(!maybeSpawnSpecial()){ spawn(); if(Math.random()<DIFF.dbl) spawn(); }   /* specials replace a single spawn, never a burst */
+          G.spawnT=DIFF.spawnMin+Math.random()*DIFF.spawnRange; }
+      }
     }
     updatePhysics(dt);
     if(BLADE.active){ sliceAlong(BLADE.px,BLADE.py,BLADE.x,BLADE.y); BLADE.trail.push({x:BLADE.x,y:BLADE.y,t:now}); }
@@ -557,6 +573,7 @@ function drawFx(now){
   if(GMODE==="quiz"){ quizDraw(now); }
   else if(GMODE==="tsunami"){ tsunamiDraw(now); }
   else if(GMODE==="vs"){ vsDraw(now); }
+  else if(G.running && !G.paused){ specialDraw(now); }
   /* item name labels */
   if(G.running || (GMODE==="tsunami" && TS.running) || (GMODE==="vs" && VS.running)){ for(var i=0;i<G.objs.length;i++){ var o=G.objs[i]; if(o.a<0.5) continue; roundedText(o.it.n, o.x, o.y+o.r+4); } }
   /* score pops */
