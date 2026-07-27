@@ -3,81 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#bf8b2e">
 <title>Slice &amp; Sort 3D — HK recycling (SDG 12)</title>
-<style>
-  :root{
-    --bg:#f5f5f7; --surface:#ffffff; --surface2:#fbfbfd; --line:#e3e3e8;
-    --ink:#1d1d1f; --muted:#6e6e73; --accent:#0071e3; --accent-h:#0077ed;
-    --good:#248a3d; --bad:#d70015;
-    --shadow:0 4px 24px rgba(0,0,0,.06); --shadow-sm:0 1px 3px rgba(0,0,0,.06);
-    --font:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","Helvetica Neue",Helvetica,Arial,system-ui,sans-serif;
-  }
-  *{box-sizing:border-box; -webkit-font-smoothing:antialiased}
-  html,body{margin:0;height:100%}
-  body{background:var(--bg); color:var(--ink); font-family:var(--font);
-    -webkit-user-select:none; user-select:none; overflow:hidden; letter-spacing:-.01em}
-  #app{max-width:900px; margin:0 auto; height:100%; display:flex; flex-direction:column; padding:16px}
-  button{font-family:inherit; cursor:pointer; letter-spacing:-.01em}
-  .btn{background:var(--accent); color:#fff; border:none; border-radius:980px; padding:13px 26px; font-size:16px; font-weight:500; transition:background .2s}
-  .btn:hover{background:var(--accent-h)} .btn:active{transform:scale(.98)}
-  .btn.ghost{background:rgba(0,0,0,.05); color:var(--ink)} .btn.ghost:hover{background:rgba(0,0,0,.08)}
-  .btn[disabled]{opacity:.4; pointer-events:none}
-  .screen{flex:1; display:flex; flex-direction:column; min-height:0}
-  .hidden{display:none !important}
+<link rel="stylesheet" href="css/styles.css">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-  #start,#result,#connect,#controller{justify-content:center; align-items:center; text-align:center}
-  .card{background:var(--surface); border-radius:28px; box-shadow:var(--shadow); padding:40px 34px; max-width:600px; width:100%}
-  h1{font-size:44px; line-height:1.03; margin:0; font-weight:600; letter-spacing:-.03em}
-  .eyebrow{color:var(--accent); font-size:14px; font-weight:600; margin-bottom:10px}
-  .lead{color:var(--muted); font-size:17px; line-height:1.5; margin:16px auto 0; max-width:470px}
-  .lead b{color:var(--ink); font-weight:600}
-  .row{display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:22px}
-  .fineprint{color:var(--muted); font-size:13px; margin-top:14px}
-
-  .label{font-size:12px; color:var(--muted); font-weight:600; text-align:left; margin:18px 0 8px}
-  .choose{display:grid; grid-template-columns:repeat(3,1fr); gap:10px}
-  .opt{background:var(--surface2); border:1.5px solid var(--line); border-radius:18px; padding:16px 10px; text-align:center; transition:border-color .15s, transform .15s}
-  .opt:hover{transform:translateY(-2px)} .opt.sel{border-color:var(--accent); box-shadow:0 0 0 3px rgba(0,113,227,.12)}
-  .opt .ic{font-size:28px} .opt .ti{font-size:14px; font-weight:600; margin-top:6px} .opt .ds{font-size:11px; color:var(--muted); margin-top:3px; line-height:1.3}
-  .seg{display:inline-flex; background:var(--surface2); border:1.5px solid var(--line); border-radius:980px; padding:3px}
-  .seg button{border:none; background:transparent; padding:8px 18px; border-radius:980px; font-size:14px; font-weight:600; color:var(--muted)}
-  .seg button.on{background:var(--accent); color:#fff}
-  @media (max-width:560px){ .choose{grid-template-columns:1fr} h1{font-size:32px} }
-
-  .hud{display:flex; align-items:center; gap:10px; margin-bottom:12px; flex-wrap:wrap}
-  .stat{background:var(--surface); border-radius:16px; box-shadow:var(--shadow-sm); padding:9px 15px; line-height:1.1}
-  .stat b{font-size:21px; font-weight:600; letter-spacing:-.02em} .stat span{display:block; font-size:11px; color:var(--muted); font-weight:500}
-  .topicchip{background:var(--surface); border-radius:980px; box-shadow:var(--shadow-sm); padding:9px 18px; font-size:14px; font-weight:600; display:flex; align-items:center; gap:8px}
-  .topicchip .dot{width:12px; height:12px; border-radius:50%}
-  .timebar{flex:1; min-width:110px; height:8px; background:#e6e6eb; border-radius:980px; overflow:hidden}
-  .timefill{height:100%; background:var(--accent); width:100%; transition:width .12s linear; border-radius:980px}
-
-  #stage{position:relative; flex:1; min-height:0; background:linear-gradient(180deg,#ffffff 0%,#eef1f6 100%);
-    border-radius:28px; box-shadow:var(--shadow); overflow:hidden; touch-action:none}
-  #gl,#fx{position:absolute; inset:0; width:100%; height:100%; display:block}
-  #fx{pointer-events:none}
-  #cam{position:absolute; right:10px; bottom:10px; width:130px; height:98px; border-radius:12px; object-fit:cover; transform:scaleX(-1); opacity:.92; z-index:4; background:#000; box-shadow:var(--shadow-sm)}
-  #camCap{position:absolute; right:10px; bottom:112px; z-index:4; background:rgba(255,255,255,.85); border-radius:980px; padding:4px 10px; font-size:11px; font-weight:600; color:var(--ink)}
-
-  .overlay{position:absolute; inset:0; z-index:6; display:flex; flex-direction:column; align-items:center; justify-content:center;
-    background:rgba(255,255,255,.72); -webkit-backdrop-filter:saturate(180%) blur(20px); backdrop-filter:saturate(180%) blur(20px);
-    text-align:center; padding:24px}
-  .overlay.hidden{display:none}
-  .overlay .r{font-size:14px; color:var(--accent); font-weight:600}
-  .overlay .t{font-size:34px; font-weight:600; letter-spacing:-.02em; margin-top:6px}
-  .overlay .d{font-size:17px; color:var(--muted); margin-top:10px; max-width:430px; line-height:1.45}
-  .overlay .d b{color:var(--ink); font-weight:600}
-
-  #qrbox{background:#fff; padding:14px; border-radius:20px; box-shadow:var(--shadow); display:inline-block; margin:8px 0}
-  #qrbox canvas,#qrbox img{display:block}
-  .status{font-size:14px; color:var(--muted); margin-top:8px} .status b{color:var(--ink)}
-  #pad{width:min(80vw,360px); height:min(80vw,360px); background:var(--surface2); border:1.5px solid var(--line); border-radius:24px; position:relative; margin:16px auto}
-  #dot{position:absolute; width:40px; height:40px; border-radius:50%; background:var(--accent); transform:translate(-50%,-50%); left:50%; top:50%}
-
-  .facts{text-align:left; margin:20px 0; display:flex; flex-direction:column; gap:10px}
-  .fact{background:var(--surface2); border:1px solid var(--line); border-radius:16px; padding:12px 16px; font-size:14px; line-height:1.5}
-  .src{font-size:12px; color:var(--muted); margin-top:8px}
-</style>
 </head>
 <body>
 <div id="app">
@@ -85,16 +15,38 @@
   <!-- START -->
   <section id="start" class="screen">
     <div class="card">
-      <div class="eyebrow">SDG 12 · Responsible consumption</div>
-      <h1>Slice &amp; Sort 3D</h1>
-      <p class="lead">3D objects fly up — <b>slice only the ones that fit the round's bin</b>.
+      <div class="eyebrow"><span class="sdg">12</span> Responsible consumption &amp; production</div>
+      <div style="display:flex; align-items:center; justify-content:center; gap:14px; flex-wrap:wrap">
+        <svg width="52" height="52" viewBox="0 0 48 48" aria-hidden="true" style="flex:none">
+          <g fill="none" stroke="#bf8b2e" stroke-width="4" stroke-linecap="round">
+            <path d="M24 7a17 17 0 0 1 14.7 8.5"/>
+            <path d="M38.5 30.5A17 17 0 0 1 12 37"/>
+            <path d="M9.3 32.5A17 17 0 0 1 16 10"/>
+          </g>
+          <g fill="#bf8b2e">
+            <path d="M37 9l3.5 7-7.7-.6z"/>
+            <path d="M35 34l-7.8.4 5-6z"/>
+            <path d="M11 34l-3.4-7 7.7.7z"/>
+          </g>
+        </svg>
+        <h1>Slice &amp; Sort 3D</h1>
+      </div>
+      <p class="lead">Reduce, reuse, recycle — <b>slice only the items that fit the round's bin</b>.
       The last round is the <b>wishcycling traps</b>. Wrong slice, lose marks.</p>
+
+      <div class="label">Game mode</div>
+      <div class="seg" id="modeSeg">
+        <button data-g="sort" class="on">Sort</button>
+        <button data-g="quiz">Quiz</button>
+        <button data-g="tsunami">Defend</button>
+        <button data-g="vs">Versus</button>
+      </div>
 
       <div class="label">How do you want to play?</div>
       <div class="choose" id="choose">
-        <div class="opt sel" data-mode="cam"><div class="ic">🖐️</div><div class="ti">Webcam hand</div><div class="ds">Your hand is the blade</div></div>
-        <div class="opt" data-mode="remote"><div class="ic">📱</div><div class="ti">Phone controller</div><div class="ds">Scan a QR, tilt to slice</div></div>
-        <div class="opt" data-mode="mouse"><div class="ic">🖱️</div><div class="ti">Mouse / touch</div><div class="ds">Move or swipe to slice</div></div>
+        <button type="button" class="opt sel" data-mode="cam" aria-pressed="true"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#bf8b2e" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 13V6a1.5 1.5 0 0 1 3 0v5m0-.5V4.5a1.5 1.5 0 0 1 3 0V11m0-1a1.5 1.5 0 0 1 3 0v1m0-.5a1.5 1.5 0 0 1 3 0V15a6 6 0 0 1-6 6h-1a6 6 0 0 1-5.2-3l-2-3.4a1.5 1.5 0 0 1 2.6-1.5L8 15"/></svg></div><div class="ti">Webcam hand</div><div class="ds">Your hand is the blade</div></button>
+        <button type="button" class="opt" data-mode="remote" aria-pressed="false"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#bf8b2e" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2.5"/><line x1="11" y1="18.5" x2="13" y2="18.5"/></svg></div><div class="ti">Phone controller</div><div class="ds">Scan a QR, swing to slice</div></button>
+        <button type="button" class="opt" data-mode="mouse" aria-pressed="false"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#bf8b2e" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="3" width="12" height="18" rx="6"/><line x1="12" y1="7" x2="12" y2="11"/></svg></div><div class="ti">Mouse / touch</div><div class="ds">Move or swipe to slice</div></button>
       </div>
 
       <div class="label">Speed</div>
@@ -104,7 +56,16 @@
       </div>
 
       <div class="row"><button class="btn" id="playBtn">Start game</button></div>
-      <div class="fineprint" id="startNote">Webcam / phone motion run in your browser. Phone controller needs the game opened from a web link (https).</div>
+      <div class="fineprint" id="startNote"></div>
+      <script>
+        (function(){
+          var n=document.getElementById("startNote");
+          if(location.protocol==="file:"){ n.innerHTML='<b>You opened this file directly.</b> Phone mode won\'t work. Serve with:<br><code style="background:#f0f0f5;padding:2px 6px;border-radius:4px">python3 -m http.server 8137</code><br>Then open <b>http://localhost:8137/</b> (same WiFi as phone) — or deploy to Vercel.'; n.style.color='#c0392b'; }
+          else if(location.hostname==="localhost"||location.hostname==="127.0.0.1"){
+            n.innerHTML='Running locally. <b>Make sure your phone is on the same WiFi.</b>';
+          } else { n.innerHTML='Webcam + mouse modes run in your browser. Phone controller: scan the QR or type the code. · build 22 · SDG 12 theme (Sort · Quiz · Defend · Versus)'; }
+        })();
+      </script>
     </div>
   </section>
 
@@ -113,9 +74,9 @@
     <div class="card">
       <div class="eyebrow">Phone controller</div>
       <h1 style="font-size:32px">Scan to connect your phone</h1>
-      <p class="lead" id="connLead">Open your phone camera and scan this code. Your phone becomes the blade — tilt it to slice.</p>
+      <p class="lead" id="connLead">Open your phone camera and scan this code. Hold your phone sideways like a knife handle and slash to slice.</p>
       <div id="qrbox"><canvas id="qr"></canvas></div>
-      <div class="status" id="connStatus">Starting connection…</div>
+      <div class="status" id="connStatus" aria-live="polite">Starting connection…</div>
       <div class="row">
         <button class="btn" id="connGo" disabled>Waiting for phone…</button>
         <button class="btn ghost" id="connBack">Back</button>
@@ -129,9 +90,9 @@
     <div class="card">
       <div class="eyebrow">Phone controller</div>
       <h1 style="font-size:30px">You're the blade</h1>
-      <p class="lead" id="ctrlLead">Tap connect, then tilt your phone to move the blade on the big screen.</p>
+      <p class="lead" id="ctrlLead">Tap connect, then tilt your phone to move the blade on the big screen. (build 9)</p>
       <div id="pad"><div id="dot"></div></div>
-      <div class="status" id="ctrlStatus">Not connected</div>
+      <div class="status" id="ctrlStatus" aria-live="polite">Not connected</div>
       <div class="row"><button class="btn" id="ctrlConnect">Connect &amp; enable motion</button></div>
     </div>
   </section>
@@ -143,17 +104,43 @@
       <div class="stat"><b id="scoreN">0</b><span>score</span></div>
       <div class="stat"><b id="roundN">1/4</b><span>round</span></div>
       <div class="timebar"><div class="timefill" id="timeFill"></div></div>
+      <button id="pauseBtn" style="border:2px solid var(--line); border-bottom:3px solid var(--line); background:#fff; color:var(--ink); border-radius:12px; padding:8px 16px; font-family:inherit; font-weight:600; font-size:14px;">Pause</button>
     </div>
     <div id="stage">
+      <div id="bg">
+        <div class="sun"></div>
+        <svg class="skyline" viewBox="0 0 900 300" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <g fill="#bfe0c6">
+            <rect x="20" y="150" width="46" height="150"/><rect x="72" y="188" width="34" height="112"/>
+            <rect x="112" y="120" width="40" height="180"/><rect x="158" y="170" width="30" height="130"/>
+            <rect x="196" y="196" width="38" height="104"/><rect x="240" y="140" width="44" height="160"/>
+            <rect x="700" y="150" width="44" height="150"/><rect x="748" y="184" width="34" height="116"/>
+            <rect x="786" y="120" width="42" height="180"/><rect x="832" y="168" width="30" height="132"/>
+          </g>
+          <g fill="#a6d4b0">
+            <rect x="300" y="96" width="54" height="204"/><rect x="360" y="140" width="40" height="160"/>
+            <rect x="404" y="70" width="46" height="230"/><rect x="456" y="126" width="42" height="174"/>
+            <rect x="504" y="104" width="52" height="196"/><rect x="562" y="150" width="40" height="150"/>
+            <rect x="608" y="118" width="46" height="182"/><rect x="660" y="160" width="34" height="140"/>
+          </g>
+          <rect x="0" y="286" width="900" height="20" fill="#8fc79b"/>
+        </svg>
+      </div>
       <canvas id="gl"></canvas>
       <canvas id="fx"></canvas>
       <video id="cam" playsinline muted class="hidden"></video>
       <div id="camCap" class="hidden">Tracking your index fingertip</div>
+      <div id="quizQ" class="hidden" style="position:absolute; top:14px; left:50%; transform:translateX(-50%); z-index:5; max-width:88%; text-align:center; background:rgba(255,255,255,.92); border:1px solid #dfeee4; border-radius:16px; padding:12px 18px; box-shadow:0 4px 14px rgba(20,60,40,.12); font-weight:600; font-size:18px; color:var(--ink);"></div>
       <div class="overlay" id="ovl">
         <div class="r" id="ovlR">Round 1 of 4</div>
         <div class="t" id="ovlT">Paper</div>
         <div class="d" id="ovlD">Slice only paper items.</div>
         <div class="row"><button class="btn" id="ovlBtn">Start round</button></div>
+      </div>
+      <div class="overlay hidden" id="pauseOvl">
+        <div class="t">Paused</div>
+        <div class="d">Take a break — your round is on hold.</div>
+        <div class="row"><button class="btn" id="resumeBtn">Resume</button><button class="btn ghost" id="quitBtn">Quit to menu</button></div>
       </div>
     </div>
   </section>
@@ -174,467 +161,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
-<script>
-/* ================= data ================= */
-var ITEMS = [
-  {n:"報紙 Newspaper",     t:"news",  bin:"paper",   col:0xe9e7e0},
-  {n:"紙皮 Cardboard",     t:"box",   bin:"paper",   col:0xb07a3c},
-  {n:"雜誌 Magazine",      t:"mag",   bin:"paper",   col:0xe0483f},
-  {n:"蒸餾水樽 Water bottle",t:"bottle",bin:"plastic", col:0x66b6ff},
-  {n:"洗潔精 Dish soap",   t:"jug",   bin:"plastic", col:0x2ec98a},
-  {n:"乳酪杯 Yogurt tub",  t:"tub",   bin:"plastic", col:0xf2f4f8},
-  {n:"汽水罐 Soda can",    t:"canTall",bin:"metal",  col:0xc4c8ce},
-  {n:"午餐肉罐 Luncheon meat", t:"spam", bin:"metal", col:0x3f6fb0},
-  {n:"玻璃樽 Glass bottle", t:"wine",  bin:"glass",   col:0x2f8f5a},
-  {n:"醬料樽 Sauce jar",   t:"jar",   bin:"glass",   col:0x9fd6b4},
-  {n:"薄餅盒 Pizza box",   t:"pizza", bin:"trash",   col:0xcaa46a},
-  {n:"珍珠奶茶 Bubble tea", t:"bubbletea", bin:"trash", col:0xd8c3a0},
-  {n:"膠袋 Plastic bag",   t:"bag",   bin:"trash",   col:0xdfe3ea},
-  {n:"發泡膠飯盒 Foam box", t:"foam",  bin:"trash",   col:0xffffff},
-  {n:"紙包飲品 Drink carton", t:"carton", bin:"trash", col:0xe4d2a8}
-];
-var ROUNDS = [
-  {topic:"Paper",  bins:["paper"], color:"#0a84ff", desc:"Slice only <b>paper</b> — newspaper, cardboard, magazines."},
-  {topic:"Plastic",bins:["plastic"], color:"#ff9f0a", desc:"Slice only <b>plastics</b> — bottles and rinsed tubs (brown bin)."},
-  {topic:"Metal & Glass", bins:["metal","glass"], color:"#30d158", desc:"Slice <b>cans</b> (yellow bin) and <b>glass</b> (green points)."},
-  {topic:"Spot the traps", bins:["trash"], color:"#8e8e93", desc:"The wishcycling round: slice only the items that <b>can't</b> be recycled."}
-];
-var FACTS = [
-  "Hong Kong sends over 11,000 tonnes of waste to landfill every day.",
-  "Tricolour bins: blue = paper, yellow = metal, brown = plastic. Glass goes to green points.",
-  "Greasy pizza boxes, coffee cups, plastic bags and foam are NOT recyclable in normal bins.",
-  "'Wishcycling' — recycling on hope — contaminates and spoils whole batches."
-];
-var DIFFS = {
-  relaxed:{g:0.0011, h:430, spawnMin:950,  spawnRange:1100, dbl:0.12, round:48000},
-  normal: {g:0.0016, h:540, spawnMin:600,  spawnRange:420,  dbl:0.35, round:40000}
-};
-
-/* ================= helpers ================= */
-var el=function(id){return document.getElementById(id)};
-var qs=new URLSearchParams(location.search);
-var IS_CONTROLLER = qs.get("ctrl")==="1";
-
-/* ================= three setup ================= */
-var stage=el("stage"), gl=el("gl"), fx=el("fx"), fxc=fx.getContext("2d");
-var W=1,H=1,DPR=1, MESH_SCALE=1.75;
-var renderer, scene, camera;
-
-function initThree(){
-  renderer=new THREE.WebGLRenderer({canvas:gl, antialias:true, alpha:true});
-  scene=new THREE.Scene();
-  camera=new THREE.OrthographicCamera(-1,1,1,-1,-1000,1000);
-  scene.add(new THREE.AmbientLight(0xffffff,0.75));
-  var key=new THREE.DirectionalLight(0xffffff,0.9); key.position.set(-0.4,1,0.8); scene.add(key);
-  var rim=new THREE.DirectionalLight(0xbfd3ff,0.4); rim.position.set(0.6,-0.3,0.6); scene.add(rim);
-}
-function resize(){
-  var r=stage.getBoundingClientRect(); W=r.width; H=r.height; DPR=Math.min(2,window.devicePixelRatio||1);
-  renderer.setPixelRatio(DPR); renderer.setSize(W,H,false);
-  camera.left=-W/2; camera.right=W/2; camera.top=H/2; camera.bottom=-H/2; camera.updateProjectionMatrix();
-  fx.width=W*DPR; fx.height=H*DPR; fxc.setTransform(DPR,0,0,DPR,0,0);
-}
-window.addEventListener("resize", function(){ if(renderer) resize(); });
-function toWorld(x,y){ return {x:x-W/2, y:H/2-y}; }
-
-/* ================= meshes ================= */
-function mat(col){ return new THREE.MeshStandardMaterial({color:col, flatShading:true, roughness:.7, metalness:.15}); }
-function metalMat(col){ return new THREE.MeshStandardMaterial({color:col, flatShading:true, roughness:.35, metalness:.8}); }
-function glassMat(col){ return new THREE.MeshStandardMaterial({color:col, flatShading:true, roughness:.2, metalness:.1, transparent:true, opacity:.75}); }
-function makeMesh(it){
-  var g=new THREE.Group();
-  var body=(it.bin==="metal")?metalMat(it.col):(it.bin==="glass")?glassMat(it.col):mat(it.col);
-  var dark=mat(0x333333), silver=metalMat(0xbfc4cc);
-  if(it.t==="news"){                       /* rolled newspaper: thin light cylinder */
-    var roll=new THREE.Mesh(new THREE.CylinderGeometry(9,9,46,16),body); roll.rotation.z=Math.PI/2; g.add(roll);
-    var band=new THREE.Mesh(new THREE.CylinderGeometry(9.3,9.3,4,16),mat(0xff5a5a)); band.rotation.z=Math.PI/2; g.add(band);
-  } else if(it.t==="mag"){                  /* magazine: thin glossy colourful slab */
-    var mg=new THREE.Mesh(new THREE.BoxGeometry(40,4,30),new THREE.MeshStandardMaterial({color:it.col,flatShading:true,roughness:.25,metalness:.1})); g.add(mg);
-    var strip=new THREE.Mesh(new THREE.BoxGeometry(40,4.4,7),mat(0xffffff)); strip.position.z=-11; g.add(strip);
-  } else if(it.t==="box"){                  /* cardboard box: brown cube with flap line */
-    var bx=new THREE.Mesh(new THREE.BoxGeometry(38,34,30),body); g.add(bx);
-    var flap=new THREE.Mesh(new THREE.BoxGeometry(38.4,2,30.4),mat(0x8f6330)); flap.position.y=6; g.add(flap);
-  } else if(it.t==="pizza"){                /* pizza box: big flat square */
-    var pz=new THREE.Mesh(new THREE.BoxGeometry(56,10,56),body); g.add(pz);
-    var seam=new THREE.Mesh(new THREE.BoxGeometry(56.4,2,56.4),mat(0xa9834f)); seam.position.y=2; g.add(seam);
-  } else if(it.t==="foam"){                 /* foam clamshell: white, hinged lid ajar */
-    var base=new THREE.Mesh(new THREE.BoxGeometry(46,10,34),body); base.position.y=-4; g.add(base);
-    var lid=new THREE.Mesh(new THREE.BoxGeometry(46,8,34),body); lid.position.y=6; lid.position.z=-3; lid.rotation.x=-0.25; g.add(lid);
-  } else if(it.t==="bottle"){               /* plastic drink bottle: slim, blue, cap */
-    var bd=new THREE.Mesh(new THREE.CylinderGeometry(12,13,38,16),body); g.add(bd);
-    var nk=new THREE.Mesh(new THREE.CylinderGeometry(5,7,12,12),body); nk.position.y=25; g.add(nk);
-    var cp=new THREE.Mesh(new THREE.CylinderGeometry(5.5,5.5,5,12),mat(0x2b6bd0)); cp.position.y=33; g.add(cp);
-  } else if(it.t==="jug"){                  /* detergent: chunky body + handle + spout */
-    var jb=new THREE.Mesh(new THREE.BoxGeometry(26,38,20),body); g.add(jb);
-    var handle=new THREE.Mesh(new THREE.TorusGeometry(8,2.4,8,16,Math.PI*1.3),body); handle.position.set(16,6,0); handle.rotation.z=-0.4; g.add(handle);
-    var spout=new THREE.Mesh(new THREE.CylinderGeometry(4,5,10,10),body); spout.position.set(-8,22,0); g.add(spout);
-    var jcap=new THREE.Mesh(new THREE.CylinderGeometry(4.5,4.5,5,10),mat(0xffffff)); jcap.position.set(-8,29,0); g.add(jcap);
-  } else if(it.t==="tub"){                  /* yogurt tub: short tapered + coloured lid */
-    var tb=new THREE.Mesh(new THREE.CylinderGeometry(15,11,20,16),body); g.add(tb);
-    var tl=new THREE.Mesh(new THREE.CylinderGeometry(15.6,15.6,3,16),mat(0xff5aa0)); tl.position.y=11; g.add(tl);
-  } else if(it.t==="canTall"){              /* drink can: slim tall silver */
-    var ct=new THREE.Mesh(new THREE.CylinderGeometry(10,10,42,18),body); g.add(ct);
-    var tr=new THREE.Mesh(new THREE.CylinderGeometry(10.3,10.3,2,18),silver); tr.position.y=20; g.add(tr);
-  } else if(it.t==="canShort"){             /* tin can: short fat + paper label band */
-    var cs=new THREE.Mesh(new THREE.CylinderGeometry(15,15,24,18),silver); g.add(cs);
-    var lbl=new THREE.Mesh(new THREE.CylinderGeometry(15.3,15.3,15,18),mat(0xcf4030)); g.add(lbl);
-  } else if(it.t==="wine"){                 /* glass bottle: tall body + long neck */
-    var wb=new THREE.Mesh(new THREE.CylinderGeometry(11,11,30,16),body); wb.position.y=-4; g.add(wb);
-    var wsh=new THREE.Mesh(new THREE.CylinderGeometry(4,11,10,16),body); wsh.position.y=14; g.add(wsh);
-    var wn=new THREE.Mesh(new THREE.CylinderGeometry(4,4,16,12),body); wn.position.y=24; g.add(wn);
-    var wc=new THREE.Mesh(new THREE.CylinderGeometry(4.3,4.3,5,12),mat(0x7a5230)); wc.position.y=33; g.add(wc);
-  } else if(it.t==="jar"){                  /* glass jar: short wide + metal lid */
-    var jr=new THREE.Mesh(new THREE.CylinderGeometry(15,15,24,18),body); g.add(jr);
-    var jl=new THREE.Mesh(new THREE.CylinderGeometry(13,13,7,18),metalMat(0xcaa24a)); jl.position.y=14; g.add(jl);
-  } else if(it.t==="cup"){                  /* coffee cup: tapered + dome lid + sleeve */
-    var cu=new THREE.Mesh(new THREE.CylinderGeometry(13,9,30,16),body); g.add(cu);
-    var sl=new THREE.Mesh(new THREE.CylinderGeometry(13.4,12,9,16),mat(0xb98a5a)); sl.position.y=-2; g.add(sl);
-    var dome=new THREE.Mesh(new THREE.SphereGeometry(13,16,8,0,Math.PI*2,0,Math.PI/2),mat(0xffffff)); dome.position.y=15; g.add(dome);
-  } else if(it.t==="bag"){                  /* plastic bag: flat wavy + two handles */
-    var bg=new THREE.Mesh(new THREE.BoxGeometry(32,36,8),body); bg.scale.z=0.5; g.add(bg);
-    var hL=new THREE.Mesh(new THREE.TorusGeometry(6,1.8,8,14,Math.PI),body); hL.position.set(-7,20,0); g.add(hL);
-    var hR=new THREE.Mesh(new THREE.TorusGeometry(6,1.8,8,14,Math.PI),body); hR.position.set(7,20,0); g.add(hR);
-  } else if(it.t==="spam"){                 /* luncheon meat tin: rectangular metal + key */
-    var sp=new THREE.Mesh(new THREE.BoxGeometry(32,18,22),metalMat(it.col)); g.add(sp);
-    var trim=new THREE.Mesh(new THREE.BoxGeometry(33,3.5,23),metalMat(0xd4d8dd)); trim.position.y=9; g.add(trim);
-    var keyStem=new THREE.Mesh(new THREE.CylinderGeometry(1.5,1.5,7,8),metalMat(0xd4d8dd)); keyStem.position.set(11,12,0); g.add(keyStem);
-    var keyTab=new THREE.Mesh(new THREE.BoxGeometry(9,2,3),metalMat(0xd4d8dd)); keyTab.position.set(7,15,0); g.add(keyTab);
-  } else if(it.t==="bubbletea"){            /* bubble tea: clear cup + dome lid + straw + pearls */
-    var btMat=new THREE.MeshStandardMaterial({color:0xe9dcc4,flatShading:true,roughness:.25,metalness:.05,transparent:true,opacity:.85});
-    var bt=new THREE.Mesh(new THREE.CylinderGeometry(13,9,30,16),btMat); g.add(bt);
-    var dm=new THREE.Mesh(new THREE.SphereGeometry(13,16,8,0,Math.PI*2,0,Math.PI/2),new THREE.MeshStandardMaterial({color:0xffffff,flatShading:true,transparent:true,opacity:.45})); dm.position.y=15; g.add(dm);
-    var straw=new THREE.Mesh(new THREE.CylinderGeometry(2,2,36,8),mat(0xe0483f)); straw.position.set(4,15,0); straw.rotation.z=0.22; g.add(straw);
-    for(var pi=0;pi<5;pi++){ var pearl=new THREE.Mesh(new THREE.SphereGeometry(2.6,8,8),mat(0x241812)); pearl.position.set(-6+pi*3,-12,(pi%2?3:-3)); g.add(pearl); }
-  } else if(it.t==="carton"){               /* HK drink carton (Vita-style brick) + straw */
-    var cb=new THREE.Mesh(new THREE.BoxGeometry(20,34,15),body); g.add(cb);
-    var seam=new THREE.Mesh(new THREE.BoxGeometry(20.4,4,15.4),mat(0xcbb98a)); seam.position.y=15; g.add(seam);
-    var cstraw=new THREE.Mesh(new THREE.CylinderGeometry(1.5,1.5,28,8),mat(0xffffff)); cstraw.position.set(5,22,0); cstraw.rotation.z=0.18; g.add(cstraw);
-  } else { g.add(new THREE.Mesh(new THREE.BoxGeometry(28,28,28),body)); }
-  return g;
-}
-
-/* ================= item illustrations ================= */
-var OL="#2d2d2d", OLW=5;
-function hx(n){ return "#"+("000000"+n.toString(16)).slice(-6); }
-function rr(c,x,y,w,h,r){ c.beginPath(); c.moveTo(x+r,y); c.arcTo(x+w,y,x+w,y+h,r); c.arcTo(x+w,y+h,x,y+h,r); c.arcTo(x,y+h,x,y,r); c.arcTo(x,y,x+w,y,r); c.closePath(); }
-function fillIt(c,col){ c.fillStyle=col; c.fill(); }
-function outline(c){ c.strokeStyle=OL; c.lineWidth=OLW; c.stroke(); }
-function cjk(c,txt,x,y,size,col){ c.fillStyle=col||"#fff"; c.font="600 "+size+"px system-ui,'PingFang HK','PingFang TC','Microsoft JhengHei',sans-serif"; c.textAlign="center"; c.textBaseline="middle"; c.fillText(txt,x,y); }
-var ART={
-  news:function(c){ rr(c,45,42,130,150,10); fillIt(c,"#efeee7"); outline(c);
-    rr(c,45,42,130,30,10); fillIt(c,"#d8342e"); outline(c); cjk(c,"報紙",110,57,20,"#fff");
-    c.strokeStyle="#b9b6aa"; c.lineWidth=4; for(var i=0;i<7;i++){ c.beginPath(); c.moveTo(58,90+i*13); c.lineTo(162,90+i*13); c.stroke(); }
-    c.strokeStyle=OL; c.lineWidth=3; c.setLineDash([6,6]); c.beginPath(); c.moveTo(110,74); c.lineTo(110,190); c.stroke(); c.setLineDash([]); },
-  box:function(c){ c.beginPath(); c.moveTo(55,95); c.lineTo(150,95); c.lineTo(150,185); c.lineTo(55,185); c.closePath(); fillIt(c,"#b07a3c"); outline(c);
-    c.beginPath(); c.moveTo(55,95); c.lineTo(80,68); c.lineTo(175,68); c.lineTo(150,95); c.closePath(); fillIt(c,"#c8925a"); outline(c);
-    c.beginPath(); c.moveTo(150,95); c.lineTo(175,68); c.lineTo(175,158); c.lineTo(150,185); c.closePath(); fillIt(c,"#9c682f"); outline(c);
-    c.strokeStyle="#e6d9b8"; c.lineWidth=8; c.beginPath(); c.moveTo(102,95); c.lineTo(102,185); c.stroke(); },
-  mag:function(c,col){ rr(c,55,45,110,145,8); fillIt(c,col); outline(c);
-    rr(c,55,45,110,34,8); fillIt(c,"#ffffff"); outline(c); cjk(c,"雜誌",110,62,20,"#333");
-    rr(c,66,92,88,58,6); fillIt(c,"rgba(255,255,255,.8)"); outline(c);
-    c.strokeStyle="#ffffff"; c.lineWidth=4; for(var i=0;i<3;i++){c.beginPath();c.moveTo(66,164+i*9);c.lineTo(154,164+i*9);c.stroke();} },
-  bottle:function(c){ rr(c,98,40,24,16,4); fillIt(c,"#2b6bd0"); outline(c);
-    rr(c,100,54,20,16,4); fillIt(c,"#cfeaff"); outline(c);
-    rr(c,80,68,60,120,26); fillIt(c,"#cfeaff"); outline(c);
-    c.save(); rr(c,80,120,60,68,26); c.clip(); c.fillStyle="#7fc4ff"; c.fillRect(80,120,60,80); c.restore();
-    rr(c,80,122,60,32,4); fillIt(c,"#ffffff"); outline(c); cjk(c,"蒸餾水",110,138,16,"#1a6fb0"); },
-  jug:function(c,col){ rr(c,66,80,72,110,16); fillIt(c,col); outline(c);
-    c.beginPath(); c.arc(150,112,20,-1.15,1.15); c.lineWidth=13; c.strokeStyle=col; c.stroke(); c.lineWidth=OLW; c.strokeStyle=OL; c.stroke();
-    rr(c,86,56,20,26,4); fillIt(c,col); outline(c); rr(c,84,46,24,12,3); fillIt(c,"#ffffff"); outline(c);
-    rr(c,74,120,56,52,6); fillIt(c,"#ffffff"); outline(c); cjk(c,"洗潔精",102,146,15,"#2a8f6a"); },
-  tub:function(c){ c.beginPath(); c.moveTo(72,92); c.lineTo(148,92); c.lineTo(138,180); c.lineTo(82,180); c.closePath(); fillIt(c,"#f4f5f8"); outline(c);
-    c.beginPath(); c.ellipse(110,92,40,13,0,0,7); c.closePath(); fillIt(c,"#ff7db0"); outline(c); cjk(c,"乳酪",110,138,20,"#c94b86"); },
-  canTall:function(c){ c.save(); rr(c,82,60,56,130,14); c.clip();
-    c.fillStyle="#c9ccd2"; c.fillRect(82,60,56,130); c.fillStyle="#e14b4b"; c.fillRect(82,112,56,34); c.restore();
-    rr(c,82,60,56,130,14); outline(c); c.beginPath(); c.ellipse(110,62,26,7,0,0,7); fillIt(c,"#dfe2e7"); outline(c);
-    cjk(c,"汽水",110,129,18,"#fff"); },
-  spam:function(c){ rr(c,52,82,116,68,10); fillIt(c,"#7d94b5"); outline(c);
-    rr(c,52,72,116,16,7); fillIt(c,"#aeb9c9"); outline(c);
-    c.beginPath(); c.arc(150,68,8,0,7); fillIt(c,"#c9ced6"); outline(c);
-    c.strokeStyle=OL; c.lineWidth=6; c.beginPath(); c.moveTo(150,68); c.lineTo(172,68); c.stroke();
-    cjk(c,"午餐肉",110,118,20,"#fff"); },
-  wine:function(c){ rr(c,101,34,18,12,3); fillIt(c,"#6f4a2a"); outline(c);
-    rr(c,102,44,16,42,4); fillIt(c,"#3f9e6a"); outline(c);
-    c.beginPath(); c.moveTo(102,82); c.lineTo(82,112); c.lineTo(82,186); c.lineTo(138,186); c.lineTo(138,112); c.lineTo(118,82); c.closePath(); fillIt(c,"#3f9e6a"); outline(c);
-    c.strokeStyle="rgba(255,255,255,.5)"; c.lineWidth=6; c.beginPath(); c.moveTo(92,122); c.lineTo(92,176); c.stroke();
-    rr(c,86,132,48,38,4); fillIt(c,"#eafff3"); outline(c); cjk(c,"玻璃",110,151,16,"#2f8f5a"); },
-  jar:function(c){ rr(c,72,80,76,105,14); fillIt(c,"#cdeedd"); outline(c);
-    rr(c,80,58,60,26,6); fillIt(c,"#caa24a"); outline(c);
-    rr(c,78,112,64,42,6); fillIt(c,"#fff"); outline(c); cjk(c,"醬料",110,133,18,"#4a8f6a"); },
-  pizza:function(c){ rr(c,50,112,120,68,8); fillIt(c,"#caa46a"); outline(c);
-    c.beginPath(); c.moveTo(50,112); c.lineTo(70,62); c.lineTo(190,62); c.lineTo(170,112); c.closePath(); fillIt(c,"#d9b884"); outline(c);
-    c.beginPath(); c.moveTo(120,72); c.lineTo(152,102); c.lineTo(104,102); c.closePath(); fillIt(c,"#f0c04a"); outline(c);
-    c.fillStyle="#c0392b"; c.beginPath(); c.arc(124,90,4,0,7); c.fill(); c.beginPath(); c.arc(136,93,4,0,7); c.fill();
-    cjk(c,"薄餅",110,150,20,"#6b4a24"); },
-  bubbletea:function(c){ c.beginPath(); c.moveTo(74,88); c.lineTo(146,88); c.lineTo(136,186); c.lineTo(84,186); c.closePath(); fillIt(c,"#f0e6d2"); outline(c);
-    c.fillStyle="#241812"; for(var i=0;i<8;i++){ c.beginPath(); c.arc(92+(i%4)*16, 174-(i>3?11:0), 6,0,7); c.fill(); }
-    c.beginPath(); c.ellipse(110,88,38,13,0,0,7); fillIt(c,"rgba(255,255,255,.7)"); outline(c);
-    c.strokeStyle="#e0483f"; c.lineWidth=10; c.beginPath(); c.moveTo(128,48); c.lineTo(104,150); c.stroke();
-    cjk(c,"珍珠奶茶",110,122,14,"#5a3a1a"); },
-  bag:function(c){ c.strokeStyle=OL; c.lineWidth=OLW; c.beginPath(); c.arc(90,82,16,Math.PI,0); c.stroke(); c.beginPath(); c.arc(130,82,16,Math.PI,0); c.stroke();
-    c.beginPath(); c.moveTo(66,88); c.lineTo(154,88); c.lineTo(146,184); c.lineTo(74,184); c.closePath(); fillIt(c,"rgba(180,205,230,.85)"); outline(c);
-    c.strokeStyle="rgba(120,140,160,.6)"; c.lineWidth=3; c.beginPath(); c.moveTo(88,102); c.lineTo(96,176); c.stroke(); c.beginPath(); c.moveTo(122,102); c.lineTo(128,176); c.stroke();
-    cjk(c,"膠袋",110,136,18,"#3a5a78"); },
-  foam:function(c){ rr(c,56,120,108,54,8); fillIt(c,"#ffffff"); outline(c);
-    c.beginPath(); c.moveTo(56,120); c.lineTo(72,84); c.lineTo(180,84); c.lineTo(164,120); c.closePath(); fillIt(c,"#f1f3f6"); outline(c);
-    c.strokeStyle="#c9cfd6"; c.lineWidth=4; c.beginPath(); c.moveTo(110,124); c.lineTo(110,170); c.stroke();
-    cjk(c,"發泡膠飯盒",110,150,13,"#7a828c"); },
-  carton:function(c){ rr(c,74,66,72,120,8); fillIt(c,"#f2c94c"); outline(c);
-    rr(c,74,66,72,16,8); fillIt(c,"#e0b23a"); outline(c);
-    c.beginPath(); c.arc(110,122,20,0,7); fillIt(c,"#fff3b0"); outline(c);
-    c.strokeStyle="#e0a020"; c.lineWidth=3; for(var a=0;a<8;a++){ c.beginPath(); c.moveTo(110,122); c.lineTo(110+18*Math.cos(a*0.8),122+18*Math.sin(a*0.8)); c.stroke(); }
-    c.strokeStyle="#fff"; c.lineWidth=8; c.beginPath(); c.moveTo(150,40); c.lineTo(132,70); c.stroke(); c.strokeStyle=OL; c.lineWidth=3; c.beginPath(); c.moveTo(150,40); c.lineTo(132,70); c.stroke();
-    cjk(c,"檸檬茶",110,168,15,"#7a5a10"); },
-  _def:function(c,col){ rr(c,60,60,100,100,10); fillIt(c,col||"#ccc"); outline(c); }
-};
-function makeSprite(it){
-  var S=220, cv=document.createElement("canvas"); cv.width=S; cv.height=S; var c=cv.getContext("2d");
-  (ART[it.t]||ART._def)(c, hx(it.col));
-  var tex=new THREE.CanvasTexture(cv); tex.anisotropy=4;
-  var m=new THREE.MeshBasicMaterial({map:tex, transparent:true, side:THREE.DoubleSide, depthWrite:false});
-  return new THREE.Mesh(new THREE.PlaneGeometry(112,112), m);
-}
-
-/* ================= game state ================= */
-var G={score:0, round:0, running:false, roundEndAt:0, objs:[], pops:[], spawnT:0};
-var DIFF=DIFFS.relaxed;
-var BLADE={x:0,y:0,px:0,py:0,active:false, trail:[]};
-var controlMode="cam";
-
-/* ================= rounds ================= */
-function showOverlayFor(round){
-  var R=ROUNDS[round];
-  el("ovlR").textContent="Round "+(round+1)+" of "+ROUNDS.length;
-  el("ovlT").textContent=R.topic; el("ovlD").innerHTML=R.desc;
-  el("topicName").textContent=R.topic; el("topicDot").style.background=R.color;
-  el("roundN").textContent=(round+1)+"/"+ROUNDS.length;
-  el("ovlBtn").textContent = round===0 ? "Start round" : "Next round";
-  el("ovl").classList.remove("hidden");
-}
-function startRound(){ resize(); el("ovl").classList.add("hidden");
-  clearObjs(); G.pops=[]; BLADE.trail=[]; G.spawnT=0;
-  G.roundEndAt=performance.now()+DIFF.round; G.running=true; }
-function endRound(){ G.running=false; G.round++;
-  if(G.round>=ROUNDS.length) endGame(); else showOverlayFor(G.round); }
-function clearObjs(){ G.objs.forEach(function(o){ scene.remove(o.mesh); }); G.objs=[]; }
-
-function launchGame(){
-  G.score=0; G.round=0; el("scoreN").textContent=0;
-  show("play"); resize(); showOverlayFor(0);
-  if(controlMode==="cam") setupCam();
-  else if(controlMode==="mouse") setupMouse();
-  /* remote already connected before reaching here */
-}
-function endGame(){ G.running=false;
-  el("rScore").textContent=G.score;
-  el("rGrade").textContent = G.score>=300?"Recycling champion — you know your bins.":
-    G.score>=150?"Solid — but a few traps caught you.":
-    G.score>=0?"Getting there — watch the wishcycling traps.":"Ouch — those traps are sneaky. Try again!";
-  var f=el("rFacts"); f.innerHTML="";
-  FACTS.forEach(function(x){ var d=document.createElement("div"); d.className="fact"; d.textContent=x; f.appendChild(d); });
-  show("result");
-}
-
-/* ================= spawn / physics ================= */
-function spawn(){
-  var R=ROUNDS[G.round]; var wantCorrect=Math.random()<0.55;
-  var pool=ITEMS.filter(function(it){ return wantCorrect ? R.bins.indexOf(it.bin)>=0 : R.bins.indexOf(it.bin)<0; });
-  if(!pool.length) pool=ITEMS;
-  var it=pool[Math.floor(Math.random()*pool.length)];
-  var x=60+Math.random()*(W-120);
-  var vy=-(Math.sqrt(2*DIFF.g*Math.min(H,DIFF.h)))-Math.random()*0.1;
-  var vx=(W/2-x)/1100+(Math.random()-0.5)*0.14;
-  var mesh=makeSprite(it); scene.add(mesh);
-  G.objs.push({it:it,x:x,y:H+55,vx:vx,vy:vy,r:50,sliced:false,a:1,scale:1,
-    spin:(Math.random()-.5)*2, dspin:(Math.random()-.5)*0.05, phase:Math.random()*6, mesh:mesh});
-}
-function updatePhysics(dt){
-  for(var i=G.objs.length-1;i>=0;i--){
-    var o=G.objs[i];
-    o.vy+=DIFF.g*dt; o.x+=o.vx*dt; o.y+=o.vy*dt; o.spin+=o.dspin;
-    if(o.sliced){ o.a-=0.045; o.scale+=0.03; }
-    var w=toWorld(o.x,o.y);
-    o.mesh.position.set(w.x,w.y,0);
-    o.mesh.rotation.set(0.25*Math.sin(tnow*0.002+o.phase), 0, o.spin);
-    o.mesh.scale.setScalar(o.scale);
-    o.mesh.material.opacity=o.a;
-    if(o.y>H+100 || o.a<=0 || o.x<-120 || o.x>W+120){ scene.remove(o.mesh); G.objs.splice(i,1); }
-  }
-}
-
-/* ================= slicing ================= */
-function segHit(o,x1,y1,x2,y2){ var dx=x2-x1,dy=y2-y1,len2=dx*dx+dy*dy||1;
-  var t=Math.max(0,Math.min(1,((o.x-x1)*dx+(o.y-y1)*dy)/len2));
-  var px=x1+t*dx,py=y1+t*dy; return Math.hypot(o.x-px,o.y-py)<o.r+12; }
-function sliceAlong(x1,y1,x2,y2){
-  var R=ROUNDS[G.round];
-  for(var i=0;i<G.objs.length;i++){ var o=G.objs[i]; if(o.sliced) continue;
-    if(segHit(o,x1,y1,x2,y2)){ o.sliced=true; o.vy-=0.1;
-      var correct=R.bins.indexOf(o.it.bin)>=0, pts=correct?15:-12;
-      G.score=Math.max(-999,G.score+pts); el("scoreN").textContent=G.score;
-      G.pops.push({x:o.x,y:o.y,txt:(pts>0?"+":"")+pts,col:correct?"#248a3d":"#d70015",a:1}); } }
-}
-
-/* ================= controls ================= */
-var camStream=null, hands=null, mpCam=null, mouseHandler=null;
-function loadScript(src){ return new Promise(function(res,rej){ var s=document.createElement("script"); s.src=src; s.onload=res; s.onerror=rej; document.head.appendChild(s); }); }
-function setupMouse(){ var lastMove=0;
-  mouseHandler=function(e){ var r=stage.getBoundingClientRect(); BLADE.x=e.clientX-r.left; BLADE.y=e.clientY-r.top; lastMove=performance.now(); BLADE.active=true; };
-  stage.addEventListener("pointermove",mouseHandler);
-  setInterval(function(){ if(performance.now()-lastMove>90) BLADE.active=false; },60);
-}
-async function setupCam(){
-  el("cam").classList.remove("hidden"); el("camCap").classList.remove("hidden");
-  try{
-    await loadScript("https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js");
-    await loadScript("https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js");
-    hands=new Hands({locateFile:function(f){return "https://cdn.jsdelivr.net/npm/@mediapipe/hands/"+f;}});
-    hands.setOptions({maxNumHands:1,modelComplexity:0,minDetectionConfidence:0.6,minTrackingConfidence:0.6});
-    hands.onResults(function(res){ var lm=res.multiHandLandmarks&&res.multiHandLandmarks[0];
-      if(lm){ var tip=lm[8]; BLADE.x=(1-tip.x)*W; BLADE.y=tip.y*H; BLADE.active=true; } else BLADE.active=false; });
-    var v=el("cam"); mpCam=new Camera(v,{onFrame:async function(){ if(controlMode==="cam") await hands.send({image:v}); },width:640,height:480});
-    await mpCam.start(); camStream=v.srcObject;
-  }catch(err){ el("camCap").classList.add("hidden"); el("cam").classList.add("hidden"); controlMode="mouse"; setupMouse(); }
-}
-
-/* ================= phone controller (PeerJS) ================= */
-var peer=null, conn=null;
-function drawQR(link){
-  el("connUrl").textContent=link;
-  var box=el("qrbox"); box.innerHTML="";
-  try{
-    if(window.QRCode){ new QRCode(box,{text:link, width:224, height:224, correctLevel:QRCode.CorrectLevel.M}); }
-    else throw new Error("no lib");
-  }catch(e){
-    box.innerHTML='<div style="font-size:13px;color:#1d1d1f;max-width:220px;word-break:break-all">Open this link on your phone:<br><b>'+link+'</b></div>';
-  }
-}
-function hostStartConnect(){
-  show("connect");
-  if(location.protocol==="file:"){
-    el("qrbox").innerHTML='<div style="font-size:14px;color:#1d1d1f;max-width:250px;line-height:1.55;text-align:left">'+
-      'This game is open as a <b>local file</b>, so your phone can’t reach it yet.<br><br>'+
-      'Put it online first — in the <b>sorting-machine</b> folder run:<br>'+
-      '<span style="font-family:monospace;background:#f0f0f2;padding:2px 6px;border-radius:6px">npx vercel</span><br><br>'+
-      'Then open the web link it gives you and choose <b>Phone controller</b> again.</div>';
-    el("connStatus").innerHTML="Webcam and Mouse modes work right now, even locally.";
-    el("connGo").disabled=true; el("connGo").textContent="Needs a web link";
-    el("connUrl").textContent="";
-    return;
-  }
-  el("connGo").disabled=true; el("connGo").textContent="Waiting for phone…";
-  var myId="hkslice"+Math.random().toString(36).slice(2,9);
-  var url=new URL(location.href); url.search="?ctrl=1&host="+myId;
-  var link=url.toString();
-  drawQR(link);                                   /* show QR immediately */
-  el("connStatus").innerHTML="Scan with your phone camera. <b>Same Wi-Fi</b> works best.";
-  peer=new Peer(myId);
-  peer.on("open", function(){ /* broker ready; QR already shown */ });
-  peer.on("connection", function(c){ conn=c;
-    conn.on("open", function(){ el("connStatus").innerHTML="Phone <b>connected</b> — you're ready!"; el("connGo").disabled=false; el("connGo").textContent="Start game"; });
-    conn.on("data", function(d){ if(d&&d.type==="orient"){ applyRemote(d.g,d.b); } });
-    conn.on("close", function(){ el("connStatus").textContent="Phone disconnected."; });
-  });
-  peer.on("error", function(e){ el("connStatus").innerHTML="Network issue reaching the phone broker. The QR still works on the same Wi-Fi — or use Webcam/Mouse mode."; });
-}
-function applyRemote(g,b){ BLADE.x=Math.max(0,Math.min(W, W*(0.5+(g||0)/60))); BLADE.y=Math.max(0,Math.min(H, H*(((b||45)-15)/55))); BLADE.active=true; }
-
-/* controller role (phone) */
-function runController(){
-  el("app").querySelectorAll(".screen").forEach(function(s){ s.classList.add("hidden"); });
-  el("controller").classList.remove("hidden");
-  var host=qs.get("host"); var cpeer=null, cconn=null, sending=false;
-  el("ctrlConnect").addEventListener("click", function(){
-    el("ctrlStatus").textContent="Connecting…";
-    function connectPeer(){
-      cpeer=new Peer();
-      cpeer.on("open", function(){ cconn=cpeer.connect(host,{reliable:false});
-        cconn.on("open", function(){ el("ctrlStatus").innerHTML="Connected — <b>tilt to play</b>"; sending=true; });
-        cconn.on("error", function(){ el("ctrlStatus").textContent="Couldn't reach the game."; });
-      });
-      cpeer.on("error", function(){ el("ctrlStatus").textContent="Connection error. Same Wi-Fi as the laptop?"; });
-    }
-    function startMotion(){ window.addEventListener("deviceorientation", function(e){
-        var g=e.gamma||0, b=e.beta||45;
-        el("dot").style.left=(50+g/60*50)+"%"; el("dot").style.top=((b-15)/55*100)+"%";
-        if(sending&&cconn&&cconn.open) cconn.send({type:"orient", g:g, b:b});
-      }); }
-    if(typeof DeviceOrientationEvent!=="undefined" && typeof DeviceOrientationEvent.requestPermission==="function"){
-      DeviceOrientationEvent.requestPermission().then(function(p){ if(p==="granted"){ startMotion(); connectPeer(); } else el("ctrlStatus").textContent="Motion permission denied."; }).catch(function(){ el("ctrlStatus").textContent="Motion unavailable on this phone/browser."; });
-    } else { startMotion(); connectPeer(); }
-  });
-}
-
-/* ================= main loop ================= */
-var last=performance.now(), tnow=0;
-function loop(now){
-  var dt=Math.min(48,now-last); last=now; tnow=now;
-  if(G.running){
-    var timeLeft=Math.max(0,G.roundEndAt-now); el("timeFill").style.width=(timeLeft/DIFF.round*100)+"%";
-    G.spawnT-=dt; if(G.spawnT<=0){ spawn(); if(Math.random()<DIFF.dbl) spawn(); G.spawnT=DIFF.spawnMin+Math.random()*DIFF.spawnRange; }
-    updatePhysics(dt);
-    if(BLADE.active){ sliceAlong(BLADE.px,BLADE.py,BLADE.x,BLADE.y); BLADE.trail.push({x:BLADE.x,y:BLADE.y,t:now}); }
-    BLADE.px=BLADE.x; BLADE.py=BLADE.y;
-    if(timeLeft<=0 && G.objs.length<3) endRound();
-  }
-  if(renderer) renderer.render(scene,camera);
-  drawFx(now);
-  requestAnimationFrame(loop);
-}
-function roundedText(txt,x,y){
-  fxc.font="600 13px "+getComputedStyle(document.body).fontFamily;
-  var w=fxc.measureText(txt).width+16, h=22;
-  fxc.fillStyle="rgba(255,255,255,.92)"; fxc.strokeStyle="rgba(0,0,0,.08)"; fxc.lineWidth=1;
-  var rx=x-w/2, ry=y-h/2, rr=11;
-  fxc.beginPath();
-  fxc.moveTo(rx+rr,ry); fxc.arcTo(rx+w,ry,rx+w,ry+h,rr); fxc.arcTo(rx+w,ry+h,rx,ry+h,rr);
-  fxc.arcTo(rx,ry+h,rx,ry,rr); fxc.arcTo(rx,ry,rx+w,ry,rr); fxc.closePath(); fxc.fill(); fxc.stroke();
-  fxc.fillStyle="#1d1d1f"; fxc.textAlign="center"; fxc.textBaseline="middle"; fxc.fillText(txt,x,y);
-}
-function drawFx(now){
-  fxc.clearRect(0,0,W,H);
-  /* item name labels */
-  if(G.running){ for(var i=0;i<G.objs.length;i++){ var o=G.objs[i]; if(o.a<0.5) continue; roundedText(o.it.n, o.x, o.y+o.r+4); } }
-  /* score pops */
-  for(var k=G.pops.length-1;k>=0;k--){ var p=G.pops[k]; p.y-=1.1; p.a-=0.02;
-    fxc.save(); fxc.globalAlpha=Math.max(0,p.a); fxc.fillStyle=p.col;
-    fxc.font="700 26px "+getComputedStyle(document.body).fontFamily; fxc.textAlign="center"; fxc.textBaseline="middle";
-    fxc.fillText(p.txt,p.x,p.y); fxc.restore(); if(p.a<=0) G.pops.splice(k,1); }
-  /* blade trail */
-  BLADE.trail=BLADE.trail.filter(function(b){return now-b.t<140});
-  if(BLADE.trail.length>1){ fxc.lineCap="round"; fxc.lineJoin="round";
-    for(var b=1;b<BLADE.trail.length;b++){ var a=BLADE.trail[b-1],c=BLADE.trail[b];
-      fxc.strokeStyle="rgba(0,113,227,"+(b/BLADE.trail.length*0.75)+")"; fxc.lineWidth=b/BLADE.trail.length*12+1;
-      fxc.beginPath(); fxc.moveTo(a.x,a.y); fxc.lineTo(c.x,c.y); fxc.stroke(); } }
-  /* clear blade marker for cam/remote */
-  if((controlMode==="cam"||controlMode==="remote") && BLADE.active){
-    fxc.save();
-    fxc.strokeStyle="rgba(0,113,227,.9)"; fxc.lineWidth=3; fxc.beginPath(); fxc.arc(BLADE.x,BLADE.y,20,0,7); fxc.stroke();
-    fxc.fillStyle="rgba(0,113,227,.95)"; fxc.beginPath(); fxc.arc(BLADE.x,BLADE.y,6,0,7); fxc.fill();
-    roundedText(controlMode==="cam"?"✋ your hand":"📱 your blade", BLADE.x, BLADE.y-30);
-    fxc.restore();
-  }
-}
-
-/* ================= screens/wire ================= */
-function show(id){ ["start","connect","controller","play","result"].forEach(function(s){ el(s).classList.toggle("hidden", s!==id); }); }
-document.querySelectorAll(".opt").forEach(function(o){ o.addEventListener("click", function(){
-  document.querySelectorAll(".opt").forEach(function(x){x.classList.remove("sel")}); o.classList.add("sel"); controlMode=o.dataset.mode; }); });
-document.querySelectorAll("#diffSeg button").forEach(function(bn){ bn.addEventListener("click", function(){
-  document.querySelectorAll("#diffSeg button").forEach(function(x){x.classList.remove("on")}); bn.classList.add("on"); DIFF=DIFFS[bn.dataset.d]; }); });
-
-el("playBtn").addEventListener("click", function(){
-  if(controlMode==="remote") hostStartConnect(); else launchGame();
-});
-el("connGo").addEventListener("click", function(){ launchGame(); });
-el("connBack").addEventListener("click", function(){ if(peer)peer.destroy(); show("start"); });
-el("ovlBtn").addEventListener("click", startRound);
-el("againBtn").addEventListener("click", function(){ show("start"); });
-
-/* ================= boot ================= */
-initThree(); resize(); requestAnimationFrame(loop);
-if(IS_CONTROLLER){ runController(); }
-</script>
+<script src="https://cdn.jsdelivr.net/npm/mqtt@5/dist/mqtt.min.js"></script>
+<script src="js/game.js"></script>
 </body>
 </html>

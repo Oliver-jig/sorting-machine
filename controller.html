@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Slice &amp; Sort — Phone controller</title>
+<style>
+  :root{ --ink:#173a2a; --muted:#5a7c6b; --line:#cfe6d6; --green:#20a45a; --green-d:#15803f; --green-l:#39c574;
+    --surface:#fff; --bg:#eafaf0; --font:'Fredoka',-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif; }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:radial-gradient(900px 600px at 50% -20%,#bfe9ff,#eafaf0 60%); color:var(--ink); font-family:var(--font);
+    -webkit-user-select:none; user-select:none; display:flex; align-items:center; justify-content:center; padding:16px}
+  .card{background:var(--surface); border-radius:26px; box-shadow:0 8px 24px rgba(20,60,40,.12); border:1px solid #e3f1e7; padding:28px 22px; max-width:420px; width:100%; text-align:center}
+  .eyebrow{display:inline-block; color:var(--green-d); background:#e4f7ea; border-radius:999px; padding:5px 14px; font-size:13px; font-weight:600}
+  h1{font-size:30px; font-weight:700; margin:10px 0 0}
+  p{color:var(--muted); font-size:15px; line-height:1.5; margin:10px 0 0}
+  input{font-family:inherit; font-size:30px; text-align:center; letter-spacing:8px; width:180px; padding:12px; margin:14px 0 4px;
+    border:2px solid var(--line); border-radius:16px; background:#fbfffc; color:var(--ink)}
+  .btn{font-family:inherit; background:linear-gradient(180deg,var(--green-l),var(--green)); color:#fff; border:none;
+    border-bottom:4px solid var(--green-d); border-radius:16px; padding:15px 26px; font-size:17px; font-weight:600; width:100%; margin-top:10px}
+  .btn:active{transform:translateY(3px); border-bottom-width:1px}
+  .btn.sub{background:#fff; color:var(--ink); border:2px solid var(--line); border-bottom:4px solid var(--line); font-size:14px; padding:11px}
+  #pad{width:min(70vw,280px); height:min(70vw,280px); background:#f2fbf5; border:2px solid var(--line); border-radius:22px; position:relative; margin:16px auto 4px; overflow:hidden}
+  #pad .cross{position:absolute; background:#d8ecdf} #pad .cx{left:0;right:0;top:50%;height:2px} #pad .cy{top:0;bottom:0;left:50%;width:2px}
+  #dot{position:absolute; width:46px; height:46px; border-radius:50%; background:var(--green); box-shadow:0 2px 8px rgba(20,120,60,.35); transform:translate(-50%,-50%); left:50%; top:50%}
+  #status{font-size:15px; color:var(--muted); margin-top:12px; min-height:20px} #status b{color:var(--ink)}
+  .fine{font-size:12px; color:var(--muted); margin-top:12px}
+  #rotate{display:none; margin-top:12px; padding:10px; border-radius:14px; background:#fff3d6; color:#7a5a12; font-size:14px; font-weight:600}
+
+  /* held sideways like a knife: two columns so the whole card fits a landscape phone */
+  @media (orientation:landscape){
+    body{padding:8px}
+    .card{max-width:none; padding:16px 20px; display:flex; gap:22px; align-items:center; text-align:left}
+    .col{flex:1 1 0; min-width:0}
+    h1{font-size:23px; margin:6px 0 0} p{font-size:13px; margin:6px 0 0}
+    input{font-size:24px; width:150px; padding:8px; margin:8px 0 2px; letter-spacing:6px}
+    .btn{padding:11px 18px; font-size:15px; margin-top:8px}
+    .btn.sub{padding:9px; font-size:13px}
+    #pad{width:min(46vh,190px); height:min(46vh,190px); margin:0 auto}
+    #dot{width:36px;height:36px}
+    #status{font-size:13px; margin-top:8px; text-align:center}
+    .fine{margin-top:8px; text-align:center}
+  }
+  /* once you're playing, portrait is the wrong grip — say so */
+  body.playing #pad, body.playing .setup{display:none}
+  @media (orientation:portrait){ body.playing #rotate{display:block} }
+  @media (orientation:landscape){ body.playing #pad{display:block} }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="col">
+      <div class="eyebrow">Phone controller</div>
+      <h1>Slash to slice</h1>
+      <p>Type the code, then <b>turn your phone sideways</b> and hold it in one hand like a knife handle. <b>Slash</b> — flick fast to sweep the blade across, hold still and it settles back to the middle.</p>
+      <div class="setup"><input id="code" inputmode="numeric" maxlength="4" placeholder="0000" /></div>
+      <button class="btn setup" id="go">Connect &amp; enable motion</button>
+      <button class="btn sub" id="recenter">Re-centre blade</button>
+    </div>
+    <div class="col">
+      <div id="pad"><div class="cross cx"></div><div class="cross cy"></div><div id="dot"></div></div>
+      <div id="rotate">↻ Turn your phone sideways and grip it like a knife.</div>
+      <div id="status">Not connected</div>
+      <div class="fine">build 22 · direct</div>
+    </div>
+  </div>
+
+<script src="https://cdn.jsdelivr.net/npm/mqtt@5/dist/mqtt.min.js"></script>
+<script>
+  var BROKER="wss://broker.emqx.io:8084/mqtt";
+  var qs=new URLSearchParams(location.search);
+  var codeEl=document.getElementById("code");
+  codeEl.value=((qs.get("room")||qs.get("peer")||"").replace(/[^0-9]/g,"")).slice(0,4);
+  var s=document.getElementById("status"), dot=document.getElementById("dot");
+  var client=null, room=null, sending=false, lastPub=0;
+  var pc=null, dc=null, dcReady=false;
+  var CICE={iceServers:[{urls:"stun:stun.l.google.com:19302"},{urls:"turn:openrelay.metered.ca:80",username:"openrelayproject",credential:"openrelayproject"}]};
+  function pub(o){ if(client&&client.connected) client.publish("slicesort/"+room, JSON.stringify(o), {qos:0}); }
+
+  function setStatus(t){ s.innerHTML=t; }
+  function moveDot(px,py){ dot.style.left=Math.max(0,Math.min(100,px*100))+"%"; dot.style.top=Math.max(0,Math.min(100,py*100))+"%"; }
+
+  /* GYROSCOPE — relative "slash" control.
+     The blade moves by how far and how FAST you swing, not by the angle you hold the
+     phone at. That's the difference between aiming a laser pointer and swinging a knife:
+     a flick throws the blade across the screen, it coasts to a stop, and it drifts back
+     to the middle when you hold still — so you never have to hold an awkward pose, and
+     you can slash from any comfortable grip. */
+  /* Tuning note: FRICTION makes the velocity integrator accumulate, multiplying GAIN by
+     1/(1-FRICTION) ~= 5.5x. GAIN looks tiny for that reason — raise it and the blade goes
+     hair-trigger. At these values a hard slash (~35deg) sweeps the full screen, a gentle
+     flick (~12deg) moves about a fifth of it, and hand tremor doesn't move it at all. */
+  var GAIN=0.0025;     /* screen-widths of throw per degree of swing */
+  var BOOST=2.0;       /* extra throw on a fast slash (0 = perfectly linear) */
+  var FRICTION=0.82;   /* how quickly the blade coasts to a stop */
+  var RECENTER=0.020;  /* pull back to the middle when the phone is still */
+  var MAXSTEP=25;      /* deg/frame ceiling — rejects gimbal flips near vertical */
+  var bx=0.5, by=0.5, vx=0, vy=0;          /* blade position + velocity, 0..1 of the screen */
+  var hx=0, hy=0, hxP=null, hyP=null, haveOrient=false;
+
+  function onOrient(e){
+    var beta=e.beta||0, gamma=e.gamma||0;
+    /* held sideways like a knife: pick axes by screen rotation so left/right + up/down stay natural */
+    var ang=(screen.orientation&&typeof screen.orientation.angle==="number")?screen.orientation.angle:(window.orientation||0);
+    if(ang===90){ hx=beta;  hy=-gamma; }                  /* landscape, rotated one way */
+    else if(ang===270||ang===-90){ hx=-beta; hy=gamma; }  /* landscape, rotated the other way */
+    else { hx=gamma; hy=beta; }                           /* portrait fallback */
+    haveOrient=true;
+  }
+  function wrapDeg(d){ while(d>180)d-=360; while(d<-180)d+=360; return d; }
+
+  /* one steady loop so damping doesn't depend on the sensor's event rate */
+  function tick(){
+    requestAnimationFrame(tick);
+    if(!haveOrient) return;
+    if(hxP===null){ hxP=hx; hyP=hy; return; }
+    var dx=wrapDeg(hx-hxP), dy=wrapDeg(hy-hyP);
+    hxP=hx; hyP=hy;
+    if(Math.abs(dx)>MAXSTEP) dx=0;                        /* sensor glitch, not a swing */
+    if(Math.abs(dy)>MAXSTEP) dy=0;
+    var boost=1+Math.min(BOOST, Math.sqrt(dx*dx+dy*dy)/6);  /* fast slashes carry further */
+    vx+=dx*GAIN*boost; vy+=dy*GAIN*boost;
+    vx*=FRICTION; vy*=FRICTION;
+    bx+=vx; by+=vy;
+    if(bx<0){ bx=0; vx*=-0.25; } if(bx>1){ bx=1; vx*=-0.25; }   /* soft bounce off the edges */
+    if(by<0){ by=0; vy*=-0.25; } if(by>1){ by=1; vy*=-0.25; }
+    bx+=(0.5-bx)*RECENTER; by+=(0.5-by)*RECENTER;
+    moveDot(bx,by);
+    sendBlade();
+  }
+  /* wire format is unchanged: the host's applyRemote() maps g:-30..30 -> x, b:15..70 -> y */
+  function sendBlade(){
+    var now=Date.now(); if(now-lastPub<16) return; lastPub=now;
+    var gg=(bx-0.5)*60, bb=15+by*55;
+    if(dc && dc.readyState==="open"){ try{ dc.send(JSON.stringify({g:gg,b:bb})); }catch(e){} }        /* direct link — low latency */
+    else if(sending && client && client.connected){ client.publish("slicesort/"+room, JSON.stringify({from:"ctrl",type:"orient", g:gg, b:bb}), {qos:0}); }  /* relay fallback */
+  }
+  function startMotion(){ window.addEventListener("deviceorientation", onOrient); requestAnimationFrame(tick); }
+  document.getElementById("recenter").addEventListener("click", function(){ bx=0.5; by=0.5; vx=0; vy=0; setStatus("Re-centred — <b>slash to slice</b>"); });
+
+  function connect(){
+    setStatus("Reaching the game…");
+    if(typeof mqtt==="undefined"){ setStatus("Couldn't load the relay — check internet and reload."); return; }
+    client=mqtt.connect(BROKER,{clientId:"ctrl_"+room+"_"+Math.random().toString(16).slice(2,8), reconnectPeriod:2500, connectTimeout:9000});
+    client.on("connect", function(){ sending=true; client.subscribe("slicesort/"+room); pub({from:"ctrl",type:"hello"}); document.body.className="playing"; setStatus("Connected — <b>slash to slice</b>"); startWebRTC(); });
+    client.on("message", function(t, payload){ var d; try{ d=JSON.parse(payload.toString()); }catch(e){ return; }
+      if(d.from==="ctrl") return;                                   /* ignore our own echoed messages */
+      if(d.type==="answer" && pc){ try{ pc.setRemoteDescription(d.sdp); }catch(e){} }
+      else if(d.type==="ice" && pc){ try{ pc.addIceCandidate(d.cand); }catch(e){} }
+    });
+    client.on("reconnect", function(){ setStatus("Reconnecting…"); });
+    client.on("error", function(){ document.body.className=""; setStatus("Relay error — check your internet, then reload."); });
+  }
+  function startWebRTC(){
+    if(typeof RTCPeerConnection==="undefined") return;             /* stays on relay if WebRTC unsupported */
+    try{
+      pc=new RTCPeerConnection(CICE);
+      dc=pc.createDataChannel("m",{ordered:false, maxRetransmits:0});   /* unreliable = lowest latency */
+      dc.onopen=function(){ dcReady=true; setStatus("Connected <b>(fast direct link)</b> — slash to slice"); };
+      dc.onclose=function(){ dcReady=false; };
+      pc.onicecandidate=function(e){ if(e.candidate) pub({from:"ctrl", type:"ice", cand:e.candidate}); };
+      pc.createOffer().then(function(o){ return pc.setLocalDescription(o); }).then(function(){ pub({from:"ctrl", type:"offer", sdp:pc.localDescription}); }).catch(function(){});
+    }catch(e){}
+  }
+  document.getElementById("go").addEventListener("click", function(){
+    room=(codeEl.value||"").replace(/[^0-9]/g,"");
+    if(!/^[0-9]{4}$/.test(room)){ setStatus("Enter the 4-digit code from the laptop."); codeEl.focus(); return; }
+    setStatus("Enabling motion…");
+    if(typeof DeviceOrientationEvent!=="undefined" && typeof DeviceOrientationEvent.requestPermission==="function"){
+      DeviceOrientationEvent.requestPermission().then(function(p){
+        if(p==="granted"){ startMotion(); connect(); } else setStatus("Motion was blocked. Reload the page and tap Allow when asked.");
+      }).catch(function(){ setStatus("Motion needs an https page. Make sure you opened the vercel.app link."); });
+    } else { startMotion(); connect(); }
+  });
+</script>
+</body>
+</html>

@@ -1,78 +1,96 @@
-# Slice & Sort 3D — SDG 12 (Responsible Consumption)
+# Slice & Sort 3D — SDG 12 (Responsible Consumption & Production)
 
-A 3D arcade slicer about Hong Kong recycling. Low-poly objects fly up; you slice
-the ones that fit the round's bin. Slice a wrong item and you lose marks. Four
-rounds, each a recycling category — the last is the "wishcycling traps" round.
+A browser arcade slicer about Hong Kong recycling. 3D objects fly up; you slice
+the ones that belong in the round's bin and leave the rest. Built for the
+**tramplus SDG Sprint** around **SDG 12: Responsible Consumption & Production** —
+its theme colour (amber-gold #BF8B2E) and circular-economy loop run through the
+whole interface.
 
-**Headline lesson:** knowing the real bins matters — the traps (greasy pizza box,
-coffee cup, plastic bag, foam, cartons) aren't recyclable, even though people
-throw them in hoping they count.
+**Headline lesson:** knowing the real bins matters. The "wishcycling traps"
+(greasy pizza box, coffee cup, plastic bag, foam, drink cartons) aren't
+recyclable in Hong Kong, even though people bin them hoping they count.
 
-## Play it three ways (chosen on the start screen)
+## Four game modes
 
-- **Webcam hand** — your hand is tracked (MediaPipe) and becomes the blade; move
-  it to slice. An on-screen "✋ your hand" marker shows exactly what's tracked
-  (it follows your index fingertip). Runs entirely in your browser.
-- **Phone controller** — the laptop shows a QR code; scan it with your phone and
-  your phone becomes a motion controller, tilting to move the blade on the big
-  screen (see below).
-- **Mouse / touch** — move (or swipe on a touchscreen) to slice. Always works;
-  the reliable fallback for demos.
+- **Sort** — four rounds, each a recycling category (Paper, Plastic, Metal &
+  Glass, then the traps). Slice items that fit the round's bin; wrong slice loses
+  marks.
+- **Quiz** — a question appears and possible answers fly up Fruit-Ninja style.
+  Slice the correct one. Sudden death; the correct answer is shown if you miss.
+- **Defend** — waste rains down toward the bins. Slice the trash, spare the
+  recyclables. Three lives; a small penalty for cutting a recyclable.
+- **Versus** — split screen, two webcam hands, 60-second race. A rotating target
+  topic banner tells both players what to slice; +1 for a match, −1 for a miss.
 
-There's also a **Relaxed / Normal speed** toggle on the start screen. Relaxed
-makes objects float slower and hang in the air longer — much easier to cut.
+## Three ways to play (chosen on the start screen)
 
-## Phone controller — how the scan-and-connect works
+- **Webcam hand** — your hand is tracked (MediaPipe) and becomes the blade.
+  Runs entirely in your browser; nothing is uploaded.
+- **Phone controller** — the laptop shows a QR code; scan it and your phone
+  becomes a motion controller. Hold it sideways like a TV remote and swing to
+  move the blade (see below).
+- **Mouse / touch** — move or swipe to slice. The reliable fallback for demos.
 
-1. Deploy the game (Vercel) so it's on an `https://` link, and open that link on
-   your **laptop**. Choose "Phone controller" and press Start game.
-2. A **QR code** appears. Scan it with your phone camera — it opens a small
-   controller page (the same site with `?ctrl=1`).
-3. On the phone, tap **Connect & enable motion** (grant motion permission on
-   iOS). The laptop shows "Phone connected"; press **Start game**.
-4. Tilt your phone to move the blade on the laptop screen.
+A **Relaxed / Normal** speed toggle sets how fast objects float.
 
-The link is peer-to-peer using **PeerJS** (a free hosted broker — no server for
-you to run). Phone and laptop on the **same Wi-Fi** connect most reliably. This
-feature needs `https`, so it won't work from a double-clicked local file — deploy
-it first. Mouse and webcam modes still work locally.
+## Project structure
 
-## Rounds
+```
+slice-sort-3d/
+├── index.html        game page (structure only)
+├── controller.html   phone controller page
+├── css/
+│   └── styles.css    all styling (base layout + SDG 12 theme)
+├── js/
+│   └── game.js       game engine (3D, slicing, all four modes, phone link)
+├── package.json
+├── vercel.json
+├── LICENSE
+└── README.md
+```
 
-1. **Paper** — newspaper, cardboard, magazines (blue bin).
-2. **Plastic** — bottles and rinsed tubs (brown bin).
-3. **Metal & Glass** — cans (yellow bin) and glass (green points).
-4. **Spot the traps** — slice only the items that CAN'T be recycled.
-
-Correct item = +15, wrong item = −12.
-
-## Tech
-
-- **Three.js** (r128, from CDN) renders the low-poly 3D items — every model is
-  built from primitives in `makeMesh()` (bottle = cylinders, box = cube, etc.),
-  coloured by material. No external model files.
-- Physics and slicing run in screen space over the 3D scene, so all three control
-  modes share the same blade logic.
-- MediaPipe Hands + camera utils load from CDN only when webcam mode is chosen.
+The CSS and JavaScript were factored out of `index.html` into `css/` and `js/`.
+There's no build step — the browser loads the files directly.
 
 ## Run it
 
-Single self-contained `index.html`.
+- **Locally:** from this folder run `npm start` (serves on
+  `http://localhost:8137`) or `python3 -m http.server 8137`, then open the link.
+  Webcam and phone modes need `https` or `localhost` for camera/motion access, so
+  serve it — don't just double-click the file.
+- **Deploy to Vercel:** drag the folder into Vercel, or run `vercel`. It's static,
+  no configuration needed. Deploying gives you the `https` link the phone
+  controller requires.
 
-- **Mouse mode:** just double-click `index.html`.
-- **Webcam / phone modes:** need `https` or `localhost` (browsers require it for
-  camera and motion). Serve with `python3 -m http.server`, or deploy to Vercel
-  (static, no config) and open on your phone/laptop.
+## Phone controller — how scan-and-connect works
 
-## Customising
+1. Open the deployed `https` link on your **laptop**, choose "Phone controller",
+   press Start.
+2. A **QR code** appears. Scan it with your phone to open the controller page.
+3. Tap **Connect & enable motion** (grant motion permission on iOS). The laptop
+   shows the phone connected; press Start.
+4. Hold the phone sideways and swing it to move the blade on the big screen.
 
-- Items: `ITEMS` array (name, 3D type, bin, colour).
-- Rounds: `ROUNDS` array (topic, which bins count, colour, blurb).
-- New 3D shapes: add a branch in `makeMesh()`.
-- Timing/scoring: `ROUND_MS` and the `pts` values in `sliceAlong()`.
+Signalling and low-latency motion run over an MQTT relay plus a WebRTC data
+channel (with a relay fallback), so there's no server for you to host.
+
+## Tech
+
+- **Three.js** (r128, CDN) renders the 3D items as camera-facing textured sprites
+  drawn on a canvas — no external model files.
+- A 2D canvas overlay draws slice particles, blade trails, quiz cards, and the
+  versus split UI.
+- **MediaPipe Hands** (CDN, loaded only for webcam mode) tracks the index
+  fingertip as the blade.
+- Phone link: WebRTC over an MQTT relay (`broker.emqx.io`), plus the
+  DeviceOrientation API for motion.
 
 ## Data
 
-Bin categories from Hong Kong's EPD tricolour system (blue paper, yellow metal,
+Bin categories follow Hong Kong's EPD tricolour system (blue paper, yellow metal,
 brown plastic) plus separate green glass collection points. Hong Kong landfills
-receive over 11,000 tonnes of waste per day.
+receive over 11,000 tonnes of municipal solid waste per day.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
