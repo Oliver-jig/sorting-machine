@@ -10,10 +10,10 @@ Production)** — a Fruit-Ninja-style slicer about Hong Kong recycling. No build
 step, no framework, no backend. It's plain HTML + CSS + JavaScript with a few
 CDN libraries. Deployed as a static site (Vercel).
 
-Current state: **build 24** (SDG 12 amber theme, code split into `css/` + `js/`,
+Current state: **build 25** (SDG 12 amber theme, code split into `css/` + `js/`,
 phone controller reworked to landscape "slash" control, Quiz rebuilt and Defend
 replaced by the "Bin It" sorting mode, pause available in every mode,
-Fruit-Ninja-style special items in Sort).
+Fruit-Ninja-style special items in Sort, score saving + Firestore leaderboard).
 The build number is stamped in the start-screen note — see "Build stamping".
 
 ## File map
@@ -34,7 +34,11 @@ js/mode-quiz.js   Quiz only: QUIZ data, Q state, launch/next/update/slice/draw.
 js/mode-defend.js "Bin It" sorting mode only: DBINS/DCFG/WAVES, TS state, bin
                   geometry (binRects/binAt) and the steering slice.
 js/specials.js    Sort-mode power-ups: SPECIALS/SPCFG data, PWR effect timers,
-                  spawn/slice/update/draw, and their ART entries. Loads LAST.
+                  spawn/slice/update/draw, and their ART entries.
+js/scores.js      Personal best (localStorage) + shared leaderboard (Firestore
+                  REST, no SDK). Loads LAST. Fill FB.projectId/apiKey to enable
+                  the leaderboard — see FIREBASE-SETUP.md.
+FIREBASE-SETUP.md 5-minute leaderboard setup + the security rules to paste.
 package.json      npm start = python http.server on :8137.
 vercel.json       Static config (cleanUrls).
 README.md         Player- and deployer-facing docs.

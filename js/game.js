@@ -270,6 +270,7 @@ function endGame(){ G.running=false;
     G.score>=0?"Getting there — watch the wishcycling traps.":"Ouch — those traps are sneaky. Try again!";
   var f=el("rFacts"); f.innerHTML="";
   FACTS.forEach(function(x){ var d=document.createElement("div"); d.className="fact"; d.textContent=x; f.appendChild(d); });
+  scoresRecord("sort", G.score);
   show("result");
 }
 
@@ -437,6 +438,7 @@ function vsGameOver(){
   el("rScore").textContent=VS.s1+" – "+VS.s2;
   el("rGrade").textContent=winner;
   var f=el("rFacts"); f.innerHTML=""; var d=document.createElement("div"); d.className="fact"; d.textContent="Slice recyclables (+1) and avoid trash (−1) — most points in 60 seconds wins."; f.appendChild(d);
+  scoresHidePanel();                      /* two players on one screen — a personal best has no meaning here */
   show("result");
 }
 function drawTrail(trail, now, rgb){
