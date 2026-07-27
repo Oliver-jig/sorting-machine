@@ -122,6 +122,30 @@
   .fact{background:var(--panel2); border:1px solid var(--line)}
   @media (prefers-reduced-motion: reduce){ *{transition:none !important} .opt:hover,.btn:active{transform:none} }
 
+  /* "Your best" bar on the start screen */
+  .bestbar{ display:flex; align-items:center; justify-content:center; gap:8px; flex-wrap:wrap;
+    margin:12px 0 2px; padding:8px 12px; border-radius:999px;
+    background:rgba(191,139,46,.10); border:1px solid var(--line) }
+  .bestLbl{ font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); font-weight:600 }
+  .bestItem{ font-size:14px; color:var(--ink) }
+  .bestItem b{ font-variant-numeric:tabular-nums }
+
+  /* leaderboard on the result screen */
+  .lb{ margin-top:14px; padding:14px; border-radius:16px; background:var(--panel2); border:1px solid var(--line); text-align:left }
+  .lbHead{ font-weight:700; font-size:15px; margin-bottom:8px; color:var(--ink) }
+  .lbList{ list-style:none; margin:0 0 10px; padding:0; max-height:230px; overflow-y:auto }
+  .lbList li{ display:flex; align-items:center; gap:10px; padding:5px 8px; border-radius:9px; font-size:15px }
+  .lbList li:nth-child(odd){ background:rgba(191,139,46,.07) }
+  .lbRank{ width:22px; text-align:right; color:var(--muted); font-variant-numeric:tabular-nums }
+  .lbName{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+  .lbScore{ font-weight:700; font-variant-numeric:tabular-nums }
+  .lbRow{ display:flex; align-items:center; gap:8px; flex-wrap:wrap }
+  .lbLbl{ font-size:13px; color:var(--muted) }
+  .lbRow input{ flex:1; min-width:120px; font-family:inherit; font-size:15px; padding:9px 12px;
+    border:2px solid var(--line); border-radius:12px; background:#fff; color:var(--ink) }
+  .lbRow .btn{ width:auto; flex:none; padding:9px 16px; font-size:14px; margin:0 }
+  .lbNote{ font-size:12px; color:var(--muted); margin-top:8px; line-height:1.45 }
+
   /* battery hit — a short jolt, never a loop. Kept out of the reduced-motion
      path below, where it collapses to a no-op. */
   @keyframes stageShake{

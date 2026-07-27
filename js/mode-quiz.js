@@ -169,6 +169,8 @@ function quizGameOver(){
       f.appendChild(d);
     });
   }
+  scoresRecord("quiz", Q.score);
+  stopCam();
   show("result");
 }
 
