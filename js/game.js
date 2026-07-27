@@ -276,108 +276,12 @@ function endGame(){ G.running=false;
 var GMODE="sort";
 var ITEMBYT={}; ITEMS.forEach(function(it){ ITEMBYT[it.t]=it; });
 var QBINS={paper:{n:"Paper",c:"#2f7fd1"},plastic:{n:"Plastic",c:"#e0762b"},metal:{n:"Metal",c:"#e0a92b"},glass:{n:"Glass",c:"#2fae6a"},trash:{n:"General",c:"#8a97a0"}};
-var QUIZ=[
-  {type:"item", q:"Which of these can NOT go in a recycling bin?", pool:["bottle","canTall","news","bag"], correctType:"bag", why:"soft plastic bags jam the sorting machines, so they're general waste."},
-  {type:"item", q:"Which belongs in the yellow METAL bin?", pool:["news","canTall","bottle","wine"], correctType:"canTall", why:"aluminium drink cans go in the yellow metal bin."},
-  {type:"item", q:"Which is a wishcycling trap (looks recyclable but isn't)?", pool:["news","bottle","foam","canTall"], correctType:"foam", why:"expanded polystyrene foam isn't accepted — general waste."},
-  {type:"item", q:"Which goes to a green GLASS point, not the tricolour bins?", pool:["wine","bottle","canTall","box"], correctType:"wine", why:"glass isn't in the tricolour bins; use the green glass collection points."},
-  {type:"item", q:"Which belongs in the blue PAPER bin?", pool:["bag","bottle","news","canTall"], correctType:"news", why:"clean paper like newspaper goes in the blue bin."},
-  {type:"item", q:"Which one is general waste?", pool:["bottle","carton","canTall","news"], correctType:"carton", why:"drink cartons mix paper, plastic and foil, so most bins can't recycle them."},
-  {type:"bin", q:"Where does a greasy pizza box go?", correctBin:"trash", why:"food-soiled cardboard contaminates recycling — general waste."},
-  {type:"bin", q:"Where does a rinsed plastic water bottle go?", correctBin:"plastic", why:"empty, rinsed PET bottles go in the brown plastic bin."},
-  {type:"bin", q:"Where does an aluminium soda can go?", correctBin:"metal", why:"cans go in the yellow metal bin."},
-  {type:"bin", q:"Where does a clean glass jar go?", correctBin:"glass", why:"glass goes to the green glass collection points."},
-  {type:"bin", q:"Where does a used tissue go?", correctBin:"trash", why:"used tissues can't be recycled — general waste."},
-  {type:"text", q:"True or False: greasy pizza boxes can be recycled.", opts:["True","False"], correct:1, why:"false — grease contaminates the paper fibres."},
-  {type:"text", q:"True or False: you should rinse containers before recycling.", opts:["True","False"], correct:0, why:"true — rinsing keeps the whole batch usable."},
-  {type:"text", q:"About how much waste does Hong Kong landfill each day?", opts:["1,100 tonnes","Over 11,000 tonnes","Under 500 tonnes"], correct:1, why:"Hong Kong sends over 11,000 tonnes to landfill every day."},
-  {type:"text", q:"True or False: plastic bags belong in the curbside recycling bin.", opts:["True","False"], correct:1, why:"false — soft plastic bags aren't accepted in the bins."},
-  {type:"text", q:"Which colour bin is for METAL?", opts:["Blue","Yellow","Brown"], correct:1, why:"yellow is metal; blue is paper and brown is plastic."},
-  {type:"text", q:"True or False: used batteries can go in the recycling bin.", opts:["True","False"], correct:1, why:"false — batteries are hazardous and need special disposal."},
-  {type:"item", q:"Which belongs in the brown PLASTIC bin?", pool:["news","bottle","canTall","wine"], correctType:"bottle", why:"empty, rinsed plastic bottles go in the brown plastic bin."},
-  {type:"item", q:"Which goes in the yellow METAL bin?", pool:["spam","news","bottle","wine"], correctType:"spam", why:"a rinsed luncheon-meat tin is metal — the yellow bin."},
-  {type:"item", q:"Which counts as PAPER (blue bin)?", pool:["mag","bottle","canTall","foam"], correctType:"mag", why:"magazines count as paper — the blue bin."},
-  {type:"item", q:"Which is glass for the green points?", pool:["jar","bottle","canTall","box"], correctType:"jar", why:"glass jars go to the green glass collection points."},
-  {type:"item", q:"Which one is general waste?", pool:["news","canTall","bubbletea","wine"], correctType:"bubbletea", why:"a bubble-tea cup and straw are contaminated plastic — general waste."},
-  {type:"bin", q:"Where does a flattened cardboard box go?", correctBin:"paper", why:"flatten it into the blue paper bin."},
-  {type:"bin", q:"Where does a rinsed yogurt tub go?", correctBin:"plastic", why:"rinsed #5 PP tubs go in the brown plastic bin."},
-  {type:"bin", q:"Where does a foam takeaway box go?", correctBin:"trash", why:"foam isn't accepted — general waste."},
-  {type:"text", q:"True or False: glass belongs in the tricolour bins.", opts:["True","False"], correct:1, why:"false — glass has its own green collection points."},
-  {type:"text", q:"Which colour bin is for PAPER?", opts:["Blue","Yellow","Brown"], correct:0, why:"blue is paper; yellow is metal and brown is plastic."},
-  {type:"text", q:"True or False: you should flatten cardboard before recycling.", opts:["True","False"], correct:0, why:"true — flattening saves space and helps collection."},
-  {type:"text", q:"Roughly what share of Hong Kong's waste is food waste?", opts:["About 5%","About 30%","About 70%"], correct:1, why:"food waste is around 30% of the municipal waste stream."}
-];
-var Q={running:false, score:0, opts:[], cur:null, qStart:0, locked:false, answer:"", pendingNext:false, nextAt:0, lastIdx:-1};
-var Qseq=[];
-function qpick(){
-  if(Qseq.length===0){ Qseq=QUIZ.map(function(_,i){return i;}); shuffle(Qseq);
-    if(Qseq[0]===Q.lastIdx && Qseq.length>1){ var t=Qseq[0]; Qseq[0]=Qseq[1]; Qseq[1]=t; } }
-  var idx=Qseq.shift(); Q.lastIdx=idx; return QUIZ[idx];
-}
+/* Quiz lives in js/mode-quiz.js; the sorting mode in js/mode-defend.js.
+   The helpers just below are shared by both, so they stay here. */
 function shuffle(a){ for(var i=a.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=a[i]; a[i]=a[j]; a[j]=t; } return a; }
 function segHit2(ox,oy,r,x1,y1,x2,y2){ var dx=x2-x1,dy=y2-y1,len2=dx*dx+dy*dy||1; var t=Math.max(0,Math.min(1,((ox-x1)*dx+(oy-y1)*dy)/len2)); var px=x1+t*dx,py=y1+t*dy; return Math.hypot(ox-px,oy-py)<r+8; }
 function fxRR(x,y,w,h,r){ fxc.beginPath(); fxc.moveTo(x+r,y); fxc.arcTo(x+w,y,x+w,y+h,r); fxc.arcTo(x+w,y+h,x,y+h,r); fxc.arcTo(x,y+h,x,y,r); fxc.arcTo(x,y,x+w,y,r); fxc.closePath(); }
-function launchQuiz(){
-  GMODE="quiz"; Q.running=true; Q.score=0; Q.locked=false; Q.pendingNext=false; BLADE.trail=[]; G.parts=[]; G.pops=[]; G.flashes=[];
-  el("scoreN").textContent="0"; el("topicName").textContent="Quiz"; el("topicDot").style.background="#7f77dd";
-  el("roundN").textContent="—"; el("timeFill").style.width="0%"; el("pauseBtn").style.display="none";
-  show("play"); resize();
-  el("ovl").classList.add("hidden"); el("pauseOvl").classList.add("hidden"); el("quizQ").classList.remove("hidden");
-  if(controlMode==="cam") setupCam(); else if(controlMode==="mouse") setupMouse();
-  quizNext();
-}
-function quizNext(){
-  Q.locked=false; Q.pendingNext=false;
-  var qq=qpick(); Q.cur=qq; Q.qStart=performance.now();
-  el("quizQ").textContent=qq.q;
-  var built=[];
-  if(qq.type==="item"){ qq.pool.forEach(function(t){ var it=ITEMBYT[t]||{t:t,col:0xcccccc,n:t}; built.push({kind:"item", t:t, col:it.col, name:(it.n||t), correct:(t===qq.correctType)}); }); Q.answer=(ITEMBYT[qq.correctType]||{n:qq.correctType}).n; }
-  else if(qq.type==="bin"){ ["paper","plastic","metal","glass","trash"].forEach(function(b){ built.push({kind:"bin", bin:b, correct:(b===qq.correctBin)}); }); Q.answer="the "+QBINS[qq.correctBin].n+" bin"; }
-  else { qq.opts.forEach(function(txt,i){ built.push({kind:"text", txt:txt, correct:(i===qq.correct)}); }); Q.answer=qq.opts[qq.correct]; }
-  shuffle(built);
-  var nowT=performance.now();
-  built.forEach(function(o,i){ o.state="wait"; o.launchAt=nowT+i*260+Math.random()*140; o.r=68; o.sliced=false; o.showCorrect=false; o.rot=0; o.lane=i; o.laneN=built.length; });
-  Q.opts=built;
-}
-function quizLaunch(o){
-  var pad=80, lw=Math.max(180,W-pad*2)/o.laneN;                       /* each answer rises in its own column, well spread out */
-  o.state="fly"; o.x=pad+o.lane*lw+lw/2+(Math.random()-0.5)*lw*0.16;
-  o.vy=-(Math.sqrt(2*0.0003*Math.min(H,360)))-Math.random()*0.015;   /* very gentle, floaty rise */
-  o.vx=(Math.random()-0.5)*0.015; o.y=H+60; o.rot=0; o.vrot=0; o.sliceable=false;   /* upright, no spin — easy to read while floating */
-}
-function quizUpdate(dt){
-  var nowT=performance.now();
-  for(var i=0;i<Q.opts.length;i++){ var o=Q.opts[i]; if(o.sliced) continue;
-    if(o.state==="wait"){ if(nowT>o.launchAt) quizLaunch(o); continue; }
-    o.vy+=0.0003*dt; o.x+=o.vx*dt; o.y+=o.vy*dt; o.rot+=o.vrot;
-    if(o.y<H-60) o.sliceable=true;
-    if(o.y>H+90 || o.x<-100 || o.x>W+100){ o.state="wait"; o.launchAt=nowT+300+Math.random()*350; o.sliceable=false; }   /* re-throw so answers keep flying */
-  }
-  if(Q.pendingNext && nowT>Q.nextAt) quizNext();
-}
 function segDist(ox,oy,x1,y1,x2,y2){ var dx=x2-x1,dy=y2-y1,len2=dx*dx+dy*dy||1; var t=Math.max(0,Math.min(1,((ox-x1)*dx+(oy-y1)*dy)/len2)); var px=x1+t*dx,py=y1+t*dy; return Math.hypot(ox-px,oy-py); }
-function quizSliceCheck(x1,y1,x2,y2){
-  if(Q.locked) return;
-  var best=null, bestD=1e9;
-  for(var i=0;i<Q.opts.length;i++){ var o=Q.opts[i]; if(o.sliced || o.state!=="fly" || !o.sliceable) continue;
-    var d=segDist(o.x,o.y,x1,y1,x2,y2); if(d<o.r+6 && d<bestD){ bestD=d; best=o; } }   /* slice only the answer closest to the blade */
-  if(!best) return;
-  best.sliced=true; Q.locked=true; spawnBurst(best.x,best.y, best.correct?"#20a45a":"#d70015");
-  if(best.correct){ Q.score++; el("scoreN").textContent=Q.score; G.pops.push({x:best.x,y:best.y-46,txt:"Correct!",col:"#20a45a",a:1,big:true}); Q.pendingNext=true; Q.nextAt=performance.now()+700; }
-  else { G.pops.push({x:best.x,y:best.y-46,txt:"Wrong!",col:"#d70015",a:1,big:true}); quizGameOver(); }
-}
-function quizGameOver(){
-  Q.running=false;
-  Q.opts.forEach(function(o){ if(o.correct){ o.sliced=false; o.state="fly"; o.showCorrect=true; o.x=W/2; o.y=H*0.5; o.rot=0; o.sliceable=false; } else { o.sliced=true; } });
-  setTimeout(function(){
-    el("quizQ").classList.add("hidden"); el("pauseBtn").style.display="";
-    el("rScore").textContent=Q.score;
-    el("rGrade").textContent="You answered "+Q.score+" question"+(Q.score===1?"":"s")+" correctly in a row.";
-    var f=el("rFacts"); f.innerHTML="";
-    var d=document.createElement("div"); d.className="fact"; d.innerHTML="<b>Correct answer: "+Q.answer+".</b> "+(Q.cur?Q.cur.why:""); f.appendChild(d);
-    show("result");
-  }, 1500);
-}
 function wrapFx(txt,cx,cy,maxw){
   var words=(txt+"").split(" "), lines=[], line="";
   for(var i=0;i<words.length;i++){ var test=line?line+" "+words[i]:words[i]; if(fxc.measureText(test).width>maxw && line){ lines.push(line); line=words[i]; } else line=test; }
@@ -385,78 +289,7 @@ function wrapFx(txt,cx,cy,maxw){
   var lh=20, sy=cy-(lines.length-1)*lh/2;
   for(var j=0;j<lines.length;j++){ fxc.fillText(lines[j], cx, sy+j*lh); }
 }
-function quizDraw(now){
-  for(var i=0;i<Q.opts.length;i++){ var o=Q.opts[i]; if(o.sliced || o.state!=="fly") continue;
-    var w=148,h=148;
-    fxc.save(); fxc.translate(o.x,o.y);
-    fxRR(-w/2,-h/2,w,h,20); fxc.fillStyle="#ffffff"; fxc.fill(); fxc.lineWidth=o.showCorrect?6:2.5; fxc.strokeStyle=o.showCorrect?"#20a45a":"#dfeee4"; fxc.stroke();
-    if(o.kind==="item"){ fxc.save(); fxRR(-w/2,-h/2,w,h,20); fxc.clip(); fxc.translate(0,-14); fxc.scale(0.5,0.5); fxc.translate(-110,-110); (ART[o.t]||ART._def)(fxc, hx(o.col)); fxc.restore();
-      fxc.fillStyle="#173a2a"; fxc.font="600 15px 'Fredoka',system-ui,sans-serif"; fxc.textAlign="center"; fxc.textBaseline="middle"; fxc.fillText((o.name+"").replace(/^[^ ]+\s/,""), 0, 58); }
-    else if(o.kind==="bin"){ var b=QBINS[o.bin]; fxc.beginPath(); fxc.arc(0,-20,34,0,7); fxc.fillStyle=b.c; fxc.fill(); fxc.fillStyle="#173a2a"; fxc.font="700 20px 'Fredoka',system-ui,sans-serif"; fxc.textAlign="center"; fxc.textBaseline="middle"; fxc.fillText(b.n, 0, 40); }
-    else { fxc.fillStyle="#173a2a"; fxc.font="700 20px 'Fredoka',system-ui,sans-serif"; fxc.textAlign="center"; fxc.textBaseline="middle"; wrapFx(o.txt, 0, 0, w-26); }
-    fxc.restore();
-  }
-}
-
-/* ================= TRASH TSUNAMI (defend the bins) ================= */
-var TS={running:false, lives:3, score:0, spawnT:0, elapsed:0};
-function launchTsunami(){
-  GMODE="tsunami"; TS.running=true; TS.lives=3; TS.score=0; TS.spawnT=600; TS.elapsed=0;
-  G.pops=[]; G.parts=[]; G.flashes=[]; BLADE.trail=[]; clearObjs();
-  el("scoreN").textContent="0"; el("topicName").textContent="Defend the bins"; el("topicDot").style.background="#d70015";
-  el("roundN").textContent="3"; el("timeFill").style.width="100%"; el("quizQ").classList.add("hidden"); el("pauseBtn").style.display="none";
-  show("play"); resize(); el("ovl").classList.add("hidden"); el("pauseOvl").classList.add("hidden");
-  if(controlMode==="cam") setupCam(); else if(controlMode==="mouse") setupMouse();
-}
-function tsunamiSpawn(){
-  if(G.objs.length>=18) return;
-  var it=ITEMS[Math.floor(Math.random()*ITEMS.length)];
-  var mesh=makeSprite(it); scene.add(mesh);
-  G.objs.push({it:it, x:60+Math.random()*(W-120), y:-40, vx:(Math.random()-0.5)*0.03, vy:0.02+Math.random()*0.015, r:50, sliced:false, a:1, scale:1, spin:(Math.random()-.5)*2, dspin:(Math.random()-.5)*0.05, phase:Math.random()*6, trash:(it.bin==="trash"||it.bin==="hazard"), mesh:mesh});
-}
-function tsunamiLoseLife(o){
-  TS.lives--; el("roundN").textContent=Math.max(0,TS.lives); el("timeFill").style.width=(Math.max(0,TS.lives)/3*100)+"%";
-  spawnBurst(o.x,H-70,"#d70015"); G.pops.push({x:o.x,y:H-92,txt:"contaminated!",col:"#d70015",a:1,big:true});
-  if(TS.lives<=0) tsunamiGameOver();
-}
-function tsunamiGameOver(){
-  TS.running=false; el("pauseBtn").style.display="";
-  el("rScore").textContent=TS.score; el("rGrade").textContent="You held the line and scored "+TS.score+" defending the bins.";
-  var f=el("rFacts"); f.innerHTML=""; FACTS.forEach(function(x){ var d=document.createElement("div"); d.className="fact"; d.textContent=x; f.appendChild(d); });
-  show("result");
-}
-function tsunamiUpdate(dt, now){
-  var ramp=1+Math.min(0.55, TS.elapsed/90000);       /* very gentle speed-up over ~1.5 min */
-  TS.spawnT-=dt;
-  if(TS.spawnT<=0){ tsunamiSpawn(); if(Math.random()<0.10+TS.elapsed/400000) tsunamiSpawn(); TS.spawnT=Math.max(700, 1150-TS.elapsed/150)+Math.random()*450; }
-  var binLine=H-64;
-  for(var i=G.objs.length-1;i>=0;i--){ var o=G.objs[i];
-    o.vy+=0.00028*ramp*dt; if(o.vy>0.26) o.vy=0.26;   /* low gravity + terminal-velocity cap so it never blurs */
-    o.y+=o.vy*dt; o.x+=o.vx*dt; o.spin+=o.dspin;
-    if(o.sliced){ o.a-=0.06; o.scale+=0.03; }
-    var w=toWorld(o.x,o.y); o.mesh.position.set(w.x,w.y,0); o.mesh.rotation.set(0.25*Math.sin(now*0.002+o.phase),0,o.spin); o.mesh.scale.setScalar(o.scale); o.mesh.material.opacity=o.a;
-    if(!o.sliced && o.y>=binLine){ if(o.trash){ tsunamiLoseLife(o); } else { TS.score+=5; el("scoreN").textContent=TS.score; } scene.remove(o.mesh); G.objs.splice(i,1); continue; }
-    if(o.a<=0 || o.y>H+120){ scene.remove(o.mesh); G.objs.splice(i,1); }
-  }
-  TS.elapsed+=dt;
-}
-function tsunamiSlice(x1,y1,x2,y2){
-  for(var i=0;i<G.objs.length;i++){ var o=G.objs[i]; if(o.sliced) continue;
-    if(segHit(o,x1,y1,x2,y2)){ o.sliced=true; o.vy-=0.02; o.dspin=(o.dspin>0?1:-1)*0.28;
-      if(o.trash){ TS.score+=10; spawnBurst(o.x,o.y,"#20a45a"); G.pops.push({x:o.x,y:o.y,txt:"+10",col:"#20a45a",a:1}); }
-      else { TS.score=Math.max(0,TS.score-6); spawnBurst(o.x,o.y,"#d70015"); G.pops.push({x:o.x,y:o.y,txt:"wasted!",col:"#d70015",a:1}); }
-      el("scoreN").textContent=TS.score;
-    }
-  }
-}
 function drawHeart(cx,cy,s,col){ fxc.save(); fxc.fillStyle=col; fxc.beginPath(); fxc.moveTo(cx,cy+s*0.35); fxc.bezierCurveTo(cx-s*1.1,cy-s*0.4,cx-s*0.5,cy-s*1.1,cx,cy-s*0.45); fxc.bezierCurveTo(cx+s*0.5,cy-s*1.1,cx+s*1.1,cy-s*0.4,cx,cy+s*0.35); fxc.closePath(); fxc.fill(); fxc.restore(); }
-function tsunamiDraw(now){
-  var bins=["paper","plastic","metal","glass","trash"], bw=Math.min(120,(W-50)/bins.length), gap=10, totalW=bins.length*bw+(bins.length-1)*gap, sx=W/2-totalW/2, by=H-56;
-  for(var i=0;i<bins.length;i++){ var b=QBINS[bins[i]], x=sx+i*(bw+gap);
-    fxRR(x,by,bw,48,10); fxc.globalAlpha=0.9; fxc.fillStyle=b.c; fxc.fill(); fxc.globalAlpha=1;
-    fxc.fillStyle="#ffffff"; fxc.font="700 13px 'Fredoka',system-ui,sans-serif"; fxc.textAlign="center"; fxc.textBaseline="middle"; fxc.fillText(b.n, x+bw/2, by+24); }
-  for(var h=0;h<3;h++){ drawHeart(28+h*30, 26, 12, h<TS.lives?"#e24b4a":"#e2e2e2"); }
-}
 
 /* ================= spawn / physics ================= */
 function spawn(fx){
@@ -547,7 +380,7 @@ function launchVS(){
   GMODE="vs"; VS.running=false; VS.s1=0; VS.s2=0; VS.t=60000; VS.spawnT=500; VS.topicIdx=0; VS.topicT=15000;
   G.pops=[]; G.parts=[]; G.flashes=[]; BLADE.trail=[]; BLADE2.trail=[]; clearObjs();
   el("topicName").textContent="Versus"; el("topicDot").style.background="#7f77dd"; el("scoreN").textContent="0"; el("roundN").textContent="2P"; el("timeFill").style.width="100%";
-  el("quizQ").classList.add("hidden"); el("pauseBtn").style.display="none";
+  el("quizQ").classList.add("hidden"); el("pauseBtn").style.display="";
   show("play"); resize(); el("ovl").classList.add("hidden"); el("pauseOvl").classList.add("hidden");
   setupCamVS(); VS.running=true;
 }
@@ -683,7 +516,7 @@ var last=performance.now(), tnow=0;
 function loop(now){
   var dt=Math.min(48,now-last); last=now; tnow=now;
   if(GMODE==="quiz"){
-    if(Q.running){
+    if(Q.running && !G.paused){
       quizUpdate(dt);
       if(BLADE.active){ quizSliceCheck(BLADE.px,BLADE.py,BLADE.x,BLADE.y); BLADE.trail.push({x:BLADE.x,y:BLADE.y,t:now}); }
       BLADE.px=BLADE.x; BLADE.py=BLADE.y;
@@ -783,11 +616,33 @@ el("ovlBtn").addEventListener("click", startRound);
 el("againBtn").addEventListener("click", function(){ show("start"); });
 
 /* ---- pause / resume ---- */
-function pauseGame(){ if(!G.running||G.paused) return; G.paused=true; G.pauseRemain=G.roundEndAt-performance.now(); el("pauseBtn").textContent="Resume"; el("pauseOvl").classList.remove("hidden"); }
-function resumeGame(){ if(!G.paused) return; G.paused=false; G.roundEndAt=performance.now()+Math.max(0,G.pauseRemain); el("pauseBtn").textContent="Pause"; el("pauseOvl").classList.add("hidden"); }
+/* Every mode can pause. Quiz/Defend/Versus count their clocks down with dt inside
+   their own update, which the loop skips while paused, so they need no compensation.
+   Sort is the exception: its deadline is absolute wall-clock, so it gets adjusted. */
+function modeRunning(){
+  if(GMODE==="quiz") return !!Q.running;
+  if(GMODE==="tsunami") return !!TS.running;
+  if(GMODE==="vs") return !!VS.running;
+  return !!G.running;
+}
+function pauseGame(){
+  if(!modeRunning() || G.paused) return;
+  G.paused=true; G.pauseRemain=G.roundEndAt-performance.now();
+  if(GMODE==="quiz") el("quizQ").classList.add("hidden");   /* no free thinking time while paused */
+  el("pauseBtn").textContent="Resume"; el("pauseOvl").classList.remove("hidden");
+}
+function resumeGame(){
+  if(!G.paused) return;
+  G.paused=false; G.roundEndAt=performance.now()+Math.max(0,G.pauseRemain);
+  if(GMODE==="quiz" && Q.running) el("quizQ").classList.remove("hidden");
+  el("pauseBtn").textContent="Pause"; el("pauseOvl").classList.add("hidden");
+}
 el("pauseBtn").addEventListener("click", function(){ G.paused ? resumeGame() : pauseGame(); });
 el("resumeBtn").addEventListener("click", resumeGame);
-el("quitBtn").addEventListener("click", function(){ G.paused=false; G.running=false; el("pauseBtn").textContent="Pause"; el("pauseOvl").classList.add("hidden"); clearObjs(); try{stopPeer();}catch(e){} show("start"); });
+el("quitBtn").addEventListener("click", function(){ G.paused=false; G.running=false;
+  Q.running=false; TS.running=false; VS.running=false;                       /* quit must stop whichever mode is live */
+  el("pauseBtn").textContent="Pause"; el("pauseOvl").classList.add("hidden");
+  el("quizQ").classList.add("hidden"); clearObjs(); try{stopPeer();}catch(e){} show("start"); });
 
 /* ================= controller boot (phone opens with ?ctrl=1&peer=sort-XXXX) ================= */
 function bootController(){

@@ -38,7 +38,7 @@
       <div class="seg" id="modeSeg">
         <button data-g="sort" class="on">Sort</button>
         <button data-g="quiz">Quiz</button>
-        <button data-g="tsunami">Defend</button>
+        <button data-g="tsunami">Bin It</button>
         <button data-g="vs">Versus</button>
       </div>
 
@@ -63,7 +63,7 @@
           if(location.protocol==="file:"){ n.innerHTML='<b>You opened this file directly.</b> Phone mode won\'t work. Serve with:<br><code style="background:#f0f0f5;padding:2px 6px;border-radius:4px">python3 -m http.server 8137</code><br>Then open <b>http://localhost:8137/</b> (same WiFi as phone) — or deploy to Vercel.'; n.style.color='#c0392b'; }
           else if(location.hostname==="localhost"||location.hostname==="127.0.0.1"){
             n.innerHTML='Running locally. <b>Make sure your phone is on the same WiFi.</b>';
-          } else { n.innerHTML='Webcam + mouse modes run in your browser. Phone controller: scan the QR or type the code. · build 22 · SDG 12 theme (Sort · Quiz · Defend · Versus)'; }
+          } else { n.innerHTML='Webcam + mouse modes run in your browser. Phone controller: scan the QR or type the code. · build 23 · SDG 12 theme (Sort · Quiz · Bin It · Versus)'; }
         })();
       </script>
     </div>
@@ -139,7 +139,7 @@
       </div>
       <div class="overlay hidden" id="pauseOvl">
         <div class="t">Paused</div>
-        <div class="d">Take a break — your round is on hold.</div>
+        <div class="d">Take a break — the game is on hold.</div>
         <div class="row"><button class="btn" id="resumeBtn">Resume</button><button class="btn ghost" id="quitBtn">Quit to menu</button></div>
       </div>
     </div>
@@ -163,5 +163,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mqtt@5/dist/mqtt.min.js"></script>
 <script src="js/game.js"></script>
+<script src="js/mode-quiz.js"></script>
+<script src="js/mode-defend.js"></script>
 </body>
 </html>

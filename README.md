@@ -15,10 +15,12 @@ recyclable in Hong Kong, even though people bin them hoping they count.
 - **Sort** — four rounds, each a recycling category (Paper, Plastic, Metal &
   Glass, then the traps). Slice items that fit the round's bin; wrong slice loses
   marks.
-- **Quiz** — a question appears and possible answers fly up Fruit-Ninja style.
-  Slice the correct one. Sudden death; the correct answer is shown if you miss.
-- **Defend** — waste rains down toward the bins. Slice the trash, spare the
-  recyclables. Three lives; a small penalty for cutting a recyclable.
+- **Quiz** — a question appears and possible answers rise and hover. Slice the
+  correct one before the 8-second timer runs out. Three lives, 12 questions, and
+  the explanation is shown right after every answer — not just at the end.
+- **Bin It** — every item that falls has one correct bin. Slicing doesn't destroy
+  anything: it nudges the item sideways, so you steer each one into the right bin.
+  Right bin scores (with a combo multiplier), wrong bin costs a life.
 - **Versus** — split screen, two webcam hands, 60-second race. A rotating target
   topic banner tells both players what to slice; +1 for a match, −1 for a miss.
 
