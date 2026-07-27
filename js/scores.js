@@ -119,6 +119,21 @@ function scoresSaveName(){
   var note=el("lbNote"); if(note) note.textContent="Saved as "+n+".";
 }
 
+/* Start screen: show the target before you play, like an arcade cabinet.
+   Hidden entirely until there is at least one score, so a first-time player
+   never sees a row of zeros. */
+function scoresRenderStartBest(){
+  var box=el("startBest"); if(!box) return;
+  var parts=[], any=false, k;
+  for(k in SMODES){ if(!SMODES.hasOwnProperty(k)) continue;
+    var b=bestFor(k);
+    if(b!==null){ any=true; parts.push('<span class="bestItem">'+SMODES[k]+' <b>'+b+'</b></span>'); }
+  }
+  if(!any){ box.classList.add("hidden"); box.innerHTML=""; return; }
+  box.classList.remove("hidden");
+  box.innerHTML='<span class="bestLbl">Your best</span>'+parts.join("");
+}
+
 /* ---- CSV export ---- */
 function csvCell(v){
   var s=String(v===undefined||v===null?"":v);
@@ -167,4 +182,5 @@ document.addEventListener("DOMContentLoaded", function(){
   var inp=el("playerName");
   if(inp){ inp.value=getName();
     inp.addEventListener("keydown", function(e){ if(e.key==="Enter") scoresSaveName(); }); }
+  scoresRenderStartBest();          /* the start screen is already visible on load */
 });

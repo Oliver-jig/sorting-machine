@@ -615,7 +615,8 @@ function drawFx(now){
 }
 
 /* ================= screens/wire ================= */
-function show(id){ ["start","connect","controller","play","result"].forEach(function(s){ el(s).classList.toggle("hidden", s!==id); }); }
+function show(id){ ["start","connect","controller","play","result"].forEach(function(s){ el(s).classList.toggle("hidden", s!==id); });
+  if(id==="start") scoresRenderStartBest();   /* refresh the best-score line after a run */ }
 document.querySelectorAll(".opt").forEach(function(o){ o.addEventListener("click", function(){
   document.querySelectorAll(".opt").forEach(function(x){x.classList.remove("sel"); x.setAttribute("aria-pressed","false");}); o.classList.add("sel"); o.setAttribute("aria-pressed","true"); controlMode=o.dataset.mode; }); });
 document.querySelectorAll("#diffSeg button").forEach(function(bn){ bn.addEventListener("click", function(){
