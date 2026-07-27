@@ -10,8 +10,9 @@ Production)** — a Fruit-Ninja-style slicer about Hong Kong recycling. No build
 step, no framework, no backend. It's plain HTML + CSS + JavaScript with a few
 CDN libraries. Deployed as a static site (Vercel).
 
-Current state: **build 22** (SDG 12 amber theme, code split into `css/` + `js/`,
-phone controller reworked to landscape "slash" control).
+Current state: **build 23** (SDG 12 amber theme, code split into `css/` + `js/`,
+phone controller reworked to landscape "slash" control, Quiz rebuilt and Defend
+replaced by the "Bin It" sorting mode, pause available in every mode).
 The build number is stamped in the start-screen note — see "Build stamping".
 
 ## File map
@@ -26,7 +27,11 @@ controller.html   Separate, fully self-contained page opened on the PHONE via
 css/styles.css    All styling. Two layers: (1) base structural/layout CSS,
                   (2) the SDG 12 amber theme that overrides it. Separated by a
                   "/* ===== theme layer ===== */" comment.
-js/game.js        The whole engine (~870 lines). Everything below lives here.
+js/game.js        Engine + Sort + Versus + shared helpers (~700 lines). Loads FIRST;
+                  the two mode files below depend on its globals.
+js/mode-quiz.js   Quiz only: QUIZ data, Q state, launch/next/update/slice/draw.
+js/mode-defend.js "Bin It" sorting mode only: DBINS/DCFG/WAVES, TS state, bin
+                  geometry (binRects/binAt) and the steering slice.
 package.json      npm start = python http.server on :8137.
 vercel.json       Static config (cleanUrls).
 README.md         Player- and deployer-facing docs.
@@ -43,7 +48,7 @@ Note: CSS and JS were factored OUT of `index.html`. Do not re-inline them.
 - Deploy: drag folder to Vercel, or `vercel`. Deploy gives the https link the
   phone controller requires.
 - **Syntax check after every JS edit** (the game silently dies on a parse error):
-  `node --check js/game.js`
+  `node --check js/game.js && node --check js/mode-quiz.js && node --check js/mode-defend.js`
 - There is no test suite. Verify by playing each mode in a browser. The webcam,
   3D, and phone parts can't be checked headlessly.
 
@@ -78,13 +83,15 @@ launcher, update, slice-check, game-over, and draw:
 
 - **Sort** — `G` state; `launchGame` / `startRound` / `endRound` / `spawn` /
   `updatePhysics` / `sliceAlong`. Four rounds by `ROUNDS`.
-- **Quiz** — `Q` state (+ `Qseq`); `launchQuiz` / `quizNext` / `quizLaunch` /
-  `quizUpdate` / `quizSliceCheck` / `quizGameOver` / `quizDraw`. Answers fly up
-  as cards; slice the correct one; sudden death.
-- **Defend (tsunami)** — `TS` state; `launchTsunami` / `tsunamiSpawn` /
-  `tsunamiUpdate` / `tsunamiSlice` / `tsunamiLoseLife` / `tsunamiGameOver` /
-  `tsunamiDraw` / `drawHeart`. Waste falls; slice trash, spare recyclables; 3
-  lives.
+- **Quiz** (`js/mode-quiz.js`) — `Q` state (+ `Qseq`, `QCFG`). 12 questions or 3
+  lives. Answers rise then HOVER (they no longer fall back and get re-thrown).
+  The per-question clock only starts once every card has settled, and `quizTeach`
+  shows the `why` after every answer — that immediate explanation is the whole
+  point of the mode, so don't move it back to the result screen.
+- **Bin It** (`js/mode-defend.js`, still `GMODE==="tsunami"`) — `TS` state.
+  Every item has one correct bin. A slice does NOT destroy: `tsunamiSlice` adds
+  sideways velocity so you steer items. Bins tile the FULL width via `binRects()`
+  so nothing can land in a gap. Right bin scores x combo; wrong bin costs a life.
 - **Versus** — `VS` state; `setupCamVS` (MediaPipe maxNumHands:2, left/right by
   x), `launchVS` / `vsSpawn` / `vsSliceFor` / `vsUpdate` / `vsGameOver` /
   `vsDraw` / `drawTrail`. Split screen, 60s, `BLADE` (left/P1) + `BLADE2`
