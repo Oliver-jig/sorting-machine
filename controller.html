@@ -63,10 +63,13 @@
     #status{font-size:13px; margin-top:8px; text-align:center}
     .fine{margin-top:8px; text-align:center}
   }
-  /* once you're playing, portrait is the wrong grip — say so */
+  /* While playing, hide the setup fields. The "turn it sideways" nudge applies
+     ONLY to the flat/tilt grip — a sword grip is meant to be upright, so
+     nagging about it there would be wrong. */
   body.playing #pad, body.playing .setup{display:none}
-  @media (orientation:portrait){ body.playing #rotate{display:block} }
+  @media (orientation:portrait){ body.playing:not(.sword) #rotate{display:block} }
   @media (orientation:landscape){ body.playing #pad{display:block} }
+  body.playing.sword #pad{display:block}
 </style>
 </head>
 <body>
@@ -74,7 +77,7 @@
     <div class="col">
       <div class="eyebrow"><span class="sdg">12</span> Phone controller</div>
       <h1>Slash to slice</h1>
-      <p>Type the code, then <b>turn your phone sideways</b> and hold it in one hand like a knife handle. <b>Slash</b> — swing or move the phone and the blade follows; hold still and it settles back to the middle.</p>
+      <p>Type the code, then grip your phone <b>upright in your fist like a sword hilt</b>. <b>Sweep</b> it across to move the blade sideways, <b>chop</b> to move it up and down. Hold still and the blade settles back to the middle. Prefer holding it flat? Switch to tilt below.</p>
       <div class="setup"><input id="code" inputmode="numeric" maxlength="4" placeholder="0000" /></div>
       <button class="btn setup" id="go">Connect &amp; enable motion</button>
       <button class="btn sub" id="recenter">Re-centre blade</button>
@@ -84,6 +87,13 @@
       <div id="rotate">↻ Turn your phone sideways and grip it like a knife.</div>
       <div id="status">Not connected</div>
       <div class="axisrow">
+        <span class="axisLbl">How are you holding it?</span>
+        <span class="chips">
+          <button type="button" class="chip" id="gripSword">🗡 Sword grip</button>
+          <button type="button" class="chip" id="gripTilt">📱 Flat / tilt</button>
+        </span>
+      </div>
+      <div class="axisrow">
         <span class="axisLbl">If the blade moves the wrong way</span>
         <span class="chips">
           <button type="button" class="chip" id="axFx">Flip ←→</button>
@@ -91,7 +101,7 @@
           <button type="button" class="chip" id="axSw">Swap</button>
         </span>
       </div>
-      <div class="fine">build 34 · direct</div>
+      <div class="fine">build 35 · direct</div>
     </div>
   </div>
 
@@ -130,7 +140,7 @@
   var RECENTER=0.020;  /* pull back to the middle when the phone is still */
   var MAXSTEP=25;      /* deg/frame ceiling — rejects gimbal flips near vertical */
   var bx=0.5, by=0.5, vx=0, vy=0;          /* blade position + velocity, 0..1 of the screen */
-  var hx=0, hy=0, hxP=null, hyP=null, haveOrient=false;
+  var hx=0, hy=0, hxP=null, hyP=null, haveOrient=false, tPrev=0;
 
   /* ACCELEROMETER — how hard you physically swing.
      Orientation alone only sees ROTATION, so sliding the phone through the air
@@ -156,20 +166,65 @@
   try{ var _ax=localStorage.getItem("ss3d.axis"); if(_ax) AX=JSON.parse(_ax); }catch(e){}
   function saveAxis(){ try{ localStorage.setItem("ss3d.axis", JSON.stringify(AX)); }catch(e){} }
 
+  /* ---- GRIP ----
+     "sword": phone upright in the fist, tip forward. Swinging it is a SWEEP
+       (turning about the vertical) and a CHOP (tipping the point up/down),
+       neither of which is a tilt, so tilt-based steering reads them poorly.
+     "tilt": the original landscape/remote grip.
+     Sword mode uses the gyroscope with gravity as the reference, which makes
+     it independent of how the phone happens to be angled in the hand — the
+     one thing that cannot be assumed when someone grips it like a hilt. */
+  var GRIP="sword";
+  try{ var _g=localStorage.getItem("ss3d.grip"); if(_g) GRIP=_g; }catch(e){}
+  function saveGrip(){ try{ localStorage.setItem("ss3d.grip", GRIP); }catch(e){} }
+
+  var SWORD=1.0;              /* sword sensitivity; scales degrees-per-frame */
+  var rrX=0, rrY=0, rrZ=0;    /* gyroscope, deg/s, device axes */
+
+  /* Split the measured spin into the two motions a sword actually makes.
+     Gravity gives us "which way is down" without needing to know the grip. */
+  function swordAxes(){
+    var gx=gvX, gy=gvY, gz=gvZ;
+    var gm=Math.sqrt(gx*gx+gy*gy+gz*gz);
+    if(gm<0.001) return {yaw:0, pitch:0};
+    gx/=gm; gy/=gm; gz/=gm;
+    /* the phone's long axis is the blade; if it is pointing almost straight
+       up or down, that axis is useless as a reference, so fall back to the
+       axis out of the screen */
+    var bx=0, by=1, bz=0;
+    if(Math.abs(gy)>0.9){ bx=0; by=0; bz=1; }
+    /* pitch axis = gravity x blade: the horizontal line you chop about */
+    var px=gy*bz-gz*by, py=gz*bx-gx*bz, pz=gx*by-gy*bx;
+    var pm=Math.sqrt(px*px+py*py+pz*pz);
+    if(pm<0.001) return {yaw:(rrX*gx+rrY*gy+rrZ*gz), pitch:0};
+    px/=pm; py/=pm; pz/=pm;
+    return {
+      yaw:   rrX*gx + rrY*gy + rrZ*gz,     /* sweeping left/right */
+      pitch: rrX*px + rrY*py + rrZ*pz      /* chopping up/down */
+    };
+  }
+
   function onMotion(e){
+    /* Gravity is tracked on BOTH platforms, not just where linear acceleration
+       is missing: sword mode needs "which way is down" regardless of which
+       channel happens to supply the movement. It is the slow-moving part of
+       the with-gravity reading. */
+    var ag=e.accelerationIncludingGravity;
+    if(ag){
+      var rx=ag.x||0, ry=ag.y||0, rz=ag.z||0;
+      if(!haveGrav){ gvX=rx; gvY=ry; gvZ=rz; haveGrav=true; }
+      else { gvX=gvX*0.92+rx*0.08; gvY=gvY*0.92+ry*0.08; gvZ=gvZ*0.92+rz*0.08; }
+    }
+    /* raw gyroscope: beta spins about x, gamma about y, alpha about z */
+    var r=e.rotationRate;
+    if(r){ rrX=r.beta||0; rrY=r.gamma||0; rrZ=r.alpha||0; haveMotion=true; }
+
     var lx,ly,lz, a=e.acceleration;
     if(a && a.x!==null && a.x!==undefined){
       lx=a.x||0; ly=a.y||0; lz=a.z||0;            /* gravity already removed */
-    } else {
-      /* Some Android devices only expose acceleration WITH gravity. Gravity is
-         the slow-moving part of that signal, so a low-pass estimate of it can
-         be subtracted to leave the movement. */
-      var ag=e.accelerationIncludingGravity; if(!ag) return;
-      var rx=ag.x||0, ry=ag.y||0, rz=ag.z||0;
-      if(!haveGrav){ gvX=rx; gvY=ry; gvZ=rz; haveGrav=true; }
-      gvX=gvX*0.92+rx*0.08; gvY=gvY*0.92+ry*0.08; gvZ=gvZ*0.92+rz*0.08;
-      lx=rx-gvX; ly=ry-gvY; lz=rz-gvZ;
-    }
+    } else if(ag){
+      lx=(ag.x||0)-gvX; ly=(ag.y||0)-gvY; lz=(ag.z||0)-gvZ;
+    } else return;
     if(lx!==lx || ly!==ly || lz!==lz) return;     /* NaN guard */
     var m=Math.sqrt(lx*lx+ly*ly+lz*lz);
     swing = swing*0.8 + Math.min(40,m)*0.2;       /* smooth, and ignore absurd spikes */
@@ -181,15 +236,18 @@
   /* Rotate the device-frame acceleration into screen axes, then apply the
      user's corrections. Screen y grows downward, device y points up, hence the
      sign flip. */
+  /* One place for the user's corrections, so the flip buttons fix whichever
+     steering mode is active rather than only the accelerometer push. */
+  function applyAxis(x,y){
+    if(AX.sw){ var t=x; x=y; y=t; }
+    if(AX.fx) x=-x;
+    if(AX.fy) y=-y;
+    return {x:x, y:y};
+  }
   function accelScreen(){
     var ang=(screen.orientation&&typeof screen.orientation.angle==="number")?screen.orientation.angle:(window.orientation||0);
     var r=ang*Math.PI/180, c=Math.cos(r), s2=Math.sin(r);
-    var ox =  accX*c + accY*s2;
-    var oy = -(-accX*s2 + accY*c);
-    if(AX.sw){ var t=ox; ox=oy; oy=t; }
-    if(AX.fx) ox=-ox;
-    if(AX.fy) oy=-oy;
-    return {x:ox, y:oy};
+    return applyAxis(accX*c + accY*s2, -(-accX*s2 + accY*c));
   }
 
   function onOrient(e){
@@ -209,8 +267,17 @@
     /* either sensor alone is enough to play — motion still works if orientation
        permission was refused, and vice versa */
     if(!haveOrient && !haveMotion) return;
+    var tNow=Date.now(), sdt=Math.min(50, tPrev? tNow-tPrev : 16); tPrev=tNow;
     var dx=0, dy=0;
-    if(haveOrient){
+    if(GRIP==="sword" && haveMotion){
+      /* Gyroscope, split into sweep and chop about the world's vertical.
+         deg/s * seconds = degrees turned this frame, the same quantity the
+         tilt path produces, so all the existing GAIN/boost tuning carries. */
+      var S=swordAxes(), a2=applyAxis(S.yaw*SWORD*sdt/1000, -S.pitch*SWORD*sdt/1000);
+      dx=a2.x; dy=a2.y;
+      if(Math.abs(dx)>MAXSTEP) dx=0;
+      if(Math.abs(dy)>MAXSTEP) dy=0;
+    } else if(haveOrient){
       if(hxP===null){ hxP=hx; hyP=hy; }                   /* seed on the first reading */
       else {
         dx=wrapDeg(hx-hxP); dy=wrapDeg(hy-hyP);
@@ -262,11 +329,31 @@
   }
   bindAxis("axFx","fx"); bindAxis("axFy","fy"); bindAxis("axSw","sw"); paintAxis();
 
+  function paintGrip(){
+    var a=document.getElementById("gripSword"), b=document.getElementById("gripTilt");
+    if(a) a.className="chip"+(GRIP==="sword"?" on":"");
+    if(b) b.className="chip"+(GRIP!=="sword"?" on":"");
+  }
+  function setGrip(g){
+    GRIP=g; saveGrip(); paintGrip();
+    if(document.body.className.indexOf("playing")>=0)
+      document.body.className="playing"+(g==="sword"?" sword":"");
+    hxP=null; hyP=null; vx=0; vy=0; bx=0.5; by=0.5;      /* clean slate for the new mode */
+    setStatus(g==="sword" ? "Sword grip — <b>sweep and chop</b> to slice"
+                          : "Flat grip — <b>tilt and slash</b> to slice");
+  }
+  (function(){
+    var a=document.getElementById("gripSword"), b=document.getElementById("gripTilt");
+    if(a) a.addEventListener("click", function(){ setGrip("sword"); });
+    if(b) b.addEventListener("click", function(){ setGrip("tilt"); });
+    paintGrip();
+  })();
+
   function connect(){
     setStatus("Reaching the game…");
     if(typeof mqtt==="undefined"){ setStatus("Couldn't load the relay — check internet and reload."); return; }
     client=mqtt.connect(BROKER,{clientId:"ctrl_"+room+"_"+Math.random().toString(16).slice(2,8), reconnectPeriod:2500, connectTimeout:9000});
-    client.on("connect", function(){ sending=true; client.subscribe("slicesort/"+room); pub({from:"ctrl",type:"hello",cid:CID}); document.body.className="playing"; setStatus("Connected — <b>slash to slice</b>"); startWebRTC(); });
+    client.on("connect", function(){ sending=true; client.subscribe("slicesort/"+room); pub({from:"ctrl",type:"hello",cid:CID}); document.body.className="playing"+(GRIP==="sword"?" sword":""); setStatus("Connected — <b>slash to slice</b>"); startWebRTC(); });
     client.on("message", function(t, payload){ var d; try{ d=JSON.parse(payload.toString()); }catch(e){ return; }
       if(d.from==="ctrl") return;                                   /* ignore our own echoed messages */
       /* signalling and slot messages are addressed by cid — ignore the other phone's */

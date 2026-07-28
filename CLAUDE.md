@@ -10,7 +10,7 @@ Production)** — a Fruit-Ninja-style slicer about Hong Kong recycling. No build
 step, no framework, no backend. It's plain HTML + CSS + JavaScript with a few
 CDN libraries. Deployed as a static site (Vercel).
 
-Current state: **build 34** (SDG 12 amber theme, code split into `css/` + `js/`,
+Current state: **build 35** (SDG 12 amber theme, code split into `css/` + `js/`,
 phone controller reworked to landscape "slash" control, Quiz rebuilt and Defend
 replaced by the "Bin It" sorting mode, pause available in every mode,
 Fruit-Ninja-style special items in Sort, score saving + CSV export).
