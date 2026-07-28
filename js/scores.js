@@ -21,8 +21,8 @@
 
 /* ---- fill these two in; see FIREBASE-SETUP.md ---- */
 var FB={
-  projectId:"",   /* e.g. "slice-sort-3d" */
-  apiKey:""       /* e.g. "AIzaSy..."     */
+  projectId:"test-99b74",
+  apiKey:""       /* <-- PASTE YOUR WEB API KEY HERE (starts "AIzaSy...") */
 };
 /* -------------------------------------------------- */
 
