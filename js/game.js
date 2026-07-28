@@ -471,7 +471,9 @@ function launchVS(){
   el("topicName").textContent="Versus"; el("topicDot").style.background="#7f77dd"; el("scoreN").textContent="0"; el("roundN").textContent="2P"; el("timeFill").style.width="100%";
   el("quizQ").classList.add("hidden"); el("pauseBtn").style.display="";
   show("play"); resize(); el("ovl").classList.add("hidden"); el("pauseOvl").classList.add("hidden");
-  setupCamVS(); VS.running=true;
+  if(controlMode==="remote"){ BLADE.active=false; BLADE2.active=false; }   /* two phones drive the blades */
+  else setupCamVS();
+  VS.running=true;
 }
 function vsSpawn(side){
   if(G.objs.length>=18) return;
@@ -559,11 +561,16 @@ function roomLine(extra){
 }
 function hostStartConnect(){
   show("connect");
+  remReset();                                        /* fresh slots for a fresh room */
   roomCode=(""+Math.floor(1000+Math.random()*9000));
   var base=new URL("controller.html", location.href); base.search="?room="+roomCode;
   var link=base.toString();
   drawQR(link);
-  el("connGo").disabled=true; el("connGo").textContent="Waiting for phone…";
+  el("connLead").innerHTML = (GMODE==="vs")
+    ? 'Versus needs <b>two phones</b>. Both scan this same code — first to connect is Player 1 (left), second is Player 2 (right). Hold sideways like a knife handle and slash.'
+    : 'Open your phone camera and scan this code. Hold your phone sideways like a knife handle and slash to slice.';
+  el("connGo").disabled=true;
+  el("connGo").textContent=(GMODE==="vs") ? "Waiting for 2 phones…" : "Waiting for phone…";
   roomLine("Connecting to relay…");
   connectHostMqtt();
   el("connUrl").innerHTML='<button class="btn ghost" id="copyLinkBtn" style="font-size:13px;padding:8px 16px">Copy link</button>';
@@ -575,6 +582,19 @@ function hostStartConnect(){
 var HICE={iceServers:[{urls:"stun:stun.l.google.com:19302"},{urls:"turn:openrelay.metered.ca:80",username:"openrelayproject",credential:"openrelayproject"}]};
 var hostPC=null, hostTopic=null;
 function hostPub(o){ if(mqttClient&&mqttClient.connected) mqttClient.publish(hostTopic, JSON.stringify(o), {qos:0}); }
+/* Versus needs both phones before it can start; every other mode needs one. */
+function remStatus(){
+  var need=remMax(), got=remCount(), s=el("connStatus"), b=el("connGo");
+  if(!s||!b) return;
+  if(got>=need){
+    s.innerHTML = need===2 ? 'Both phones <b>connected!</b> — press Start game'
+                           : 'Phone <b>connected!</b> — press Start game';
+    b.disabled=false; b.textContent="Start game";
+  } else if(got>0){
+    s.innerHTML = 'Player 1 connected. <b>Waiting for Player 2…</b> (same code)';
+    b.disabled=true; b.textContent="Waiting for Player 2…";
+  }
+}
 function hostAnswer(offer){
   if(typeof RTCPeerConnection==="undefined") return;
   try{
@@ -592,14 +612,50 @@ function connectHostMqtt(){
   mqttClient.on("connect", function(){ mqttClient.subscribe(hostTopic, function(){ roomLine("Scan the QR, or open controller.html and type this code."); }); });
   mqttClient.on("message", function(t, payload){ var d; try{ d=JSON.parse(payload.toString()); }catch(e){ return; }
     if(d.from==="host") return;                                  /* ignore our own echoed messages */
-    if(d.type==="hello"){ el("connStatus").innerHTML='Phone <b>connected!</b> — press Start game'; el("connGo").disabled=false; el("connGo").textContent="Start game"; }
-    else if(d.type==="orient"){ applyRemote(d.g,d.b); }          /* relay fallback */
-    else if(d.type==="offer"){ hostAnswer(d.sdp); }              /* set up direct link */
+    if(d.type==="hello"){
+      var slot=remSlot(d.cid);
+      if(slot>=0) hostPub({from:"host", type:"slot", cid:d.cid, slot:slot});   /* tell the phone which player it is */
+      remStatus();
+    }
+    else if(d.type==="orient"){
+      var s = d.cid ? REM[d.cid] : 0;               /* no cid = older controller, treat as Player 1 */
+      if(s!==undefined) applyRemote(d.g,d.b,s);     /* unknown cid = room was full; ignore it */
+    }
+    /* Two phones can't share one RTCPeerConnection, so Versus stays on the
+       relay. The controller falls back on its own when no answer arrives. */
+    else if(d.type==="offer"){ if(remMax()===1) hostAnswer(d.sdp); }
     else if(d.type==="ice" && hostPC){ try{ hostPC.addIceCandidate(d.cand); }catch(e){} }
   });
   mqttClient.on("error", function(){ roomLine("Relay error — check internet, then reload."); });
 }
-function applyRemote(g,b){ BLADE.x=Math.max(0,Math.min(W, W*(0.5+(g||0)/60))); BLADE.y=Math.max(0,Math.min(H, H*(((b||45)-15)/55))); BLADE.active=true; }
+/* ---- phone slots ----
+   Two phones publish to the same MQTT topic, so the only thing telling them
+   apart is the `cid` each controller generates. First hello gets Player 1,
+   second gets Player 2. Versus takes two; every other mode takes one. */
+var REM={}, remOrder=[];
+function remMax(){ return GMODE==="vs" ? 2 : 1; }
+function remReset(){ REM={}; remOrder=[]; }
+function remSlot(cid){
+  if(!cid) cid="anon";
+  if(REM[cid]===undefined){
+    if(remOrder.length>=remMax()) return -1;        /* room already full */
+    REM[cid]=remOrder.length; remOrder.push(cid);
+  }
+  return REM[cid];
+}
+function remCount(){ return remOrder.length; }
+
+/* Versus gives each player half the screen, matching the webcam split. */
+function applyRemote(g,b,slot){
+  var fx=Math.max(0,Math.min(1, 0.5+(g||0)/60));
+  var y=Math.max(0,Math.min(H, H*(((b||45)-15)/55)));
+  if(GMODE==="vs"){
+    if(slot===1){ BLADE2.x=W/2+6+fx*(W/2-6); BLADE2.y=y; BLADE2.active=true; }
+    else        { BLADE.x=fx*(W/2-6);        BLADE.y=y;  BLADE.active=true; }
+    return;
+  }
+  BLADE.x=fx*W; BLADE.y=y; BLADE.active=true;
+}
 function stopPeer(){ if(mqttClient){ try{ mqttClient.end(true); }catch(e){} } }
 
 /* ================= main loop ================= */
@@ -704,8 +760,7 @@ document.querySelectorAll("#modeSeg button").forEach(function(bn){ bn.addEventLi
 
 function startChosen(){ if(GMODE==="quiz") launchQuiz(); else if(GMODE==="tsunami") launchTsunami(); else if(GMODE==="vs") launchVS(); else launchGame(); }
 el("playBtn").addEventListener("click", function(){
-  if(GMODE==="vs") launchVS();                       /* Versus always uses the two-hand webcam */
-  else if(controlMode==="remote") hostStartConnect();
+  if(controlMode==="remote") hostStartConnect();     /* Versus included — two phones, one per player */
   else startChosen();
 });
 el("connGo").addEventListener("click", function(){ startChosen(); });
