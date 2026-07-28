@@ -14,7 +14,21 @@ var ITEMS = [
   {n:"珍珠奶茶 Bubble tea", t:"bubbletea", bin:"trash", col:0xd8c3a0},
   {n:"膠袋 Plastic bag",   t:"bag",   bin:"trash",   col:0xdfe3ea},
   {n:"發泡膠飯盒 Foam box", t:"foam",  bin:"trash",   col:0xffffff},
-  {n:"紙包飲品 Drink carton", t:"carton", bin:"trash", col:0xe4d2a8}
+  {n:"紙包飲品 Drink carton", t:"carton", bin:"trash", col:0xe4d2a8},
+  /* Every item's bin MUST be one of DBINS (paper/plastic/metal/glass/trash) —
+     Bin It has no sixth bin, so a `hazard` item would have nowhere to land. */
+  {n:"信封 Envelope",       t:"envelope",  bin:"paper",   col:0xf3efe4},
+  {n:"廁紙筒 Roll tube",    t:"toiletRoll",bin:"paper",   col:0xe8dcc8},
+  {n:"蛋盒 Egg carton",     t:"eggBox",    bin:"paper",   col:0xcbb89a},
+  {n:"洗頭水樽 Shampoo",    t:"shampoo",   bin:"plastic", col:0xef7fae},
+  {n:"清潔劑樽 Detergent",  t:"detergent", bin:"plastic", col:0x4aa3df},
+  {n:"膠杯 Plastic cup",    t:"cup",       bin:"plastic", col:0xeef4fb},
+  {n:"罐頭 Food tin",       t:"foodCan",   bin:"metal",   col:0xcdd2d8},
+  {n:"錫紙 Aluminium foil", t:"foil",      bin:"metal",   col:0xd7dce2},
+  {n:"啤酒樽 Beer bottle",  t:"beer",      bin:"glass",   col:0x7a4a1e},
+  {n:"口罩 Face mask",      t:"mask",      bin:"trash",   col:0xbfe4f5},
+  {n:"咖啡杯 Coffee cup",   t:"coffeeCup", bin:"trash",   col:0xf6f1e8},
+  {n:"即棄筷子 Chopsticks", t:"chopstick", bin:"trash",   col:0xe2c58f}
 ];
 var ROUNDS = [
   {topic:"Paper",  bins:["paper"], color:"#0a84ff", desc:"Slice only <b>paper</b> — newspaper, cardboard, magazines."},
@@ -208,6 +222,49 @@ var ART={
     c.strokeStyle="#e0a020"; c.lineWidth=3; for(var a=0;a<8;a++){ c.beginPath(); c.moveTo(110,122); c.lineTo(110+18*Math.cos(a*0.8),122+18*Math.sin(a*0.8)); c.stroke(); }
     c.strokeStyle="#fff"; c.lineWidth=8; c.beginPath(); c.moveTo(150,40); c.lineTo(132,70); c.stroke(); c.strokeStyle=OL; c.lineWidth=3; c.beginPath(); c.moveTo(150,40); c.lineTo(132,70); c.stroke();
     cjk(c,"檸檬茶",110,168,15,"#7a5a10"); },
+  envelope:function(c){ rr(c,38,72,144,86,8); fillIt(c,"#f3efe4"); outline(c);
+    c.strokeStyle=OL; c.lineWidth=OLW; c.beginPath(); c.moveTo(38,76); c.lineTo(110,126); c.lineTo(182,76); c.stroke(); },
+  toiletRoll:function(c){ rr(c,72,62,76,108,6); fillIt(c,"#e8dcc8"); outline(c);
+    c.beginPath(); c.ellipse(110,62,38,13,0,0,7); fillIt(c,"#dccdb2"); outline(c);
+    c.beginPath(); c.ellipse(110,62,15,6,0,0,7); fillIt(c,"#8a7358"); outline(c); },
+  eggBox:function(c){ rr(c,40,98,140,64,10); fillIt(c,"#cbb89a"); outline(c);
+    c.strokeStyle=OL; c.lineWidth=4;
+    for(var i=0;i<3;i++){ c.beginPath(); c.arc(70+i*40,98,17,Math.PI,0); c.stroke(); } },
+  shampoo:function(c,col){ rr(c,74,70,72,112,14); fillIt(c,col); outline(c);
+    rr(c,98,38,24,34,6); fillIt(c,"#f0f3f7"); outline(c);
+    rr(c,86,98,48,42,5); fillIt(c,"#ffffff"); outline(c); },
+  detergent:function(c,col){ rr(c,66,76,88,104,12); fillIt(c,col); outline(c);
+    rr(c,92,40,36,36,6); fillIt(c,"#e6ebf2"); outline(c);
+    rr(c,78,102,64,44,5); fillIt(c,"#ffffff"); outline(c); },
+  cup:function(c){ c.beginPath(); c.moveTo(72,72); c.lineTo(148,72); c.lineTo(136,180); c.lineTo(84,180); c.closePath(); fillIt(c,"#eef4fb"); outline(c);
+    c.strokeStyle="#b6c5d6"; c.lineWidth=4;
+    for(var i=0;i<3;i++){ c.beginPath(); c.moveTo(77+i*3,100+i*26); c.lineTo(143-i*3,100+i*26); c.stroke(); } },
+  foodCan:function(c){ rr(c,66,72,88,106,10); fillIt(c,"#cdd2d8"); outline(c);
+    rr(c,66,96,88,54,2); fillIt(c,"#c0392b"); outline(c);
+    cjk(c,"罐頭",110,123,22,"#fff"); },
+  foil:function(c){ c.beginPath(); c.moveTo(56,122); c.lineTo(84,64); c.lineTo(128,56); c.lineTo(168,96); c.lineTo(150,154); c.lineTo(94,170); c.closePath();
+    fillIt(c,"#d7dce2"); outline(c);
+    c.strokeStyle="#9aa4b0"; c.lineWidth=4;
+    c.beginPath(); c.moveTo(84,64); c.lineTo(114,116); c.lineTo(150,154); c.stroke();
+    c.beginPath(); c.moveTo(128,56); c.lineTo(114,116); c.lineTo(56,122); c.stroke(); },
+  beer:function(c){ rr(c,100,28,20,14,3); fillIt(c,"#c9a227"); outline(c);
+    rr(c,102,40,16,42,4); fillIt(c,"#6f421a"); outline(c);
+    rr(c,78,78,64,104,14); fillIt(c,"#7a4a1e"); outline(c);
+    rr(c,80,106,60,42,3); fillIt(c,"#e8d9a8"); outline(c); },
+  mask:function(c){ rr(c,52,80,116,66,14); fillIt(c,"#bfe4f5"); outline(c);
+    c.strokeStyle="#7fb7cf"; c.lineWidth=4;
+    for(var i=0;i<3;i++){ c.beginPath(); c.moveTo(56,98+i*18); c.lineTo(164,98+i*18); c.stroke(); }
+    c.strokeStyle=OL; c.lineWidth=5;
+    c.beginPath(); c.arc(42,113,22,-1.15,1.15); c.stroke();
+    c.beginPath(); c.arc(178,113,22,Math.PI-1.15,Math.PI+1.15); c.stroke(); },
+  coffeeCup:function(c){ c.beginPath(); c.moveTo(76,82); c.lineTo(144,82); c.lineTo(134,178); c.lineTo(86,178); c.closePath(); fillIt(c,"#f6f1e8"); outline(c);
+    rr(c,68,60,84,24,7); fillIt(c,"#6b4a33"); outline(c);
+    rr(c,80,112,60,36,4); fillIt(c,"#c0895c"); outline(c); },
+  chopstick:function(c){ c.save(); c.translate(110,110); c.rotate(-0.32);
+    rr(c,-17,-78,13,156,4); fillIt(c,"#e2c58f"); outline(c);
+    rr(c,5,-78,13,156,4); fillIt(c,"#e2c58f"); outline(c);
+    rr(c,-24,-28,50,40,4); fillIt(c,"#f4efe4"); outline(c);
+    c.restore(); },
   _def:function(c,col){ rr(c,60,60,100,100,10); fillIt(c,col||"#ccc"); outline(c); }
 };
 var TEXCACHE={}, SPRITE_GEO=null;
@@ -568,7 +625,7 @@ function loop(now){
         if(Math.random()<(DIFF.burst||0)){ var seg=(W-160)/3;   /* 3-item wave, spread left/centre/right so they don't cluster */
           spawn(80+seg*0.5+(Math.random()-0.5)*seg*0.25); spawn(80+seg*1.5+(Math.random()-0.5)*seg*0.25); spawn(80+seg*2.5+(Math.random()-0.5)*seg*0.25);
           G.spawnT=DIFF.spawnMin+700+Math.random()*DIFF.spawnRange; }
-        else { if(!maybeSpawnSpecial()){ spawn(); if(Math.random()<DIFF.dbl) spawn(); }   /* specials replace a single spawn, never a burst */
+        else { spawn(); if(Math.random()<DIFF.dbl) spawn();   /* specials are NOT spawned here — they run on their own timer in specialUpdate */
           G.spawnT=DIFF.spawnMin+Math.random()*DIFF.spawnRange; }
       }
     }
