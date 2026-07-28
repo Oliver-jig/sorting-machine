@@ -10,7 +10,7 @@ Production)** — a Fruit-Ninja-style slicer about Hong Kong recycling. No build
 step, no framework, no backend. It's plain HTML + CSS + JavaScript with a few
 CDN libraries. Deployed as a static site (Vercel).
 
-Current state: **build 28** (SDG 12 amber theme, code split into `css/` + `js/`,
+Current state: **build 29** (SDG 12 amber theme, code split into `css/` + `js/`,
 phone controller reworked to landscape "slash" control, Quiz rebuilt and Defend
 replaced by the "Bin It" sorting mode, pause available in every mode,
 Fruit-Ninja-style special items in Sort, score saving + CSV export).
@@ -71,7 +71,7 @@ Note: CSS and JS were factored OUT of `index.html`. Do not re-inline them.
 - `loop()` is the single requestAnimationFrame loop. It branches on `GMODE`.
 
 ### Data tables (top of file — edit these to change content)
-- `ITEMS` — the 15 sliceable objects: `{t, name, bin, ...}`. `bin` is one of
+- `ITEMS` — the 27 sliceable objects: `{t, name, bin, ...}`. `bin` is one of
   paper/plastic/metal/glass/trash/hazard.
 - `ROUNDS` — Sort-mode topics (Paper, Plastic, Metal & Glass, Spot the traps),
   each with the `bins` that count and a display `color`. Also reused as the

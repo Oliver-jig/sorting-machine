@@ -19,10 +19,15 @@ var SPBYT={}; SPECIALS.forEach(function(s){ SPBYT[s.t]=s; });
 /* ms remaining on each timed effect */
 var PWR={freeze:0, dbl:0, magnet:0};
 
+/* Specials run on their OWN timer rather than stealing a normal spawn slot.
+   The slot approach tied them to the item spawn rate, so on the relaxed preset
+   — slow spawns, near-empty screen — the "needs items on screen" rule blocked
+   almost every attempt and specials got RARER instead of more common. */
 var SPCFG={
-  chance:0.10,      /* of single-item spawns that become a special */
-  gap:4000,         /* ms minimum between two specials, so they never cluster */
-  leadIn:5000,      /* ms at the start of a round with no specials */
+  first:3500,       /* ms before the first special of a round */
+  every:6000,       /* ms minimum between specials */
+  everyRand:4000,   /* plus up to this much, so they don't feel metronomic */
+  minItems:2,       /* other items that must be ON SCREEN before one appears */
   battPts:-40,
   clockMs:5000,
   /* Magnet tuning (simulated, not guessed). Pull must beat gravity (0.00085)
@@ -34,12 +39,13 @@ var SPCFG={
   magMax:0.7,       /* px/ms cap, so an item never rockets across the screen */
   magDamp:0.94      /* per-frame drag on pulled items; kills orbiting */
 };
-var SPS={last:-1e9, roundStart:0, shakeUntil:0};
+var SPS={next:0, shakeUntil:0};
 
 function specialsReset(){
   PWR.freeze=0; PWR.dbl=0; PWR.magnet=0;
-  SPS.last=-1e9; SPS.roundStart=performance.now();
+  SPS.next=SPCFG.first;
 }
+function specialReschedule(){ SPS.next=SPCFG.every+Math.random()*SPCFG.everyRand; }
 
 /* ---- spawning ---- */
 function specialPool(){
@@ -57,16 +63,29 @@ function specialPick(){
   for(i=0;i<pool.length;i++){ r-=pool[i].w; if(r<=0) return pool[i]; }
   return pool[pool.length-1];
 }
-/* Returns true when it spawned one, so the caller skips its normal spawn. */
+/* Ordinary items currently VISIBLE. Items spawn below the screen at y=H+55 and
+   rise into view, so anything still under the bottom edge doesn't count. */
+function liveItemCount(){
+  var n=0;
+  for(var i=0;i<G.objs.length;i++){ var o=G.objs[i];
+    if(o.sliced || o.it.sp) continue;
+    if(o.y>H-20) continue;
+    n++;
+  }
+  return n;
+}
+
+/* Driven by specialUpdate's timer. When the timer is up but the screen is too
+   empty, the timer is NOT reset — so the special appears the moment enough
+   items are in play, rather than being skipped for another full interval. */
 function maybeSpawnSpecial(){
-  var now=performance.now();
   if(PWR.freeze>0) return false;                       /* nothing new arrives mid-freeze */
-  if(now-SPS.roundStart<SPCFG.leadIn) return false;
-  if(now-SPS.last<SPCFG.gap) return false;
   if(G.objs.length>=14) return false;
-  if(Math.random()>=SPCFG.chance) return false;
+  /* A power-up on an empty screen is wasted — freezing nothing, doubling
+     nothing. Only offer one when there is something to use it on. */
+  if(liveItemCount()<SPCFG.minItems) return false;
   var s=specialPick(); if(!s) return false;
-  SPS.last=now;
+  specialReschedule();
   var x=90+Math.random()*Math.max(1,W-180);
   var vy=-(Math.sqrt(2*DIFF.g*Math.min(H,DIFF.h)))-Math.random()*0.06;
   var mesh=makeSprite(s); scene.add(mesh);
@@ -112,6 +131,10 @@ function specialUpdate(dt){
   if(PWR.freeze>0) PWR.freeze-=dt;
   if(PWR.dbl>0) PWR.dbl-=dt;
   if(PWR.magnet>0) PWR.magnet-=dt;
+  if(PWR.freeze<=0){                      /* the schedule holds while frozen */
+    SPS.next-=dt;
+    if(SPS.next<=0) maybeSpawnSpecial();
+  }
 }
 function specialMult(){ return PWR.dbl>0 ? 2 : 1; }
 
