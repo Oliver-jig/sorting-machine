@@ -8,7 +8,7 @@
    ITEMS, QBINS, controlMode, setupCam, setupMouse, FACTS. */
 
 var DBINS=["paper","plastic","metal","glass","trash"];
-var DCFG={lives:3, cap:8, grav:0.00014, vyCap:0.15, nudge:0.0035, vxCap:0.34,
+var DCFG={lives:3, cap:8, grav:0.00014, vyCap:0.15, nudge:0.0035, vxCap:0.34, kick:0.06,
           vxDrag:0.0012, hitCool:130, waveMs:30000, comboEvery:4, comboCap:4, base:10};
 var WAVES=[{n:"Warm-up",bias:null},{n:"Paper run",bias:"paper"},{n:"Plastic tide",bias:"plastic"},
            {n:"Glass rush",bias:"glass"},{n:"Mixed load",bias:null},{n:"Metal sweep",bias:"metal"}];
@@ -40,16 +40,34 @@ function binAt(x){
   return x<W/2 ? r[0].bin : r[r.length-1].bin;      /* clamp to the nearest end bin */
 }
 
+/* Bin It used to drop you straight in with no explanation — Sort shows its
+   rules before every round, this showed nothing, so the steering mechanic was
+   invisible and the mode looked broken. */
+function tsunamiIntro(){
+  el("ovlT").textContent="Bin It Right";
+  el("ovlD").innerHTML="Every item has <b>one correct bin</b>.<br>"+
+    "A slice does <b>not</b> destroy it — <b>slash sideways to steer it</b> left or right, "+
+    "or hit it off-centre to bat it across.<br>"+
+    "Land it in the matching bin to score. Wrong bin costs a life.";
+  el("ovlBtn").textContent="Start sorting";
+  el("ovl").classList.remove("hidden");
+}
+function tsunamiBegin(){
+  el("ovl").classList.add("hidden");
+  TS.running=true;
+}
+
 function launchTsunami(){
-  GMODE="tsunami"; TS.running=true; TS.lives=DCFG.lives; TS.score=0; TS.spawnT=500;
+  GMODE="tsunami"; TS.running=false; TS.lives=DCFG.lives; TS.score=0; TS.spawnT=500;
   TS.elapsed=0; TS.streak=0; TS.mult=1; TS.waveT=DCFG.waveMs; TS.waveIdx=0;
   TS.banner=2200; TS.right=0; TS.wrong=0; TS.shield=false; TS.spNext=DSCFG.first;
   G.pops=[]; G.parts=[]; G.flashes=[]; BLADE.trail=[]; clearObjs();
   el("scoreN").textContent="0"; el("topicName").textContent=WAVES[0].n; el("topicDot").style.background="#2f7fd1";
   el("roundN").textContent=TS.lives; el("timeFill").style.width="100%";
   el("quizQ").classList.add("hidden"); el("pauseBtn").style.display="";
-  show("play"); resize(); el("ovl").classList.add("hidden"); el("pauseOvl").classList.add("hidden");
+  show("play"); resize(); el("pauseOvl").classList.add("hidden");
   if(controlMode==="cam") setupCam(); else if(controlMode==="mouse") setupMouse();
+  tsunamiIntro();                       /* wait for the player to read the rules */
 }
 
 function tsunamiSpawn(){
@@ -158,7 +176,12 @@ function tsunamiSlice(x1,y1,x2,y2){
     if(o.cool>0) continue;
     if(segHit(o,x1,y1,x2,y2)){
       if(o.it.sp){ dspecTake(o); scene.remove(o.mesh); G.objs.splice(i,1); continue; }
-      o.vx+=bdx*DCFG.nudge;
+      /* Two ways to push. The blade's sideways travel is the main one, but a
+         straight-down chop has no sideways travel at all and used to do
+         nothing — which reads as the game being broken. So hitting an item
+         off-centre also bats it away from the blade, like a bat on a ball. */
+      var off=o.x-x2, side=Math.max(-1, Math.min(1, off/(o.r||50)));
+      o.vx+=bdx*DCFG.nudge + side*DCFG.kick;
       if(o.vx>DCFG.vxCap) o.vx=DCFG.vxCap;
       if(o.vx<-DCFG.vxCap) o.vx=-DCFG.vxCap;
       if(o.vy>0.05) o.vy*=0.72;                                  /* a hit also buys you a little time */
