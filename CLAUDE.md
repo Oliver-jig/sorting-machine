@@ -10,7 +10,7 @@ Production)** — a Fruit-Ninja-style slicer about Hong Kong recycling. No build
 step, no framework, no backend. It's plain HTML + CSS + JavaScript with a few
 CDN libraries. Deployed as a static site (Vercel).
 
-Current state: **build 29** (SDG 12 amber theme, code split into `css/` + `js/`,
+Current state: **build 30** (SDG 12 amber theme, code split into `css/` + `js/`,
 phone controller reworked to landscape "slash" control, Quiz rebuilt and Defend
 replaced by the "Bin It" sorting mode, pause available in every mode,
 Fruit-Ninja-style special items in Sort, score saving + CSV export).
@@ -33,7 +33,7 @@ js/game.js        Engine + Sort + Versus + shared helpers (~700 lines). Loads FI
 js/mode-quiz.js   Quiz only: QUIZ data, Q state, launch/next/update/slice/draw.
 js/mode-defend.js "Bin It" sorting mode only: DBINS/DCFG/WAVES, TS state, bin
                   geometry (binRects/binAt) and the steering slice.
-js/specials.js    Sort-mode power-ups: SPECIALS/SPCFG data, PWR effect timers,
+js/specials.js    Sort power-ups (Bin It has its own DSPEC in mode-defend.js): SPECIALS/SPCFG data, PWR effect timers,
                   spawn/slice/update/draw, and their ART entries.
 js/scores.js      Local score history (localStorage): personal best, this-computer
                   top 10, and CSV export for Excel. No database, no network.
