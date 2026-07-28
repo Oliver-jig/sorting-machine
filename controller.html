@@ -62,7 +62,7 @@
       <div id="pad"><div class="cross cx"></div><div class="cross cy"></div><div id="dot"></div></div>
       <div id="rotate">↻ Turn your phone sideways and grip it like a knife.</div>
       <div id="status">Not connected</div>
-      <div class="fine">build 22 · direct</div>
+      <div class="fine">build 31 · direct</div>
     </div>
   </div>
 
@@ -74,6 +74,10 @@
   codeEl.value=((qs.get("room")||qs.get("peer")||"").replace(/[^0-9]/g,"")).slice(0,4);
   var s=document.getElementById("status"), dot=document.getElementById("dot");
   var client=null, room=null, sending=false, lastPub=0;
+  /* Two phones share one MQTT topic, so every message carries this id — it is
+     the only thing that lets the laptop tell Player 1 from Player 2. */
+  var CID=Math.random().toString(16).slice(2,10);
+  var myTeam=-1;
   var pc=null, dc=null, dcReady=false;
   var CICE={iceServers:[{urls:"stun:stun.l.google.com:19302"},{urls:"turn:openrelay.metered.ca:80",username:"openrelayproject",credential:"openrelayproject"}]};
   function pub(o){ if(client&&client.connected) client.publish("slicesort/"+room, JSON.stringify(o), {qos:0}); }
@@ -134,7 +138,7 @@
     var now=Date.now(); if(now-lastPub<16) return; lastPub=now;
     var gg=(bx-0.5)*60, bb=15+by*55;
     if(dc && dc.readyState==="open"){ try{ dc.send(JSON.stringify({g:gg,b:bb})); }catch(e){} }        /* direct link — low latency */
-    else if(sending && client && client.connected){ client.publish("slicesort/"+room, JSON.stringify({from:"ctrl",type:"orient", g:gg, b:bb}), {qos:0}); }  /* relay fallback */
+    else if(sending && client && client.connected){ client.publish("slicesort/"+room, JSON.stringify({from:"ctrl",type:"orient", cid:CID, g:gg, b:bb}), {qos:0}); }  /* relay fallback */
   }
   function startMotion(){ window.addEventListener("deviceorientation", onOrient); requestAnimationFrame(tick); }
   document.getElementById("recenter").addEventListener("click", function(){ bx=0.5; by=0.5; vx=0; vy=0; setStatus("Re-centred — <b>slash to slice</b>"); });
@@ -143,10 +147,15 @@
     setStatus("Reaching the game…");
     if(typeof mqtt==="undefined"){ setStatus("Couldn't load the relay — check internet and reload."); return; }
     client=mqtt.connect(BROKER,{clientId:"ctrl_"+room+"_"+Math.random().toString(16).slice(2,8), reconnectPeriod:2500, connectTimeout:9000});
-    client.on("connect", function(){ sending=true; client.subscribe("slicesort/"+room); pub({from:"ctrl",type:"hello"}); document.body.className="playing"; setStatus("Connected — <b>slash to slice</b>"); startWebRTC(); });
+    client.on("connect", function(){ sending=true; client.subscribe("slicesort/"+room); pub({from:"ctrl",type:"hello",cid:CID}); document.body.className="playing"; setStatus("Connected — <b>slash to slice</b>"); startWebRTC(); });
     client.on("message", function(t, payload){ var d; try{ d=JSON.parse(payload.toString()); }catch(e){ return; }
       if(d.from==="ctrl") return;                                   /* ignore our own echoed messages */
-      if(d.type==="answer" && pc){ try{ pc.setRemoteDescription(d.sdp); }catch(e){} }
+      /* signalling and slot messages are addressed by cid — ignore the other phone's */
+      if(d.cid && d.cid!==CID) return;
+      if(d.type==="slot"){ myTeam=d.slot;
+        setStatus(myTeam===1 ? "You are <b>Player 2</b> (right side) — slash to slice"
+                             : "You are <b>Player 1</b> (left side) — slash to slice"); }
+      else if(d.type==="answer" && pc){ try{ pc.setRemoteDescription(d.sdp); }catch(e){} }
       else if(d.type==="ice" && pc){ try{ pc.addIceCandidate(d.cand); }catch(e){} }
     });
     client.on("reconnect", function(){ setStatus("Reconnecting…"); });
