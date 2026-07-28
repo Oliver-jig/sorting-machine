@@ -765,7 +765,10 @@ el("playBtn").addEventListener("click", function(){
 });
 el("connGo").addEventListener("click", function(){ startChosen(); });
 el("connBack").addEventListener("click", function(){ stopPeer(); show("start"); });
-el("ovlBtn").addEventListener("click", startRound);
+el("ovlBtn").addEventListener("click", function(){
+  if(GMODE==="tsunami") tsunamiBegin();   /* Bin It's rules screen */
+  else startRound();
+});
 el("againBtn").addEventListener("click", function(){ show("start"); });
 
 /* ---- pause / resume ---- */

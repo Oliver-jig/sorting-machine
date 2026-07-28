@@ -1,27 +1,38 @@
 /* ================= SCORES =================
-   Entirely local. No database, no account, no API key, no network — so it
-   works offline, works from `npm start`, and works on the deployed site
-   identically. Three things:
+   Two layers with different audiences:
 
-   1. Every finished run is appended to a history in localStorage.
-   2. A personal best per mode, plus a top-10 board for THIS computer,
-      both derived from that history.
-   3. A CSV export that opens straight in Excel.
+   1. THE PLAYER sees only their own best score, kept in localStorage. No
+      leaderboard, no export button — nothing that lets them take the data
+      away or see anyone else's.
+   2. THE OWNER gets every run written to Firebase Firestore. The security
+      rules are write-only: the game can create a score and can NEVER read,
+      edit or delete one. Players cannot pull the list back out even by
+      opening the console, because the API simply refuses. You read the data
+      in the Firebase console, which is behind your Google login.
 
-   Versus is not recorded — two players on one screen means a personal best
-   has no clear meaning.
+   That split is the whole point: the API key in this file is public by
+   design, so secrecy has to come from the rules, not from hiding the key.
 
-   All localStorage access goes through lsGet/lsSet, which swallow errors:
-   Safari private browsing throws on setItem, and a thrown error here would
-   otherwise take out the whole result screen. */
+   Everything Firestore-related is best-effort. If it is unconfigured, blocked
+   or offline the game carries on and the player's own best still works.
 
-var SCFG={ top:10, nameMax:16, maxRuns:500 };
+   Versus is not recorded — two players on one screen, so a personal best has
+   no clear meaning. See FIREBASE-SETUP.md. */
+
+/* ---- fill these two in; see FIREBASE-SETUP.md ---- */
+var FB={
+  projectId:"",   /* e.g. "slice-sort-3d" */
+  apiKey:""       /* e.g. "AIzaSy..."     */
+};
+/* -------------------------------------------------- */
+
+var SCFG={ nameMax:16, maxRuns:300, scoreMin:-9999, scoreMax:100000, timeout:6000 };
 var SMODES={ sort:"Sort", quiz:"Quiz", tsunami:"Bin It" };
-var SC={ mode:null, score:0, best:0, isNew:false };
+var SC={ mode:null, score:0, best:0, isNew:false, sent:false };
 
-/* ---- localStorage plumbing ---- */
+/* ---- local storage ---- */
 function lsGet(k,d){ try{ var v=localStorage.getItem(k); return v===null?d:v; }catch(e){ return d; } }
-function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }   /* private mode / full quota */
 function getName(){ return lsGet("ss3d.name",""); }
 function setName(n){ lsSet("ss3d.name", n); }
 function cleanName(n){ return (n||"").replace(/\s+/g," ").trim().slice(0,SCFG.nameMax); }
@@ -31,36 +42,54 @@ function getRuns(){
   catch(e){ return []; }                       /* corrupted storage must not brick the screen */
 }
 function setRuns(a){ lsSet("ss3d.runs", JSON.stringify(a)); }
-
 function addRun(mode,score,name){
   var a=getRuns();
   a.push({ t:Date.now(), n:name||"", m:mode, s:Math.round(score) });
-  if(a.length>SCFG.maxRuns) a=a.slice(a.length-SCFG.maxRuns);   /* keep the file from growing forever */
+  if(a.length>SCFG.maxRuns) a=a.slice(a.length-SCFG.maxRuns);
   setRuns(a);
-  return a;
 }
+/* the player's own best, per mode — this is all they ever see */
 function bestFor(mode){
   var a=getRuns(), b=null;
   for(var i=0;i<a.length;i++){ if(a[i].m===mode && (b===null || a[i].s>b)) b=a[i].s; }
   return b;
 }
-function topFor(mode){
-  return getRuns().filter(function(r){ return r.m===mode; })
-    .sort(function(x,y){ return y.s-x.s; })
-    .slice(0,SCFG.top);
+
+/* ---- Firestore: create only, never read ---- */
+function fbReady(){ return !!(FB.projectId && FB.apiKey); }
+function fbSubmit(mode,name,score){
+  if(!fbReady()) return Promise.reject(new Error("not configured"));
+  var url="https://firestore.googleapis.com/v1/projects/"+FB.projectId+
+          "/databases/(default)/documents/scores?key="+encodeURIComponent(FB.apiKey);
+  var body={ fields:{
+    name:{stringValue:name},
+    mode:{stringValue:mode},
+    score:{integerValue:String(Math.round(score))},
+    at:{timestampValue:new Date().toISOString()}
+  }};
+  var opts={method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)};
+  if(typeof AbortController!=="undefined"){                 /* don't hang the result screen */
+    var ac=new AbortController(); opts.signal=ac.signal;
+    setTimeout(function(){ try{ ac.abort(); }catch(e){} }, SCFG.timeout);
+  }
+  return fetch(url,opts).then(function(r){
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    return true;
+  });
 }
 
 /* ---- called by each mode's game-over ---- */
 function scoresRecord(mode,score){
   if(!SMODES[mode]) return;                    /* versus is not recorded */
   score=Math.round(score);
-  var prevBest=bestFor(mode);                  /* read BEFORE appending, or the new run is its own best */
-  SC.mode=mode; SC.score=score;
+  var prevBest=bestFor(mode);                  /* read BEFORE appending, or every run is its own best */
+  SC.mode=mode; SC.score=score; SC.sent=false;
   SC.isNew = (prevBest===null || score>prevBest);
   SC.best = SC.isNew ? score : prevBest;
   addRun(mode,score,getName());
   scoresRenderBest();
   scoresRenderPanel();
+  if(getName()) scoresSend();                  /* name already known — send silently */
 }
 
 function scoresHidePanel(){
@@ -76,37 +105,17 @@ function scoresRenderBest(){
     ? '<b style="color:#1f9d55">New personal best!</b> &nbsp;'+label+' best: <b>'+SC.best+'</b>'
     : label+' best: <b>'+SC.best+'</b>';
 }
+function scoresNote(t){ var n=el("lbNote"); if(n) n.textContent=t||""; }
 
 function scoresRenderPanel(){
   var w=el("lbWrap"); if(!w || !SC.mode) return;
   w.classList.remove("hidden");
-  var m=el("lbMode"); if(m) m.textContent=SMODES[SC.mode]||"";
   var inp=el("playerName"); if(inp && !inp.value) inp.value=getName();
-  scoresRenderBoard();
-  scoresRenderCount();
+  if(!getName()) scoresNote("Add your name so your teacher can see whose score this is.");
+  else scoresNote("");
 }
 
-function scoresRenderBoard(){
-  var list=el("lbList"); if(!list || !SC.mode) return;
-  list.innerHTML="";
-  var rows=topFor(SC.mode);
-  if(!rows.length) return;
-  rows.forEach(function(r,i){
-    var li=document.createElement("li");
-    li.innerHTML='<span class="lbRank">'+(i+1)+'</span><span class="lbName"></span><span class="lbScore">'+r.s+'</span>';
-    li.querySelector(".lbName").textContent = r.n || "—";   /* textContent: names are user input */
-    list.appendChild(li);
-  });
-}
-function scoresRenderCount(){
-  var n=el("lbNote"); if(!n) return;
-  var total=getRuns().length;
-  n.textContent = total===1 ? "1 game saved on this computer."
-                            : total+" games saved on this computer.";
-}
-
-/* Naming happens after the run, so this back-fills the run just recorded and
-   remembers the name for next time. */
+/* Naming happens after the run, so this back-fills the run just recorded. */
 function scoresSaveName(){
   var inp=el("playerName"); if(!inp) return;
   var n=cleanName(inp.value);
@@ -115,8 +124,20 @@ function scoresSaveName(){
   var a=getRuns();
   if(a.length){ a[a.length-1].n=n; setRuns(a); }
   inp.value=n;
-  scoresRenderBoard();
-  var note=el("lbNote"); if(note) note.textContent="Saved as "+n+".";
+  scoresSend();
+}
+
+function scoresSend(){
+  if(!SC.mode || SC.sent || !fbReady()) return;
+  if(SC.score<SCFG.scoreMin || SC.score>SCFG.scoreMax) return;
+  var n=getName(); if(!n) return;
+  SC.sent=true;
+  fbSubmit(SC.mode,n,SC.score).then(function(){
+    scoresNote("Score recorded.");
+  }).catch(function(){
+    SC.sent=false;                             /* allow a retry via Save name */
+    scoresNote("Couldn't reach the server — your best score is still saved here.");
+  });
 }
 
 /* Start screen: show the target before you play, like an arcade cabinet.
@@ -134,51 +155,8 @@ function scoresRenderStartBest(){
   box.innerHTML='<span class="bestLbl">Your best</span>'+parts.join("");
 }
 
-/* ---- CSV export ---- */
-function csvCell(v){
-  var s=String(v===undefined||v===null?"":v);
-  return /[",\n\r]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;   /* RFC4180 quoting */
-}
-function pad2(n){ return (n<10?"0":"")+n; }
-function csvDate(ms){
-  var d=new Date(ms);
-  return d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate())+" "+pad2(d.getHours())+":"+pad2(d.getMinutes());
-}
-function buildCsv(){
-  var a=getRuns(), lines=["date,name,mode,score"];
-  a.forEach(function(r){
-    lines.push([csvCell(csvDate(r.t)), csvCell(r.n), csvCell(SMODES[r.m]||r.m), csvCell(r.s)].join(","));
-  });
-  return lines.join("\r\n");                    /* CRLF: what Excel expects */
-}
-function scoresDownloadCsv(){
-  var runs=getRuns();
-  var note=el("lbNote");
-  if(!runs.length){ if(note) note.textContent="No games saved yet."; return; }
-  /* The leading BOM is what makes Excel read the file as UTF-8. Without it,
-     Chinese names come out as mojibake. */
-  var blob=new Blob(["﻿"+buildCsv()], {type:"text/csv;charset=utf-8;"});
-  var d=new Date();
-  var fname="slice-sort-scores-"+d.getFullYear()+pad2(d.getMonth()+1)+pad2(d.getDate())+".csv";
-  var url=URL.createObjectURL(blob);
-  var a=document.createElement("a");
-  a.href=url; a.download=fname;
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
-  if(note) note.textContent="Downloaded "+fname+" ("+runs.length+" games).";
-}
-
-function scoresClearAll(){
-  if(!confirm("Delete all saved scores on this computer? This cannot be undone.")) return;
-  setRuns([]);
-  scoresRenderBoard(); scoresRenderCount();
-}
-
 document.addEventListener("DOMContentLoaded", function(){
-  var b;
-  if((b=el("saveScore"))) b.addEventListener("click", scoresSaveName);
-  if((b=el("dlCsv")))     b.addEventListener("click", scoresDownloadCsv);
-  if((b=el("clearScores")))b.addEventListener("click", scoresClearAll);
+  var b=el("saveScore"); if(b) b.addEventListener("click", scoresSaveName);
   var inp=el("playerName");
   if(inp){ inp.value=getName();
     inp.addEventListener("keydown", function(e){ if(e.key==="Enter") scoresSaveName(); }); }
