@@ -22,7 +22,7 @@
 /* ---- fill these two in; see FIREBASE-SETUP.md ---- */
 var FB={
   projectId:"test-99b74",
-  apiKey:""       /* <-- PASTE YOUR WEB API KEY HERE (starts "AIzaSy...") */
+  apiKey:"AIzaSyChVBlk8Efs5aFipDhp6eRfAuzD341XE7A"
 };
 /* -------------------------------------------------- */
 
