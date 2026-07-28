@@ -12,7 +12,8 @@ var SPECIALS=[
   {n:"♻ Double",       t:"spDouble",  col:0x30d158, sp:"dbl",     dur:8000,  w:20},
   {n:"🧲 Magnet",      t:"spMagnet",  col:0xe0762b, sp:"magnet",  dur:4000,  w:16},
   {n:"⏱ +5 seconds",   t:"spClock",   col:0xbf8b2e, sp:"clock",   dur:0,     w:16},
-  {n:"⚠ Battery",      t:"spBattery", col:0xd70015, sp:"battery", dur:0,     w:28, bad:true}
+  {n:"⚠ Battery",      t:"spBattery", col:0xd70015, sp:"battery", dur:0,     w:28, bad:true},
+  {n:"🚛 Truck",       t:"spTruck",   col:0x2f7fd1, sp:"truck",   dur:0,     w:18}
 ];
 var SPBYT={}; SPECIALS.forEach(function(s){ SPBYT[s.t]=s; });
 
@@ -30,6 +31,7 @@ var SPCFG={
   minItems:2,       /* other items that must be ON SCREEN before one appears */
   battPts:-40,
   clockMs:5000,
+  truckMs:1100,     /* ms for the truck to cross the whole screen */
   /* Magnet tuning (simulated, not guessed). Pull must beat gravity (0.00085)
      or items just keep falling away — 0.00055 was invisible in play. And
      attraction WITHOUT drag conserves energy, so items slingshot past the
@@ -40,9 +42,13 @@ var SPCFG={
   magDamp:0.94      /* per-frame drag on pulled items; kills orbiting */
 };
 var SPS={next:0, shakeUntil:0};
+/* Collection day: the truck drives across and takes everything recyclable.
+   It deliberately leaves contaminants behind — that IS the lesson. */
+var TRUCK={on:false, x:0, speed:0};
 
 function specialsReset(){
   PWR.freeze=0; PWR.dbl=0; PWR.magnet=0;
+  TRUCK.on=false;
   SPS.next=SPCFG.first;
 }
 function specialReschedule(){ SPS.next=SPCFG.every+Math.random()*SPCFG.everyRand; }
@@ -103,6 +109,8 @@ function specialSlice(o){
   else if(s.sp==="dbl"){ PWR.dbl=s.dur; G.pops.push({x:o.x,y:o.y,txt:"DOUBLE!",col:"#1f9d55",a:1,big:true}); }
   else if(s.sp==="magnet"){ PWR.magnet=s.dur; G.pops.push({x:o.x,y:o.y,txt:"MAGNET!",col:"#e0762b",a:1,big:true}); }
   else if(s.sp==="clock"){ G.roundEndAt+=SPCFG.clockMs; G.pops.push({x:o.x,y:o.y,txt:"+5s",col:"#bf8b2e",a:1,big:true}); }
+  else if(s.sp==="truck"){ TRUCK.on=true; TRUCK.x=-160; TRUCK.speed=(W+320)/SPCFG.truckMs;
+    G.pops.push({x:o.x,y:o.y,txt:"COLLECTION DAY!",col:"#2f7fd1",a:1,big:true}); }
   else if(s.sp==="battery"){
     G.score=Math.max(-999,G.score+SPCFG.battPts); el("scoreN").textContent=G.score;
     G.pops.push({x:o.x,y:o.y,txt:SPCFG.battPts+"",col:"#d70015",a:1,big:true});
@@ -127,7 +135,48 @@ function specialPull(o,dt){
   if(Math.abs(o.vx)>SPCFG.magMax) o.vx=(o.vx>0?1:-1)*SPCFG.magMax;
   if(Math.abs(o.vy)>SPCFG.magMax) o.vy=(o.vy>0?1:-1)*SPCFG.magMax;
 }
+/* Scores one item exactly as a correct manual slice would, so the truck and the
+   blade stay worth the same (and Double still applies). */
+function truckCollect(o){
+  var R=ROUNDS[G.round];
+  if(!R || R.bins.indexOf(o.it.bin)<0) return;   /* the truck refuses contaminants */
+  o.sliced=true; o.vy-=0.06; o.dspin=0.2;
+  var pts=15*specialMult();
+  G.score=Math.max(-999,G.score+pts); el("scoreN").textContent=G.score;
+  spawnBurst(o.x,o.y, BINCOL[o.it.bin]||"#2fae6a");
+  G.pops.push({x:o.x,y:o.y,txt:"+"+pts,col:"#1f9d55",a:1});
+}
+function truckUpdate(dt){
+  if(!TRUCK.on) return;
+  TRUCK.x+=TRUCK.speed*dt;
+  for(var i=0;i<G.objs.length;i++){ var o=G.objs[i];
+    if(o.sliced || o.it.sp) continue;
+    if(o.x<=TRUCK.x) truckCollect(o);            /* sliced flag stops any re-collect */
+  }
+  if(TRUCK.x>W+200) TRUCK.on=false;
+}
+function truckDraw(){
+  if(!TRUCK.on) return;
+  var x=TRUCK.x, y=H*0.60, w=150, h=74;
+  fxc.save();
+  fxc.globalAlpha=0.28; fxc.fillStyle="#2f7fd1";
+  fxc.fillRect(Math.max(0,x-w), y-6, Math.max(0,Math.min(x,W)-Math.max(0,x-w)), h+12);  /* wake */
+  fxc.globalAlpha=1;
+  fxc.translate(x,y);
+  fxc.fillStyle="#2f7fd1"; fxc.strokeStyle="#1d1d1f"; fxc.lineWidth=4;
+  fxRR(-w/2,-h/2,w*0.62,h,8); fxc.fill(); fxc.stroke();                 /* container */
+  fxRR(-w/2+w*0.62,-h/2+16,w*0.36,h-16,8); fxc.fillStyle="#5aa9e6"; fxc.fill(); fxc.stroke();  /* cab */
+  fxc.fillStyle="#cfe6ff"; fxRR(-w/2+w*0.68,-h/2+22,w*0.2,22,4); fxc.fill(); fxc.stroke();     /* window */
+  fxc.fillStyle="#1d1d1f";
+  fxc.beginPath(); fxc.arc(-w*0.22,h/2,13,0,7); fxc.fill();
+  fxc.beginPath(); fxc.arc(w*0.28,h/2,13,0,7); fxc.fill();
+  fxc.fillStyle="#ffffff"; fxc.font="700 22px 'Fredoka',system-ui,sans-serif";
+  fxc.textAlign="center"; fxc.textBaseline="middle"; fxc.fillText("♻", -w*0.2, 0);
+  fxc.restore();
+}
+
 function specialUpdate(dt){
+  truckUpdate(dt);
   if(PWR.freeze>0) PWR.freeze-=dt;
   if(PWR.dbl>0) PWR.dbl-=dt;
   if(PWR.magnet>0) PWR.magnet-=dt;
@@ -156,6 +205,7 @@ function specialDraw(now){
       fxc.beginPath(); fxc.arc(o.x,o.y,Math.max(0.1,o.r+22),0,7); fxc.stroke(); }
     fxc.restore();
   }
+  truckDraw();
   specialDrawChips();
 }
 function specialDrawChips(){
@@ -214,6 +264,16 @@ ART.spClock=function(c){
   c.lineCap="butt";
   c.fillStyle="#bf8b2e"; c.font="700 26px 'Fredoka',system-ui,sans-serif";
   c.textAlign="center"; c.textBaseline="middle"; c.fillText("+5s",110,170);
+};
+ART.spTruck=function(c){
+  rr(c,32,84,104,70,8); fillIt(c,"#2f7fd1"); outline(c);              /* container */
+  rr(c,132,102,54,52,8); fillIt(c,"#5aa9e6"); outline(c);             /* cab */
+  rr(c,142,110,34,22,4); fillIt(c,"#d9ecff"); outline(c);             /* window */
+  c.fillStyle="#1d1d1f";
+  c.beginPath(); c.arc(66,158,17,0,7); c.fill();
+  c.beginPath(); c.arc(150,158,17,0,7); c.fill();
+  c.fillStyle="#ffffff"; c.font="700 34px 'Fredoka',system-ui,sans-serif";
+  c.textAlign="center"; c.textBaseline="middle"; c.fillText("♻",84,119);
 };
 ART.spBattery=function(c){
   rr(c,66,42,88,140,10); fillIt(c,"#2d2d2d"); outline(c);
