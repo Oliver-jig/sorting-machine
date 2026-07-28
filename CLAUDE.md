@@ -13,7 +13,7 @@ CDN libraries. Deployed as a static site (Vercel).
 Current state: **build 36** (SDG 12 amber theme, code split into `css/` + `js/`,
 phone controller reworked to landscape "slash" control, Quiz rebuilt and Defend
 replaced by the "Bin It" sorting mode, pause available in every mode,
-Fruit-Ninja-style special items in Sort, score saving + CSV export).
+Fruit-Ninja-style special items in Sort, owner-only score database).
 The build number is stamped in the start-screen note — see "Build stamping".
 
 ## File map
@@ -33,10 +33,13 @@ js/game.js        Engine + Sort + Versus + shared helpers (~700 lines). Loads FI
 js/mode-quiz.js   Quiz only: QUIZ data, Q state, launch/next/update/slice/draw.
 js/mode-defend.js "Bin It" sorting mode only: DBINS/DCFG/WAVES, TS state, bin
                   geometry (binRects/binAt) and the steering slice.
-js/specials.js    Sort power-ups (Bin It has its own DSPEC in mode-defend.js): SPECIALS/SPCFG data, PWR effect timers,
-                  spawn/slice/update/draw, and their ART entries.
-js/scores.js      Local score history (localStorage): personal best, this-computer
-                  best only; every run posted to a write-only Firestore the owner reads.
+js/specials.js    Sort power-ups: SPECIALS/SPCFG, PWR timers, spawn/slice/
+                  update/draw + their ART. Bin It has its own DSPEC in
+                  js/mode-defend.js — the two modes consume specials differently.
+js/scores.js      Player sees ONLY their own best (localStorage). Every run is
+                  POSTed to Firestore under create-only rules; the owner reads
+                  it in the Firebase console. No leaderboard, no export.
+FIREBASE-SETUP.md 5-minute setup + the owner-only security rules.
 package.json      npm start = python http.server on :8137.
 vercel.json       Static config (cleanUrls).
 README.md         Player- and deployer-facing docs.
@@ -97,6 +100,10 @@ launcher, update, slice-check, game-over, and draw:
   Every item has one correct bin. A slice does NOT destroy: `tsunamiSlice` adds
   sideways velocity so you steer items. Bins tile the FULL width via `binRects()`
   so nothing can land in a gap. Right bin scores x combo; wrong bin costs a life.
+  `tsunamiIntro()` MUST run before play — the mode is unguessable without it,
+  and shipping without it made slicing look broken. A slice pushes two ways:
+  the blade's horizontal travel, plus an off-centre `kick` so a straight-down
+  chop still bats the item sideways instead of doing nothing.
 - **Versus** — `VS` state; `setupCamVS` (MediaPipe maxNumHands:2, left/right by
   x), `launchVS` / `vsSpawn` / `vsSliceFor` / `vsUpdate` / `vsGameOver` /
   `vsDraw` / `drawTrail`. Split screen, 60s, `BLADE` (left/P1) + `BLADE2`
