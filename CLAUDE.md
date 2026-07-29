@@ -10,7 +10,7 @@ Production)** — a Fruit-Ninja-style slicer about Hong Kong recycling. No build
 step, no framework, no backend. It's plain HTML + CSS + JavaScript with a few
 CDN libraries. Deployed as a static site (Vercel).
 
-Current state: **build 39** (SDG 12 amber theme, code split into `css/` + `js/`,
+Current state: **build 40** (SDG 12 amber theme, code split into `css/` + `js/`,
 phone controller has absolute Aim mode + Slash mode, Quiz rebuilt and Defend
 replaced by the "Bin It" sorting mode, pause available in every mode,
 Fruit-Ninja-style special items in Sort, owner-only score database).
@@ -131,8 +131,12 @@ launcher, update, slice-check, game-over, and draw:
     was velocity-based and therefore impossible to aim.
   - **Slash** — physical MOVEMENT only, from the accelerometer via
     `accelScreen()`, fed into the damped velocity integrator. Rotating the
-    phone on the spot does nothing by design. `SLASHGAIN` 0.008 with
-    `FRICTION` 0.88: a firm swing crosses the screen in ~0.08s.
+    phone on the spot does nothing by design. `SLASHGAIN` 0.0018 + `SLASHVCAP`
+    0.025: a firm swing crosses in ~0.47s at ~1.5 screens/sec, roughly Aim's
+    pace. **Known limitation, not a tuning bug:** stopping a swing registers
+    as acceleration in the OPPOSITE direction, so the blade travels out and
+    then comes back on its own. No amount of tuning removes this — it is what
+    an accelerometer measures. Aim exists because of it.
   Tuning gotcha for Slash: the damped integrator multiplies `GAIN` by
   `1/(1-FRICTION)` (~5.5x) — `GAIN` is deliberately tiny (0.0025).
   **Never add a second steering source in a different reference frame.** An
