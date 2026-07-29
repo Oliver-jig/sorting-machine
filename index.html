@@ -65,7 +65,7 @@
           if(location.protocol==="file:"){ n.innerHTML='<b>You opened this file directly.</b> Phone mode won\'t work. Serve with:<br><code style="background:#f0f0f5;padding:2px 6px;border-radius:4px">python3 -m http.server 8137</code><br>Then open <b>http://localhost:8137/</b> (same WiFi as phone) — or deploy to Vercel.'; n.style.color='#c0392b'; }
           else if(location.hostname==="localhost"||location.hostname==="127.0.0.1"){
             n.innerHTML='Running locally. <b>Make sure your phone is on the same WiFi.</b>';
-          } else { n.innerHTML='Webcam + mouse modes run in your browser. Phone controller: scan the QR or type the code. · build 45 · SDG 12 theme (Sort · Quiz · Bin It · Versus)'; }
+          } else { n.innerHTML='Webcam + mouse modes run in your browser. Phone controller: scan the QR or type the code. · build 46 · SDG 12 theme (Sort · Quiz · Bin It · Versus)'; }
         })();
       </script>
     </div>
@@ -104,7 +104,7 @@
     <div class="hud">
       <div class="topicchip"><span class="dot" id="topicDot"></span><span id="topicName">Paper</span></div>
       <div class="stat"><b id="scoreN">0</b><span>score</span></div>
-      <div class="stat"><b id="roundN">1/4</b><span>round</span></div>
+      <div class="stat"><b id="roundN">1/4</b><span id="roundLbl">round</span></div>
       <div class="timebar"><div class="timefill" id="timeFill"></div></div>
       <button id="pauseBtn" style="border:2px solid var(--line); border-bottom:3px solid var(--line); background:#fff; color:var(--ink); border-radius:12px; padding:8px 16px; font-family:inherit; font-weight:600; font-size:14px;">Pause</button>
     </div>
