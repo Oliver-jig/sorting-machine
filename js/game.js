@@ -1,35 +1,4 @@
 /* ================= data ================= */
-var ITEMS = [
-  {n:"報紙 Newspaper",     t:"news",  bin:"paper",   col:0xe9e7e0},
-  {n:"紙皮 Cardboard",     t:"box",   bin:"paper",   col:0xb07a3c},
-  {n:"雜誌 Magazine",      t:"mag",   bin:"paper",   col:0xe0483f},
-  {n:"蒸餾水樽 Water bottle",t:"bottle",bin:"plastic", col:0x66b6ff},
-  {n:"洗潔精 Dish soap",   t:"jug",   bin:"plastic", col:0x2ec98a},
-  {n:"乳酪杯 Yogurt tub",  t:"tub",   bin:"plastic", col:0xf2f4f8},
-  {n:"汽水罐 Soda can",    t:"canTall",bin:"metal",  col:0xc4c8ce},
-  {n:"午餐肉罐 Luncheon meat", t:"spam", bin:"metal", col:0x3f6fb0},
-  {n:"玻璃樽 Glass bottle", t:"wine",  bin:"glass",   col:0x2f8f5a},
-  {n:"醬料樽 Sauce jar",   t:"jar",   bin:"glass",   col:0x9fd6b4},
-  {n:"薄餅盒 Pizza box",   t:"pizza", bin:"trash",   col:0xcaa46a},
-  {n:"珍珠奶茶 Bubble tea", t:"bubbletea", bin:"trash", col:0xd8c3a0},
-  {n:"膠袋 Plastic bag",   t:"bag",   bin:"trash",   col:0xdfe3ea},
-  {n:"發泡膠飯盒 Foam box", t:"foam",  bin:"trash",   col:0xffffff},
-  {n:"紙包飲品 Drink carton", t:"carton", bin:"trash", col:0xe4d2a8},
-  /* Every item's bin MUST be one of DBINS (paper/plastic/metal/glass/trash) —
-     Bin It has no sixth bin, so a `hazard` item would have nowhere to land. */
-  {n:"信封 Envelope",       t:"envelope",  bin:"paper",   col:0xf3efe4},
-  {n:"廁紙筒 Roll tube",    t:"toiletRoll",bin:"paper",   col:0xe8dcc8},
-  {n:"蛋盒 Egg carton",     t:"eggBox",    bin:"paper",   col:0xcbb89a},
-  {n:"洗頭水樽 Shampoo",    t:"shampoo",   bin:"plastic", col:0xef7fae},
-  {n:"清潔劑樽 Detergent",  t:"detergent", bin:"plastic", col:0x4aa3df},
-  {n:"膠杯 Plastic cup",    t:"cup",       bin:"plastic", col:0xeef4fb},
-  {n:"罐頭 Food tin",       t:"foodCan",   bin:"metal",   col:0xcdd2d8},
-  {n:"錫紙 Aluminium foil", t:"foil",      bin:"metal",   col:0xd7dce2},
-  {n:"啤酒樽 Beer bottle",  t:"beer",      bin:"glass",   col:0x7a4a1e},
-  {n:"口罩 Face mask",      t:"mask",      bin:"trash",   col:0xbfe4f5},
-  {n:"咖啡杯 Coffee cup",   t:"coffeeCup", bin:"trash",   col:0xf6f1e8},
-  {n:"即棄筷子 Chopsticks", t:"chopstick", bin:"trash",   col:0xe2c58f}
-];
 var ROUNDS = [
   {topic:"Paper",  bins:["paper"], color:"#0a84ff", desc:"Slice only <b>paper</b> — newspaper, cardboard, magazines."},
   {topic:"Plastic",bins:["plastic"], color:"#ff9f0a", desc:"Slice only <b>plastics</b> — bottles and rinsed tubs (brown bin)."},
@@ -39,7 +8,13 @@ var ROUNDS = [
 var FACTS = [
   "Hong Kong sends over 11,000 tonnes of waste to landfill every day.",
   "Tricolour bins: blue = paper, yellow = metal, brown = plastic. Glass goes to green points.",
-  "Greasy pizza boxes, coffee cups, plastic bags and foam are NOT recyclable in normal bins.",
+  /* This used to say plastic bags and foam were not recyclable. They are —
+     GREEN@COMMUNITY accepts both, and the roster now bins them as plastic, so
+     the old wording contradicted the game. */
+  "Drink cartons, clean plastic bags and foam ARE collected at GREEN@COMMUNITY points.",
+  "Greasy pizza boxes and plastic-lined coffee cups still go to general waste.",
+  "Receipts are thermal-coated and tissue fibres are too short to re-pulp — neither is paper.",
+  "Ceramics and mirrors melt at a different temperature to bottles and spoil a whole glass batch.",
   "'Wishcycling' — recycling on hope — contaminates and spoils whole batches."
 ];
 var DIFFS = {
@@ -150,123 +125,6 @@ function makeMesh(it){
   return g;
 }
 
-/* ================= item illustrations ================= */
-var OL="#2d2d2d", OLW=5;
-function hx(n){ return "#"+("000000"+n.toString(16)).slice(-6); }
-function rr(c,x,y,w,h,r){ c.beginPath(); c.moveTo(x+r,y); c.arcTo(x+w,y,x+w,y+h,r); c.arcTo(x+w,y+h,x,y+h,r); c.arcTo(x,y+h,x,y,r); c.arcTo(x,y,x+w,y,r); c.closePath(); }
-function fillIt(c,col){ c.fillStyle=col; c.fill(); }
-function outline(c){ c.strokeStyle=OL; c.lineWidth=OLW; c.stroke(); }
-function cjk(c,txt,x,y,size,col){ c.fillStyle=col||"#fff"; c.font="600 "+size+"px system-ui,'PingFang HK','PingFang TC','Microsoft JhengHei',sans-serif"; c.textAlign="center"; c.textBaseline="middle"; c.fillText(txt,x,y); }
-var ART={
-  news:function(c){ rr(c,45,42,130,150,10); fillIt(c,"#efeee7"); outline(c);
-    rr(c,45,42,130,30,10); fillIt(c,"#d8342e"); outline(c); cjk(c,"報紙",110,57,20,"#fff");
-    c.strokeStyle="#b9b6aa"; c.lineWidth=4; for(var i=0;i<7;i++){ c.beginPath(); c.moveTo(58,90+i*13); c.lineTo(162,90+i*13); c.stroke(); }
-    c.strokeStyle=OL; c.lineWidth=3; c.setLineDash([6,6]); c.beginPath(); c.moveTo(110,74); c.lineTo(110,190); c.stroke(); c.setLineDash([]); },
-  box:function(c){ c.beginPath(); c.moveTo(55,95); c.lineTo(150,95); c.lineTo(150,185); c.lineTo(55,185); c.closePath(); fillIt(c,"#b07a3c"); outline(c);
-    c.beginPath(); c.moveTo(55,95); c.lineTo(80,68); c.lineTo(175,68); c.lineTo(150,95); c.closePath(); fillIt(c,"#c8925a"); outline(c);
-    c.beginPath(); c.moveTo(150,95); c.lineTo(175,68); c.lineTo(175,158); c.lineTo(150,185); c.closePath(); fillIt(c,"#9c682f"); outline(c);
-    c.strokeStyle="#e6d9b8"; c.lineWidth=8; c.beginPath(); c.moveTo(102,95); c.lineTo(102,185); c.stroke(); },
-  mag:function(c,col){ rr(c,55,45,110,145,8); fillIt(c,col); outline(c);
-    rr(c,55,45,110,34,8); fillIt(c,"#ffffff"); outline(c); cjk(c,"雜誌",110,62,20,"#333");
-    rr(c,66,92,88,58,6); fillIt(c,"rgba(255,255,255,.8)"); outline(c);
-    c.strokeStyle="#ffffff"; c.lineWidth=4; for(var i=0;i<3;i++){c.beginPath();c.moveTo(66,164+i*9);c.lineTo(154,164+i*9);c.stroke();} },
-  bottle:function(c){ rr(c,98,40,24,16,4); fillIt(c,"#2b6bd0"); outline(c);
-    rr(c,100,54,20,16,4); fillIt(c,"#cfeaff"); outline(c);
-    rr(c,80,68,60,120,26); fillIt(c,"#cfeaff"); outline(c);
-    c.save(); rr(c,80,120,60,68,26); c.clip(); c.fillStyle="#7fc4ff"; c.fillRect(80,120,60,80); c.restore();
-    rr(c,80,122,60,32,4); fillIt(c,"#ffffff"); outline(c); cjk(c,"蒸餾水",110,138,16,"#1a6fb0"); },
-  jug:function(c,col){ rr(c,66,80,72,110,16); fillIt(c,col); outline(c);
-    c.beginPath(); c.arc(150,112,20,-1.15,1.15); c.lineWidth=13; c.strokeStyle=col; c.stroke(); c.lineWidth=OLW; c.strokeStyle=OL; c.stroke();
-    rr(c,86,56,20,26,4); fillIt(c,col); outline(c); rr(c,84,46,24,12,3); fillIt(c,"#ffffff"); outline(c);
-    rr(c,74,120,56,52,6); fillIt(c,"#ffffff"); outline(c); cjk(c,"洗潔精",102,146,15,"#2a8f6a"); },
-  tub:function(c){ c.beginPath(); c.moveTo(72,92); c.lineTo(148,92); c.lineTo(138,180); c.lineTo(82,180); c.closePath(); fillIt(c,"#f4f5f8"); outline(c);
-    c.beginPath(); c.ellipse(110,92,40,13,0,0,7); c.closePath(); fillIt(c,"#ff7db0"); outline(c); cjk(c,"乳酪",110,138,20,"#c94b86"); },
-  canTall:function(c){ c.save(); rr(c,82,60,56,130,14); c.clip();
-    c.fillStyle="#c9ccd2"; c.fillRect(82,60,56,130); c.fillStyle="#e14b4b"; c.fillRect(82,112,56,34); c.restore();
-    rr(c,82,60,56,130,14); outline(c); c.beginPath(); c.ellipse(110,62,26,7,0,0,7); fillIt(c,"#dfe2e7"); outline(c);
-    cjk(c,"汽水",110,129,18,"#fff"); },
-  spam:function(c){ rr(c,52,82,116,68,10); fillIt(c,"#7d94b5"); outline(c);
-    rr(c,52,72,116,16,7); fillIt(c,"#aeb9c9"); outline(c);
-    c.beginPath(); c.arc(150,68,8,0,7); fillIt(c,"#c9ced6"); outline(c);
-    c.strokeStyle=OL; c.lineWidth=6; c.beginPath(); c.moveTo(150,68); c.lineTo(172,68); c.stroke();
-    cjk(c,"午餐肉",110,118,20,"#fff"); },
-  wine:function(c){ rr(c,101,34,18,12,3); fillIt(c,"#6f4a2a"); outline(c);
-    rr(c,102,44,16,42,4); fillIt(c,"#3f9e6a"); outline(c);
-    c.beginPath(); c.moveTo(102,82); c.lineTo(82,112); c.lineTo(82,186); c.lineTo(138,186); c.lineTo(138,112); c.lineTo(118,82); c.closePath(); fillIt(c,"#3f9e6a"); outline(c);
-    c.strokeStyle="rgba(255,255,255,.5)"; c.lineWidth=6; c.beginPath(); c.moveTo(92,122); c.lineTo(92,176); c.stroke();
-    rr(c,86,132,48,38,4); fillIt(c,"#eafff3"); outline(c); cjk(c,"玻璃",110,151,16,"#2f8f5a"); },
-  jar:function(c){ rr(c,72,80,76,105,14); fillIt(c,"#cdeedd"); outline(c);
-    rr(c,80,58,60,26,6); fillIt(c,"#caa24a"); outline(c);
-    rr(c,78,112,64,42,6); fillIt(c,"#fff"); outline(c); cjk(c,"醬料",110,133,18,"#4a8f6a"); },
-  pizza:function(c){ rr(c,50,112,120,68,8); fillIt(c,"#caa46a"); outline(c);
-    c.beginPath(); c.moveTo(50,112); c.lineTo(70,62); c.lineTo(190,62); c.lineTo(170,112); c.closePath(); fillIt(c,"#d9b884"); outline(c);
-    c.beginPath(); c.moveTo(120,72); c.lineTo(152,102); c.lineTo(104,102); c.closePath(); fillIt(c,"#f0c04a"); outline(c);
-    c.fillStyle="#c0392b"; c.beginPath(); c.arc(124,90,4,0,7); c.fill(); c.beginPath(); c.arc(136,93,4,0,7); c.fill();
-    cjk(c,"薄餅",110,150,20,"#6b4a24"); },
-  bubbletea:function(c){ c.beginPath(); c.moveTo(74,88); c.lineTo(146,88); c.lineTo(136,186); c.lineTo(84,186); c.closePath(); fillIt(c,"#f0e6d2"); outline(c);
-    c.fillStyle="#241812"; for(var i=0;i<8;i++){ c.beginPath(); c.arc(92+(i%4)*16, 174-(i>3?11:0), 6,0,7); c.fill(); }
-    c.beginPath(); c.ellipse(110,88,38,13,0,0,7); fillIt(c,"rgba(255,255,255,.7)"); outline(c);
-    c.strokeStyle="#e0483f"; c.lineWidth=10; c.beginPath(); c.moveTo(128,48); c.lineTo(104,150); c.stroke();
-    cjk(c,"珍珠奶茶",110,122,14,"#5a3a1a"); },
-  bag:function(c){ c.strokeStyle=OL; c.lineWidth=OLW; c.beginPath(); c.arc(90,82,16,Math.PI,0); c.stroke(); c.beginPath(); c.arc(130,82,16,Math.PI,0); c.stroke();
-    c.beginPath(); c.moveTo(66,88); c.lineTo(154,88); c.lineTo(146,184); c.lineTo(74,184); c.closePath(); fillIt(c,"rgba(180,205,230,.85)"); outline(c);
-    c.strokeStyle="rgba(120,140,160,.6)"; c.lineWidth=3; c.beginPath(); c.moveTo(88,102); c.lineTo(96,176); c.stroke(); c.beginPath(); c.moveTo(122,102); c.lineTo(128,176); c.stroke();
-    cjk(c,"膠袋",110,136,18,"#3a5a78"); },
-  foam:function(c){ rr(c,56,120,108,54,8); fillIt(c,"#ffffff"); outline(c);
-    c.beginPath(); c.moveTo(56,120); c.lineTo(72,84); c.lineTo(180,84); c.lineTo(164,120); c.closePath(); fillIt(c,"#f1f3f6"); outline(c);
-    c.strokeStyle="#c9cfd6"; c.lineWidth=4; c.beginPath(); c.moveTo(110,124); c.lineTo(110,170); c.stroke();
-    cjk(c,"發泡膠飯盒",110,150,13,"#7a828c"); },
-  carton:function(c){ rr(c,74,66,72,120,8); fillIt(c,"#f2c94c"); outline(c);
-    rr(c,74,66,72,16,8); fillIt(c,"#e0b23a"); outline(c);
-    c.beginPath(); c.arc(110,122,20,0,7); fillIt(c,"#fff3b0"); outline(c);
-    c.strokeStyle="#e0a020"; c.lineWidth=3; for(var a=0;a<8;a++){ c.beginPath(); c.moveTo(110,122); c.lineTo(110+18*Math.cos(a*0.8),122+18*Math.sin(a*0.8)); c.stroke(); }
-    c.strokeStyle="#fff"; c.lineWidth=8; c.beginPath(); c.moveTo(150,40); c.lineTo(132,70); c.stroke(); c.strokeStyle=OL; c.lineWidth=3; c.beginPath(); c.moveTo(150,40); c.lineTo(132,70); c.stroke();
-    cjk(c,"檸檬茶",110,168,15,"#7a5a10"); },
-  envelope:function(c){ rr(c,38,72,144,86,8); fillIt(c,"#f3efe4"); outline(c);
-    c.strokeStyle=OL; c.lineWidth=OLW; c.beginPath(); c.moveTo(38,76); c.lineTo(110,126); c.lineTo(182,76); c.stroke(); },
-  toiletRoll:function(c){ rr(c,72,62,76,108,6); fillIt(c,"#e8dcc8"); outline(c);
-    c.beginPath(); c.ellipse(110,62,38,13,0,0,7); fillIt(c,"#dccdb2"); outline(c);
-    c.beginPath(); c.ellipse(110,62,15,6,0,0,7); fillIt(c,"#8a7358"); outline(c); },
-  eggBox:function(c){ rr(c,40,98,140,64,10); fillIt(c,"#cbb89a"); outline(c);
-    c.strokeStyle=OL; c.lineWidth=4;
-    for(var i=0;i<3;i++){ c.beginPath(); c.arc(70+i*40,98,17,Math.PI,0); c.stroke(); } },
-  shampoo:function(c,col){ rr(c,74,70,72,112,14); fillIt(c,col); outline(c);
-    rr(c,98,38,24,34,6); fillIt(c,"#f0f3f7"); outline(c);
-    rr(c,86,98,48,42,5); fillIt(c,"#ffffff"); outline(c); },
-  detergent:function(c,col){ rr(c,66,76,88,104,12); fillIt(c,col); outline(c);
-    rr(c,92,40,36,36,6); fillIt(c,"#e6ebf2"); outline(c);
-    rr(c,78,102,64,44,5); fillIt(c,"#ffffff"); outline(c); },
-  cup:function(c){ c.beginPath(); c.moveTo(72,72); c.lineTo(148,72); c.lineTo(136,180); c.lineTo(84,180); c.closePath(); fillIt(c,"#eef4fb"); outline(c);
-    c.strokeStyle="#b6c5d6"; c.lineWidth=4;
-    for(var i=0;i<3;i++){ c.beginPath(); c.moveTo(77+i*3,100+i*26); c.lineTo(143-i*3,100+i*26); c.stroke(); } },
-  foodCan:function(c){ rr(c,66,72,88,106,10); fillIt(c,"#cdd2d8"); outline(c);
-    rr(c,66,96,88,54,2); fillIt(c,"#c0392b"); outline(c);
-    cjk(c,"罐頭",110,123,22,"#fff"); },
-  foil:function(c){ c.beginPath(); c.moveTo(56,122); c.lineTo(84,64); c.lineTo(128,56); c.lineTo(168,96); c.lineTo(150,154); c.lineTo(94,170); c.closePath();
-    fillIt(c,"#d7dce2"); outline(c);
-    c.strokeStyle="#9aa4b0"; c.lineWidth=4;
-    c.beginPath(); c.moveTo(84,64); c.lineTo(114,116); c.lineTo(150,154); c.stroke();
-    c.beginPath(); c.moveTo(128,56); c.lineTo(114,116); c.lineTo(56,122); c.stroke(); },
-  beer:function(c){ rr(c,100,28,20,14,3); fillIt(c,"#c9a227"); outline(c);
-    rr(c,102,40,16,42,4); fillIt(c,"#6f421a"); outline(c);
-    rr(c,78,78,64,104,14); fillIt(c,"#7a4a1e"); outline(c);
-    rr(c,80,106,60,42,3); fillIt(c,"#e8d9a8"); outline(c); },
-  mask:function(c){ rr(c,52,80,116,66,14); fillIt(c,"#bfe4f5"); outline(c);
-    c.strokeStyle="#7fb7cf"; c.lineWidth=4;
-    for(var i=0;i<3;i++){ c.beginPath(); c.moveTo(56,98+i*18); c.lineTo(164,98+i*18); c.stroke(); }
-    c.strokeStyle=OL; c.lineWidth=5;
-    c.beginPath(); c.arc(42,113,22,-1.15,1.15); c.stroke();
-    c.beginPath(); c.arc(178,113,22,Math.PI-1.15,Math.PI+1.15); c.stroke(); },
-  coffeeCup:function(c){ c.beginPath(); c.moveTo(76,82); c.lineTo(144,82); c.lineTo(134,178); c.lineTo(86,178); c.closePath(); fillIt(c,"#f6f1e8"); outline(c);
-    rr(c,68,60,84,24,7); fillIt(c,"#6b4a33"); outline(c);
-    rr(c,80,112,60,36,4); fillIt(c,"#c0895c"); outline(c); },
-  chopstick:function(c){ c.save(); c.translate(110,110); c.rotate(-0.32);
-    rr(c,-17,-78,13,156,4); fillIt(c,"#e2c58f"); outline(c);
-    rr(c,5,-78,13,156,4); fillIt(c,"#e2c58f"); outline(c);
-    rr(c,-24,-28,50,40,4); fillIt(c,"#f4efe4"); outline(c);
-    c.restore(); },
-  _def:function(c,col){ rr(c,60,60,100,100,10); fillIt(c,col||"#ccc"); outline(c); }
-};
 var TEXCACHE={}, SPRITE_GEO=null;
 function getTex(it){
   if(TEXCACHE[it.t]) return TEXCACHE[it.t];
@@ -336,6 +194,20 @@ function endGame(){ G.running=false;
 var GMODE="sort";
 var ITEMBYT={}; ITEMS.forEach(function(it){ ITEMBYT[it.t]=it; });
 var QBINS={paper:{n:"Paper",c:"#2f7fd1"},plastic:{n:"Plastic",c:"#e0762b"},metal:{n:"Metal",c:"#e0a92b"},glass:{n:"Glass",c:"#2fae6a"},trash:{n:"General",c:"#8a97a0"}};
+/* A roster mistake is silent otherwise: a typo'd `t` still renders, because
+   getTex falls back to ART._def — a plain grey square — and a duplicate `t`
+   just overwrites the earlier entry in ITEMBYT. Both ship looking almost fine.
+   This turns either into an immediate console error. */
+(function checkItems(){
+  var seen={}, bad=[];
+  ITEMS.forEach(function(it){
+    if(!ART[it.t]) bad.push(it.t+": no ART function (would draw a grey square)");
+    if(!QBINS[it.bin]) bad.push(it.t+': bin "'+it.bin+'" is not a real bin');
+    if(seen[it.t]) bad.push(it.t+": duplicate t, shadows the earlier item");
+    seen[it.t]=1;
+  });
+  if(bad.length) console.error("ITEMS roster problems:\n  "+bad.join("\n  "));
+})();
 /* Quiz lives in js/mode-quiz.js; the sorting mode in js/mode-defend.js.
    The helpers just below are shared by both, so they stay here. */
 function shuffle(a){ for(var i=a.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=a[i]; a[i]=a[j]; a[j]=t; } return a; }
