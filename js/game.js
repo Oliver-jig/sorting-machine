@@ -170,7 +170,11 @@ function endRound(){ G.running=false; G.round++;
   if(G.round>=ROUNDS.length) endGame(); else showOverlayFor(G.round); }
 function clearObjs(){ G.objs.forEach(function(o){ scene.remove(o.mesh); }); G.objs=[]; }
 
-function launchGame(){
+/* The roundN stat is shared by every mode, so whoever launches must also say
+   what the number MEANS — Bin It puts lives there, and "3 round" reads as
+   nonsense. */
+function setRoundLbl(t){ var e=el("roundLbl"); if(e) e.textContent=t; }
+function launchGame(){ setRoundLbl("round");
   GMODE="sort"; el("quizQ").classList.add("hidden"); el("pauseBtn").style.display="";
   G.score=0; G.round=0; el("scoreN").textContent=0;
   show("play"); resize(); showOverlayFor(0);
@@ -337,7 +341,7 @@ async function setupCamVS(){
     if(!camWanted) stopCam();     /* quit during start-up — don't leave the camera running */
   }catch(err){ el("cam").classList.add("hidden"); el("camCap").classList.add("hidden"); alert("Versus needs a webcam. Please allow camera access, then try again."); show("start"); }
 }
-function launchVS(){
+function launchVS(){ setRoundLbl("players");
   GMODE="vs"; VS.running=false; VS.s1=0; VS.s2=0; VS.t=60000; VS.spawnT=500; VS.topicIdx=0; VS.topicT=15000;
   G.pops=[]; G.parts=[]; G.flashes=[]; BLADE.trail=[]; BLADE2.trail=[]; clearObjs();
   el("topicName").textContent="Versus"; el("topicDot").style.background="#7f77dd"; el("scoreN").textContent="0"; el("roundN").textContent="2P"; el("timeFill").style.width="100%";
@@ -541,7 +545,9 @@ function loop(now){
       BLADE.px=BLADE.x; BLADE.py=BLADE.y;
     }
   } else if(GMODE==="tsunami"){
-    if(TS.running && !G.paused){ tsunamiUpdate(dt, now); if(BLADE.active){ tsunamiSlice(BLADE.px,BLADE.py,BLADE.x,BLADE.y); BLADE.trail.push({x:BLADE.x,y:BLADE.y,t:now}); } BLADE.px=BLADE.x; BLADE.py=BLADE.y; }
+    /* No slicing here: Bin It reads BLADE.x purely as "where the player is"
+       and moves the bin there. No blade, and no trail to draw. */
+    if(TS.running && !G.paused){ tsunamiUpdate(dt, now); BLADE.px=BLADE.x; BLADE.py=BLADE.y; }
   } else if(GMODE==="vs"){
     if(VS.running && !G.paused){ vsUpdate(dt, now); }
   } else if(G.running && !G.paused){
@@ -599,8 +605,9 @@ function drawFx(now){
     var pr=Math.max(0.1, pt.sz*pt.life);
     fxc.save(); fxc.globalAlpha=Math.max(0,pt.life); fxc.fillStyle=pt.col;
     fxc.beginPath(); fxc.arc(pt.x,pt.y,pr,0,7); fxc.fill(); fxc.restore(); }
-  /* blade trail + marker (single-blade modes; VS draws its own two coloured blades) */
-  if(GMODE!=="vs"){
+  /* blade trail + marker (single-blade modes; VS draws its own two coloured
+     blades, and Bin It has no blade at all — the bin IS the cursor there). */
+  if(GMODE!=="vs" && GMODE!=="tsunami"){
   BLADE.trail=BLADE.trail.filter(function(b){return now-b.t<140});
   if(BLADE.trail.length>1){ fxc.lineCap="round"; fxc.lineJoin="round";
     for(var b=1;b<BLADE.trail.length;b++){ var a=BLADE.trail[b-1],c=BLADE.trail[b];

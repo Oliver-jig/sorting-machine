@@ -94,7 +94,7 @@ function qpick(){
   var idx=Qseq.shift(); Q.lastIdx=idx; return QBANK[idx];
 }
 
-function launchQuiz(){
+function launchQuiz(){ setRoundLbl("question");
   GMODE="quiz"; Q.running=true; Q.score=0; Q.lives=QCFG.lives; Q.asked=0;
   Q.streak=0; Q.mult=1; Q.missed=[]; Q.locked=false; Q.teach=0; Qseq=[];
   QBANK=QUIZ.concat(quizGenItems(15));      /* fresh roster-wide questions each run */

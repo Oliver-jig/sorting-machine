@@ -1,111 +1,178 @@
 /* ================= BIN IT RIGHT =================
-   Every falling item has one correct bin. Slicing does NOT destroy anything —
-   it nudges the item sideways, so the blade is how you steer things home.
-   Landing in the right bin scores; the wrong bin costs a life.
+   You MOVE A BIN along the bottom and catch the items that belong in it.
+   Catch a matching item to score. Miss one, or catch something that does not
+   belong, and you lose a life. Three lives ends the run.
+
+   This replaced a steering design where slicing nudged items sideways towards
+   five fixed bins. That failed for three measured reasons, none fixable by
+   tuning: the bin highlight read an item's CURRENT position and ignored its
+   momentum, so it was wrong 46% of the time; items coasted 1.13 bin widths
+   after you stopped pushing, with nothing on screen showing it; and the push
+   saturated at 80px of blade travel per frame, which after the build 43
+   controller fix meant every phone swing maxed out and the control was
+   effectively binary. A round was watched ending in ~3 seconds with no input.
+   Catching has no momentum to predict and no indirection, so the whole failure
+   mode is gone by construction rather than by tuning.
 
    Depends on game.js for: G, GMODE, W, H, fxc, el, show, resize, scene,
-   makeSprite, toWorld, segHit, fxRR, drawHeart, spawnBurst, clearObjs,
-   ITEMS, QBINS, controlMode, setupCam, setupMouse, FACTS. */
+   makeSprite, toWorld, fxRR, drawHeart, spawnBurst, clearObjs, BLADE,
+   ITEMS, QBINS, controlMode, setupCam, setupMouse, stopCam, FACTS, hx,
+   setRoundLbl. */
 
 var DBINS=["paper","plastic","metal","glass","trash"];
-var DCFG={lives:3, cap:8, grav:0.00014, vyCap:0.15, nudge:0.0035, vxCap:0.34, kick:0.06,
-          vxDrag:0.0012, hitCool:130, waveMs:30000, comboEvery:4, comboCap:4, base:10};
-var WAVES=[{n:"Warm-up",bias:null},{n:"Paper run",bias:"paper"},{n:"Plastic tide",bias:"plastic"},
-           {n:"Glass rush",bias:"glass"},{n:"Mixed load",bias:null},{n:"Metal sweep",bias:"metal"}];
 
-var TS={running:false, lives:3, score:0, spawnT:0, elapsed:0, streak:0, mult:1,
-        waveT:0, waveIdx:0, banner:0, right:0, wrong:0, shield:false, spNext:0};
+var DCFG={
+  lives:3,
+  binW:150, binH:54, itemR:45,
+  switchMs:17000, warnMs:3000,          /* how long a target holds, and the heads-up */
+  fall0:2200, fallMin:1250,             /* fall time ramps down with elapsed */
+  gap0:900,   gapMin:450,               /* spawn gap ramps down too */
+  rampMs:120000,
+  pCorrect:0.45,
+  /* How long either side of a correct landing wrong items keep clear. Measured
+     over 6 runs each: 260ms gave a mean of 16.8 wrong catches, 450ms gave 14.2,
+     but the ranges overlap heavily — this is a marginal lever, not a fix. 450
+     is taken because it costs nothing. What actually decides the difficulty is
+     how well the player dodges, which no simulation here models honestly. */
+  guardMs:450,
+  base:10, comboEvery:4, comboCap:4
+};
 
-/* Bin It power-ups. These two live HERE rather than in Sort because they need
-   lives and a combo to act on, and Sort has neither.
-   Unlike ordinary items a special is CONSUMED by a slice instead of nudged,
-   and if you miss it, it just leaves — no bin, no penalty. */
+/* The bin can only be in one place, and that — not items colliding — is the
+   real constraint. The obvious rule, "space items apart", is COUNTERPRODUCTIVE:
+   modelled across seven spawn rates it produced more forced strikes than no
+   rule at all, because spreading two correct items apart makes them less
+   reachable, not more.
+   So correct items are placed INSIDE the window the bin can reach from the
+   previous one. Generative, not rejective, which is what makes it hold at any
+   spawn rate. Calibrated to the SLOWEST control (webcam hand, taken as one
+   screen crossing per second) so the guarantee covers every scheme; phone and
+   mouse are quicker and get the slack for free. */
+function dVmax(){ return W/1000; }      /* px per ms */
+
+/* Items that look like they belong in the target bin but do not. This is where
+   late-game difficulty comes from: knowing the material, not reacting faster.
+   Empty list = fall back to any non-matching item. */
+var DTRAPS={
+  paper:  ["receipt","tissue","photo"],        /* paper-ish, actually general waste */
+  glass:  ["mirror","ceramic"],                /* glass-ish, actually general waste */
+  plastic:["bubbletea","coffeeCup"],           /* plastic-ish, actually general waste */
+  metal:  [],
+  trash:  ["carton","bag","foam"]              /* assumed rubbish, actually recyclable */
+};
+
+var TS={running:false, lives:3, score:0, streak:0, mult:1, elapsed:0,
+        spawnT:0, switchT:0, target:"paper", nextTarget:"plastic",
+        right:0, wrong:0, binX:0, lastC:null, banner:0, shield:false, spNext:0};
+
+/* Bin It power-ups. They are CAUGHT like anything else; missing one costs
+   nothing, so they are a bonus and never a trap. */
 var DSPEC=[
   {n:"🔧 Repair kit",  t:"dsRepair", col:0x30d158, sp:"repair"},
   {n:"☀ Solar surge", t:"dsSolar",  col:0xf5c518, sp:"solar"}
 ];
-var DSCFG={first:7000, every:11000, everyRand:6000, minItems:2};
+var DSCFG={first:9000, every:13000, everyRand:7000};
 
-/* Bins tile the full width, so every item lands in exactly one bin and nothing
-   can slip through a gap or off the side. */
-function binRects(){
-  var n=DBINS.length, m=16, gap=8, bw=(W-2*m-(n-1)*gap)/n, out=[];
-  for(var i=0;i<n;i++) out.push({bin:DBINS[i], x:m+i*(bw+gap), w:bw});
-  return out;
-}
-function binLineY(){ return H-62; }
-function binAt(x){
-  var r=binRects();
-  for(var i=0;i<r.length;i++){ if(x>=r[i].x-4 && x<=r[i].x+r[i].w+4) return r[i].bin; }
-  return x<W/2 ? r[0].bin : r[r.length-1].bin;      /* clamp to the nearest end bin */
-}
+function dFall(){ var r=Math.min(1,TS.elapsed/DCFG.rampMs); return DCFG.fall0+(DCFG.fallMin-DCFG.fall0)*r; }
+function dGap(){  var r=Math.min(1,TS.elapsed/DCFG.rampMs); return DCFG.gap0 +(DCFG.gapMin -DCFG.gap0 )*r; }
+function dTrapBias(){ return 0.15+0.5*Math.min(1,TS.elapsed/DCFG.rampMs); }
+function binLineY(){ return H-70; }
+function binRect(){ return {x:TS.binX-DCFG.binW/2, y:binLineY(), w:DCFG.binW, h:DCFG.binH}; }
 
-/* Bin It used to drop you straight in with no explanation — Sort shows its
-   rules before every round, this showed nothing, so the steering mechanic was
-   invisible and the mode looked broken. */
 function tsunamiIntro(){
   el("ovlT").textContent="Bin It Right";
-  el("ovlD").innerHTML="Every item has <b>one correct bin</b>.<br>"+
-    "A slice does <b>not</b> destroy it — <b>slash sideways to steer it</b> left or right, "+
-    "or hit it off-centre to bat it across.<br>"+
-    "Land it in the matching bin to score. Wrong bin costs a life.";
+  el("ovlD").innerHTML="<b>Move the bin</b> and <b>catch</b> the items that belong in it.<br>"+
+    "The bin changes what it wants every few seconds — watch the label.<br>"+
+    "Miss one it wants, or catch one it doesn't, and you lose a life.";
   el("ovlBtn").textContent="Start sorting";
   el("ovl").classList.remove("hidden");
 }
-function tsunamiBegin(){
-  el("ovl").classList.add("hidden");
-  TS.running=true;
+function tsunamiBegin(){ el("ovl").classList.add("hidden"); TS.running=true; }
+
+function dPickTarget(not){
+  var p=DBINS.filter(function(b){ return b!==not; });
+  return p[Math.floor(Math.random()*p.length)];
 }
 
 function launchTsunami(){
-  GMODE="tsunami"; TS.running=false; TS.lives=DCFG.lives; TS.score=0; TS.spawnT=500;
-  TS.elapsed=0; TS.streak=0; TS.mult=1; TS.waveT=DCFG.waveMs; TS.waveIdx=0;
-  TS.banner=2200; TS.right=0; TS.wrong=0; TS.shield=false; TS.spNext=DSCFG.first;
+  GMODE="tsunami"; TS.running=false; TS.lives=DCFG.lives; TS.score=0;
+  TS.streak=0; TS.mult=1; TS.elapsed=0; TS.right=0; TS.wrong=0;
+  TS.target=dPickTarget(null); TS.nextTarget=dPickTarget(TS.target);
+  TS.switchT=DCFG.switchMs; TS.spawnT=700; TS.lastC=null; TS.banner=2000;
+  TS.binX=W/2; TS.shield=false; TS.spNext=DSCFG.first;
   G.pops=[]; G.parts=[]; G.flashes=[]; BLADE.trail=[]; clearObjs();
-  el("scoreN").textContent="0"; el("topicName").textContent=WAVES[0].n; el("topicDot").style.background="#2f7fd1";
-  el("roundN").textContent=TS.lives; el("timeFill").style.width="100%";
+  el("scoreN").textContent="0"; el("roundN").textContent=TS.lives; setRoundLbl("lives");
+  el("topicName").textContent=QBINS[TS.target].n; el("topicDot").style.background=QBINS[TS.target].c;
+  el("timeFill").style.width="100%";
   el("quizQ").classList.add("hidden"); el("pauseBtn").style.display="";
   show("play"); resize(); el("pauseOvl").classList.add("hidden");
+  TS.binX=W/2;
   if(controlMode==="cam") setupCam(); else if(controlMode==="mouse") setupMouse();
-  tsunamiIntro();                       /* wait for the player to read the rules */
+  tsunamiIntro();
 }
 
-function tsunamiSpawn(){
-  if(G.objs.length>=DCFG.cap) return;
-  var bias=WAVES[TS.waveIdx%WAVES.length].bias, pool=ITEMS;
-  if(bias && Math.random()<0.6){ var p=ITEMS.filter(function(it){ return it.bin===bias; }); if(p.length) pool=p; }
-  var it=pool[Math.floor(Math.random()*pool.length)];
+/* ---- spawning ---- */
+function dPush(it, x, land, correct){
   var mesh=makeSprite(it); scene.add(mesh);
-  G.objs.push({it:it, x:70+Math.random()*(W-140), y:-40, vx:(Math.random()-0.5)*0.02,
-    vy:0.012+Math.random()*0.01, r:50, sliced:false, a:1, scale:1,
-    spin:(Math.random()-.5)*2, dspin:(Math.random()-.5)*0.04, phase:Math.random()*6, cool:0, mesh:mesh});
+  G.objs.push({it:it, x:x, y:-40, r:DCFG.itemR, land:land, correct:correct,
+    a:1, scale:1, spin:(Math.random()-0.5)*1.2, dspin:(Math.random()-0.5)*0.03,
+    phase:Math.random()*6, y0:-40, born:TS.elapsed, mesh:mesh});
 }
 
-/* Ordinary items currently in play — a power-up is pointless with an empty
-   screen, and the repair kit is pointless on full lives. */
-function dspecLive(){
-  var n=0;
-  for(var i=0;i<G.objs.length;i++){ var o=G.objs[i];
-    if(o.it.sp) continue;
-    if(o.y>0 && o.y<binLineY()-40) n++;
+function dSpawn(){
+  var fall=dFall(), land=TS.elapsed+fall;
+  var wantCorrect=Math.random()<DCFG.pCorrect;
+  var pool, x=null;
+
+  if(wantCorrect){
+    pool=ITEMS.filter(function(i){ return i.bin===TS.target; });
+    if(!pool.length) return;
+    /* the reachable window from the previous correct item */
+    var lo=DCFG.itemR, hi=W-DCFG.itemR;
+    if(TS.lastC){
+      var reach=dVmax()*(land-TS.lastC.land);
+      lo=Math.max(lo, TS.lastC.x-reach);
+      hi=Math.min(hi, TS.lastC.x+reach);
+    }
+    if(hi<lo) return;                       /* no legal spot — skip rather than be unfair */
+    x=lo+Math.random()*(hi-lo);
+    TS.lastC={x:x, land:land};
+  } else {
+    /* prefer a look-alike so the mistake is a knowledge mistake */
+    var traps=(DTRAPS[TS.target]||[]).filter(function(t){
+      var it=ITEMBYT[t]; return it && it.bin!==TS.target; });
+    if(traps.length && Math.random()<dTrapBias()){
+      pool=traps.map(function(t){ return ITEMBYT[t]; });
+    } else {
+      pool=ITEMS.filter(function(i){ return i.bin!==TS.target; });
+    }
+    if(!pool.length) return;
+    /* stay clear of anywhere the bin is committed to be */
+    for(var k=0;k<24;k++){
+      var c=DCFG.itemR+Math.random()*(W-2*DCFG.itemR), ok=true;
+      for(var i=0;i<G.objs.length;i++){ var o=G.objs[i];
+        if(!o.correct) continue;
+        if(Math.abs(o.land-land)<DCFG.guardMs &&
+           Math.abs(o.x-c)<(DCFG.binW+DCFG.itemR)/2+20){ ok=false; break; }
+      }
+      if(ok){ x=c; break; }
+    }
+    if(x===null) return;
   }
-  return n;
+  dPush(pool[Math.floor(Math.random()*pool.length)], x, land, wantCorrect);
 }
+
 function dspecTry(){
-  if(G.objs.length>=DCFG.cap) return;
-  if(dspecLive()<DSCFG.minItems) return;            /* timer not reset — retry next frame */
-  var pool=DSPEC.filter(function(s){ return s.sp!=="repair" || TS.lives<DCFG.lives; });
-  if(!pool.length) return;                          /* on full lives only solar can drop */
-  var s=pool[Math.floor(Math.random()*pool.length)];
+  var s=DSPEC.filter(function(q){ return q.sp!=="repair" || TS.lives<DCFG.lives; });
+  if(!s.length) return;
   TS.spNext=DSCFG.every+Math.random()*DSCFG.everyRand;
-  var mesh=makeSprite(s); scene.add(mesh);
-  G.objs.push({it:s, x:80+Math.random()*Math.max(1,W-160), y:-40, vx:0, vy:0.013, r:50,
-    sliced:false, a:1, scale:1, spin:0, dspin:0.012, phase:0, cool:0, mesh:mesh});
+  var pick=s[Math.floor(Math.random()*s.length)];
+  dPush(pick, DCFG.itemR+Math.random()*(W-2*DCFG.itemR), TS.elapsed+dFall(), false);
+  G.objs[G.objs.length-1].special=true;
 }
 function dspecTake(o){
   if(o.it.sp==="repair"){
-    TS.lives=Math.min(DCFG.lives, TS.lives+1);
-    el("roundN").textContent=TS.lives;
+    TS.lives=Math.min(DCFG.lives, TS.lives+1); el("roundN").textContent=TS.lives;
     G.pops.push({x:o.x, y:o.y, txt:"REPAIRED  +1 life", col:"#20a45a", a:1, big:true});
   } else {
     TS.shield=true;
@@ -114,80 +181,92 @@ function dspecTake(o){
   spawnBurst(o.x, o.y, hx(o.it.col));
 }
 
-function tsunamiLand(o){
-  if(o.it.sp) return;                               /* a missed power-up just leaves */
-  var got=binAt(o.x), ok=(got===o.it.bin);
-  if(ok){
-    TS.right++; TS.streak++; TS.mult=Math.min(DCFG.comboCap, 1+Math.floor(TS.streak/DCFG.comboEvery));
-    var gain=DCFG.base*TS.mult; TS.score+=gain; el("scoreN").textContent=TS.score;
-    spawnBurst(o.x, binLineY(), "#20a45a");
-    G.pops.push({x:o.x, y:binLineY()-28, txt:"+"+gain+(TS.mult>1?"  x"+TS.mult:""), col:"#20a45a", a:1, big:true});
-  } else {
-    TS.wrong++; TS.lives--;
-    /* Solar surge protects the COMBO only — the mis-sort still costs a life,
-       or the shield would simply cancel the mistake. */
-    if(TS.shield){ TS.shield=false;
-      G.pops.push({x:o.x, y:binLineY()-56, txt:"combo saved!", col:"#bf8b2e", a:1}); }
-    else { TS.streak=0; TS.mult=1; }
-    el("roundN").textContent=Math.max(0,TS.lives);
-    spawnBurst(o.x, binLineY(), "#d70015");
-    G.pops.push({x:o.x, y:binLineY()-28, txt:"→ "+QBINS[o.it.bin].n+"!", col:"#d70015", a:1, big:true});
-    if(TS.lives<=0){ tsunamiGameOver(); }
-  }
+/* ---- landing ---- */
+function dStrike(o, why){
+  /* Solar surge protects the COMBO only — the mistake still costs a life, or
+     the shield would simply cancel it. */
+  TS.wrong++; TS.lives--;
+  if(TS.shield){ TS.shield=false;
+    G.pops.push({x:o.x, y:binLineY()-58, txt:"combo saved!", col:"#bf8b2e", a:1}); }
+  else { TS.streak=0; TS.mult=1; }
+  el("roundN").textContent=Math.max(0,TS.lives);
+  spawnBurst(o.x, binLineY(), "#d70015");
+  G.pops.push({x:o.x, y:binLineY()-30, txt:why, col:"#d70015", a:1, big:true});
+  if(TS.lives<=0) tsunamiGameOver();
+}
+function dCatch(o){
+  TS.right++; TS.streak++;
+  TS.mult=Math.min(DCFG.comboCap, 1+Math.floor(TS.streak/DCFG.comboEvery));
+  var gain=DCFG.base*TS.mult; TS.score+=gain; el("scoreN").textContent=TS.score;
+  spawnBurst(o.x, binLineY(), "#20a45a");
+  G.pops.push({x:o.x, y:binLineY()-30, txt:"+"+gain+(TS.mult>1?"  x"+TS.mult:""), col:"#20a45a", a:1, big:true});
 }
 
 function tsunamiUpdate(dt, now){
-  var ramp=1+Math.min(0.9, TS.elapsed/120000);
+  TS.elapsed+=dt;
+
+  /* bin follows the player's horizontal position, whatever the control scheme.
+     BLADE.active is ignored on purpose: the bin should stay put when the mouse
+     stops rather than vanish. */
+  /* `BLADE.x || TS.binX` would be wrong: x=0 is a legitimate position (hard
+     left) and would read as falsy, snapping the bin back instead of letting it
+     reach the edge. */
+  var px=(typeof BLADE.x==="number" && isFinite(BLADE.x)) ? BLADE.x : TS.binX;
+  TS.binX=Math.max(DCFG.binW/2, Math.min(W-DCFG.binW/2, px));
+
   if(TS.banner>0) TS.banner-=dt;
-  TS.waveT-=dt;
-  if(TS.waveT<=0){ TS.waveIdx++; TS.waveT=DCFG.waveMs; TS.banner=2200;
-    var wv=WAVES[TS.waveIdx%WAVES.length];
-    el("topicName").textContent=wv.n;
-    el("topicDot").style.background=wv.bias?QBINS[wv.bias].c:"#2f7fd1"; }
-  el("timeFill").style.width=(Math.max(0,TS.waveT)/DCFG.waveMs*100)+"%";
 
-  TS.spawnT-=dt;
-  if(TS.spawnT<=0){ tsunamiSpawn(); TS.spawnT=Math.max(620, 1500-TS.elapsed/120)+Math.random()*420; }
-  TS.spNext-=dt;
-  if(TS.spNext<=0) dspecTry();
+  /* target rotation. Spawning stops one fall-time before the switch so the
+     screen has drained by the time the label changes — otherwise items thrown
+     under the old target would still be falling when the bin starts asking for
+     something else, and an item's status would change mid-flight. */
+  TS.switchT-=dt;
+  if(TS.switchT<=0){
+    TS.target=TS.nextTarget; TS.nextTarget=dPickTarget(TS.target);
+    TS.switchT=DCFG.switchMs; TS.lastC=null; TS.banner=1600;
+    el("topicName").textContent=QBINS[TS.target].n;
+    el("topicDot").style.background=QBINS[TS.target].c;
+  }
+  el("timeFill").style.width=(Math.max(0,TS.switchT)/DCFG.switchMs*100)+"%";
 
-  var line=binLineY(), vcap=DCFG.vyCap*ramp;   /* cap has to ramp too, or the ramp does nothing */
+  /* +150ms of margin, not just dFall(): without it an item spawned right on the
+     boundary can land a frame or two AFTER the switch, and it would then be
+     judged against a target that was not showing when it was thrown. Rare, but
+     it is exactly the kind of "the game changed the rules mid-air" unfairness
+     this redesign exists to remove. */
+  var draining=(TS.switchT<=dFall()+150);
+  if(!draining){
+    TS.spawnT-=dt;
+    if(TS.spawnT<=0){ dSpawn(); TS.spawnT=dGap()*(0.75+Math.random()*0.5); }
+    TS.spNext-=dt;
+    if(TS.spNext<=0) dspecTry();
+  }
+
+  /* fall: position is derived from land time, so an item always arrives exactly
+     when the spawner promised and the reachability guarantee stays true. */
+  var line=binLineY(), br=binRect();
   for(var i=G.objs.length-1;i>=0;i--){ var o=G.objs[i];
-    if(o.cool>0) o.cool-=dt;
-    o.vy+=DCFG.grav*ramp*dt; if(o.vy>vcap) o.vy=vcap;
-    o.vx-=o.vx*DCFG.vxDrag*dt;                                   /* sideways drift bleeds off */
-    o.y+=o.vy*dt; o.x+=o.vx*dt; o.spin+=o.dspin;
-    if(o.x<40){ o.x=40; o.vx=Math.abs(o.vx)*0.4; }               /* bounce off the walls */
-    if(o.x>W-40){ o.x=W-40; o.vx=-Math.abs(o.vx)*0.4; }
+    var span=o.land-o.born;
+    var p=span>0 ? (TS.elapsed-o.born)/span : 1;
+    o.y=o.y0+(line-o.y0)*Math.max(0,p);
+    o.spin+=o.dspin;
     var w=toWorld(o.x,o.y); o.mesh.position.set(w.x,w.y,0);
     o.mesh.rotation.set(0.25*Math.sin(now*0.002+o.phase),0,o.spin);
     o.mesh.scale.setScalar(o.scale); o.mesh.material.opacity=o.a;
-    if(o.y>=line){ tsunamiLand(o); scene.remove(o.mesh); G.objs.splice(i,1); continue; }
-  }
-  TS.elapsed+=dt;
-}
 
-/* A slice pushes the item along the blade's direction instead of destroying it.
-   The per-object cooldown stops one slow drag from applying thrust every frame. */
-function tsunamiSlice(x1,y1,x2,y2){
-  var bdx=x2-x1, bdy=y2-y1;
-  if(Math.abs(bdx)<0.5 && Math.abs(bdy)<0.5) return;
-  for(var i=G.objs.length-1;i>=0;i--){ var o=G.objs[i];   /* backwards: power-ups are spliced out */
-    if(o.cool>0) continue;
-    if(segHit(o,x1,y1,x2,y2)){
-      if(o.it.sp){ dspecTake(o); scene.remove(o.mesh); G.objs.splice(i,1); continue; }
-      /* Two ways to push. The blade's sideways travel is the main one, but a
-         straight-down chop has no sideways travel at all and used to do
-         nothing — which reads as the game being broken. So hitting an item
-         off-centre also bats it away from the blade, like a bat on a ball. */
-      var off=o.x-x2, side=Math.max(-1, Math.min(1, off/(o.r||50)));
-      o.vx+=bdx*DCFG.nudge + side*DCFG.kick;
-      if(o.vx>DCFG.vxCap) o.vx=DCFG.vxCap;
-      if(o.vx<-DCFG.vxCap) o.vx=-DCFG.vxCap;
-      if(o.vy>0.05) o.vy*=0.72;                                  /* a hit also buys you a little time */
-      o.cool=DCFG.hitCool;
-      o.dspin=(bdx>0?1:-1)*0.16;
-      spawnBurst(o.x,o.y,"#ffffff");
+    if(o.y>=line){
+      /* The catch mouth is EXACTLY the bin's drawn width, and the guide column
+         above is drawn from the same rect. An earlier version caught anything
+         within binW+itemR, which is 195px against a 150px column — items that
+         visibly missed still counted, which is precisely the kind of "the game
+         lied to me" feeling that made the old steering design unplayable. */
+      var inBin=(o.x>=br.x && o.x<=br.x+br.w);
+      if(o.special){ if(inBin) dspecTake(o); }
+      else if(o.correct && inBin)  dCatch(o);
+      else if(o.correct && !inBin) dStrike(o, "missed "+QBINS[o.it.bin].n+"!");
+      else if(!o.correct && inBin) dStrike(o, "that's "+QBINS[o.it.bin].n+"!");
+      scene.remove(o.mesh); G.objs.splice(i,1);
+      if(!TS.running) return;                 /* game over mid-loop */
     }
   }
 }
@@ -195,7 +274,7 @@ function tsunamiSlice(x1,y1,x2,y2){
 function tsunamiGameOver(){
   TS.running=false;
   el("rScore").textContent=TS.score;
-  el("rGrade").textContent="You sorted "+TS.right+" item"+(TS.right===1?"":"s")+" correctly and mis-sorted "+TS.wrong+".";
+  el("rGrade").textContent="You caught "+TS.right+" item"+(TS.right===1?"":"s")+" correctly and made "+TS.wrong+" mistake"+(TS.wrong===1?"":"s")+".";
   var f=el("rFacts"); f.innerHTML="";
   FACTS.forEach(function(x){ var d=document.createElement("div"); d.className="fact"; d.textContent=x; f.appendChild(d); });
   scoresRecord("tsunami", TS.score);
@@ -205,39 +284,54 @@ function tsunamiGameOver(){
 
 function tsunamiDraw(now){
   if(G.paused) return;
-  var r=binRects(), by=binLineY(), bh=52;
-  /* highlight whichever bins currently have something falling towards them */
-  var hot={};
-  for(var i=0;i<G.objs.length;i++){ var o=G.objs[i]; if(o.y>H*0.45) hot[binAt(o.x)]=true; }
-  for(var b=0;b<r.length;b++){ var q=QBINS[r[b].bin];
-    fxRR(r[b].x, by, r[b].w, bh, 10); fxc.globalAlpha=hot[r[b].bin]?1:0.86; fxc.fillStyle=q.c; fxc.fill(); fxc.globalAlpha=1;
-    if(hot[r[b].bin]){ fxc.lineWidth=3; fxc.strokeStyle="rgba(255,255,255,.95)"; fxc.stroke(); }
-    fxc.fillStyle="#ffffff"; fxc.font="700 14px 'Fredoka',system-ui,sans-serif";
-    fxc.textAlign="center"; fxc.textBaseline="middle";
-    fxc.fillText(q.n, r[b].x+r[b].w/2, by+bh/2);
-  }
-  /* halo so a power-up never reads as just another falling item */
+  var br=binRect(), q=QBINS[TS.target];
+
+  /* the bin */
+  fxRR(br.x, br.y, br.w, br.h, 12); fxc.fillStyle=q.c; fxc.fill();
+  fxc.lineWidth=3; fxc.strokeStyle="rgba(255,255,255,.9)"; fxc.stroke();
+  fxRR(br.x+8, br.y-8, br.w-16, 12, 5); fxc.fillStyle=q.c; fxc.fill(); fxc.stroke();
+  fxc.fillStyle="#ffffff"; fxc.font="700 17px 'Fredoka',system-ui,sans-serif";
+  fxc.textAlign="center"; fxc.textBaseline="middle";
+  fxc.fillText(q.n, br.x+br.w/2, br.y+br.h/2+3);
+
+  /* a soft column so you can see what the bin will and will not take */
+  fxc.save(); fxc.globalAlpha=0.10; fxc.fillStyle=q.c;
+  fxc.fillRect(br.x, 0, br.w, br.y); fxc.restore();
+
+  /* halo on power-ups only — ordinary items must be judged on what they ARE */
   for(var s=0;s<G.objs.length;s++){ var so=G.objs[s];
-    if(!so.it.sp || so.a<0.5) continue;
+    if(!so.special || so.a<0.5) continue;
     var pl=0.5+0.5*Math.sin(now*0.006);
     fxc.save(); fxc.globalAlpha=0.30+0.35*pl;
     fxc.strokeStyle=hx(so.it.col); fxc.lineWidth=5;
     fxc.beginPath(); fxc.arc(so.x, so.y, Math.max(0.1, so.r+10+pl*5), 0, 7); fxc.stroke();
     fxc.restore();
   }
-  for(var h=0;h<DCFG.lives;h++){ drawHeart(28+h*30, 26, 12, h<TS.lives?"#e24b4a":"#e2e2e2"); }
+
+  for(var h=0;h<DCFG.lives;h++) drawHeart(28+h*30, 26, 12, h<TS.lives?"#e24b4a":"#e2e2e2");
   if(TS.mult>1){ fxc.fillStyle="#20a45a"; fxc.font="700 18px 'Fredoka',system-ui,sans-serif";
     fxc.textAlign="left"; fxc.textBaseline="middle"; fxc.fillText("combo x"+TS.mult, 28, 56); }
   if(TS.shield){ fxc.fillStyle="#bf8b2e"; fxc.font="700 16px 'Fredoka',system-ui,sans-serif";
     fxc.textAlign="left"; fxc.textBaseline="middle"; fxc.fillText("☀ shield ready", 28, TS.mult>1?80:56); }
-  if(TS.banner>0){
-    var wv=WAVES[TS.waveIdx%WAVES.length], a=Math.min(1, TS.banner/500);
+
+  /* heads-up before the bin changes what it wants */
+  if(TS.switchT<DCFG.warnMs){
+    var a=0.55+0.45*Math.sin(now*0.012);
     fxc.save(); fxc.globalAlpha=a;
-    fxc.fillStyle="#173a2a"; fxc.font="700 30px 'Fredoka',system-ui,sans-serif";
+    fxc.fillStyle=QBINS[TS.nextTarget].c;
+    fxc.font="700 22px 'Fredoka',system-ui,sans-serif";
     fxc.textAlign="center"; fxc.textBaseline="middle";
-    fxc.fillText(wv.n, W/2, H*0.22);
+    fxc.fillText("next: "+QBINS[TS.nextTarget].n+"  "+Math.ceil(TS.switchT/1000), W/2, 40);
+    fxc.restore();
+  }
+  if(TS.banner>0){
+    var b=Math.min(1, TS.banner/500);
+    fxc.save(); fxc.globalAlpha=b;
+    fxc.fillStyle=q.c; fxc.font="700 34px 'Fredoka',system-ui,sans-serif";
+    fxc.textAlign="center"; fxc.textBaseline="middle";
+    fxc.fillText(q.n, W/2, H*0.2);
     fxc.font="600 15px 'Fredoka',system-ui,sans-serif"; fxc.fillStyle="#5a7c6b";
-    fxc.fillText("slice to steer each item into its bin", W/2, H*0.22+30);
+    fxc.fillText("catch only "+q.n.toLowerCase(), W/2, H*0.2+30);
     fxc.restore();
   }
 }
