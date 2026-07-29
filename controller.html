@@ -85,7 +85,7 @@
         <span class="axisLbl">Control style</span>
         <span class="chips">
           <button type="button" class="chip" id="gripAim">🎯 Aim (steady)</button>
-          <button type="button" class="chip" id="gripSlash">🗡 Slash (swing)</button>
+          <button type="button" class="chip" id="gripSlash">🗡 Slash (move it)</button>
         </span>
       </div>
       <div class="axisrow">
@@ -96,7 +96,7 @@
           <button type="button" class="chip" id="axSw">Swap</button>
         </span>
       </div>
-      <div class="fine">build 38 · direct</div>
+      <div class="fine">build 39 · direct</div>
     </div>
   </div>
 
@@ -119,37 +119,23 @@
   function setStatus(t){ s.innerHTML=t; }
   function moveDot(px,py){ dot.style.left=Math.max(0,Math.min(100,px*100))+"%"; dot.style.top=Math.max(0,Math.min(100,py*100))+"%"; }
 
-  /* GYROSCOPE — relative "slash" control.
-     The blade moves by how far and how FAST you swing, not by the angle you hold the
-     phone at. That's the difference between aiming a laser pointer and swinging a knife:
-     a flick throws the blade across the screen, it coasts to a stop, and it drifts back
-     to the middle when you hold still — so you never have to hold an awkward pose, and
-     you can slash from any comfortable grip. */
-  /* Tuning note: FRICTION makes the velocity integrator accumulate, multiplying GAIN by
-     1/(1-FRICTION) ~= 5.5x. GAIN looks tiny for that reason — raise it and the blade goes
-     hair-trigger. At these values a hard slash (~35deg) sweeps the full screen, a gentle
-     flick (~12deg) moves about a fifth of it, and hand tremor doesn't move it at all. */
-  var GAIN=0.0025;     /* screen-widths of throw per degree of swing */
-  var BOOST=2.0;       /* extra throw on a fast slash (0 = perfectly linear) */
-  var FRICTION=0.82;   /* how quickly the blade coasts to a stop */
-  var RECENTER=0.020;  /* pull back to the middle when the phone is still */
-  var MAXSTEP=25;      /* deg/frame ceiling — rejects gimbal flips near vertical */
+  /* Slash tuning. Driven ONLY by physically moving the phone — rotation is
+     ignored — so there is exactly one steering source in one reference frame,
+     which is what stops the blade fighting itself.
+     A firm swing crosses the whole screen in well under 0.1s at these values;
+     the previous settings felt slow mainly because friction and the pull to
+     centre killed the motion the moment you stopped accelerating. */
+  var SLASHGAIN=0.008;  /* push per unit of acceleration */
+  var FRICTION=0.88;    /* higher than before, so the blade carries further */
+  var RECENTER=0.014;   /* gentler, so it stops dragging you back mid-swing */
   var bx=0.5, by=0.5, vx=0, vy=0;          /* blade position + velocity, 0..1 of the screen */
-  var hx=0, hy=0, hxP=null, hyP=null, haveOrient=false, tPrev=0;
+  var hx=0, hy=0, haveOrient=false;
 
-  /* ACCELEROMETER — how hard you physically swing.
-     Orientation alone only sees ROTATION, so sliding the phone through the air
-     without turning it did nothing. This reads linear acceleration and uses its
-     MAGNITUDE to amplify the swing you're already making.
-
-     Deliberately magnitude-only, not direction: turning acceleration into a
-     direction needs per-device axis mapping that differs between iOS and
-     Android and cannot be verified without the hardware, and double-integrating
-     it into a position drifts uselessly within seconds. Rotation stays the
-     steering; this just decides how FAR a swing throws the blade. */
-  var ACCEL=0.9;      /* extra throw from a hard physical swing; set 0 for rotation only */
-  var AGAIN=0.0016;   /* DIRECTIONAL push — move the phone, blade follows; 0 disables */
-  var swing=0;        /* smoothed |linear acceleration|, m/s^2 */
+  /* ACCELEROMETER — the sole steering source for Slash mode.
+     Direction comes from the acceleration vector itself, mapped into screen
+     axes; the axis buttons on the phone correct it if a device disagrees.
+     Magnitude needs no separate handling any more: a harder shove simply
+     produces a bigger push. */
   var accX=0, accY=0; /* smoothed linear acceleration in DEVICE axes */
   var gvX=0, gvY=0, gvZ=0, haveGrav=false;
   var haveMotion=false;
@@ -167,8 +153,8 @@
        there is a fixed relationship between how you hold the phone and where
        the blade is — the one thing velocity-based control can never give you,
        and the reason it was impossible to aim.
-     "slash": swing-driven, using the gyroscope with gravity as the reference.
-       Livelier, much harder to place the blade deliberately. */
+     "slash": driven purely by MOVING the phone. Rotating it on the spot does
+       nothing. Livelier, much harder to place the blade deliberately. */
   var GRIP="aim";
   try{ var _g=localStorage.getItem("ss3d.grip"); if(_g) GRIP=_g; }catch(e){}
   if(GRIP!=="aim" && GRIP!=="slash") GRIP="aim";     /* retire older mode names */
@@ -177,32 +163,6 @@
   /* Aim mode: how far you must tilt to reach a screen edge, in degrees. */
   var AIMRANGE=28;
   var aim0x=null, aim0y=null;        /* the "centre" pose, set by Re-centre */
-
-  var SWORD=1.0;              /* sword sensitivity; scales degrees-per-frame */
-  var rrX=0, rrY=0, rrZ=0;    /* gyroscope, deg/s, device axes */
-
-  /* Split the measured spin into the two motions a sword actually makes.
-     Gravity gives us "which way is down" without needing to know the grip. */
-  function swordAxes(){
-    var gx=gvX, gy=gvY, gz=gvZ;
-    var gm=Math.sqrt(gx*gx+gy*gy+gz*gz);
-    if(gm<0.001) return {yaw:0, pitch:0};
-    gx/=gm; gy/=gm; gz/=gm;
-    /* the phone's long axis is the blade; if it is pointing almost straight
-       up or down, that axis is useless as a reference, so fall back to the
-       axis out of the screen */
-    var bx=0, by=1, bz=0;
-    if(Math.abs(gy)>0.9){ bx=0; by=0; bz=1; }
-    /* pitch axis = gravity x blade: the horizontal line you chop about */
-    var px=gy*bz-gz*by, py=gz*bx-gx*bz, pz=gx*by-gy*bx;
-    var pm=Math.sqrt(px*px+py*py+pz*pz);
-    if(pm<0.001) return {yaw:(rrX*gx+rrY*gy+rrZ*gz), pitch:0};
-    px/=pm; py/=pm; pz/=pm;
-    return {
-      yaw:   rrX*gx + rrY*gy + rrZ*gz,     /* sweeping left/right */
-      pitch: rrX*px + rrY*py + rrZ*pz      /* chopping up/down */
-    };
-  }
 
   function onMotion(e){
     /* Gravity is tracked on BOTH platforms, not just where linear acceleration
@@ -215,9 +175,6 @@
       if(!haveGrav){ gvX=rx; gvY=ry; gvZ=rz; haveGrav=true; }
       else { gvX=gvX*0.92+rx*0.08; gvY=gvY*0.92+ry*0.08; gvZ=gvZ*0.92+rz*0.08; }
     }
-    /* raw gyroscope: beta spins about x, gamma about y, alpha about z */
-    var r=e.rotationRate;
-    if(r){ rrX=r.beta||0; rrY=r.gamma||0; rrZ=r.alpha||0; haveMotion=true; }
 
     var lx,ly,lz, a=e.acceleration;
     if(a && a.x!==null && a.x!==undefined){
@@ -226,8 +183,6 @@
       lx=(ag.x||0)-gvX; ly=(ag.y||0)-gvY; lz=(ag.z||0)-gvZ;
     } else return;
     if(lx!==lx || ly!==ly || lz!==lz) return;     /* NaN guard */
-    var m=Math.sqrt(lx*lx+ly*ly+lz*lz);
-    swing = swing*0.8 + Math.min(40,m)*0.2;       /* smooth, and ignore absurd spikes */
     accX  = accX*0.6 + lx*0.4;                    /* lighter smoothing: direction must stay responsive */
     accY  = accY*0.6 + ly*0.4;
     haveMotion=true;
@@ -267,7 +222,6 @@
     /* either sensor alone is enough to play — motion still works if orientation
        permission was refused, and vice versa */
     if(!haveOrient && !haveMotion) return;
-    var tNow=Date.now(), sdt=Math.min(50, tPrev? tNow-tPrev : 16); tPrev=tNow;
 
     /* AIM: position IS the tilt. No velocity, no friction, no drift — so the
        blade holds still when the phone does, and the same pose always maps to
@@ -285,36 +239,11 @@
       return;
     }
 
-    var dx=0, dy=0;
-    if(GRIP==="slash" && haveMotion){
-      /* Gyroscope, split into sweep and chop about the world's vertical.
-         deg/s * seconds = degrees turned this frame, the same quantity the
-         tilt path produces, so all the existing GAIN/boost tuning carries. */
-      var S=swordAxes(), a2=applyAxis(S.yaw*SWORD*sdt/1000, -S.pitch*SWORD*sdt/1000);
-      dx=a2.x; dy=a2.y;
-      if(Math.abs(dx)>MAXSTEP) dx=0;
-      if(Math.abs(dy)>MAXSTEP) dy=0;
-    } else if(haveOrient){
-      if(hxP===null){ hxP=hx; hyP=hy; }                   /* seed on the first reading */
-      else {
-        dx=wrapDeg(hx-hxP); dy=wrapDeg(hy-hyP);
-        hxP=hx; hyP=hy;
-        if(Math.abs(dx)>MAXSTEP) dx=0;                    /* sensor glitch, not a swing */
-        if(Math.abs(dy)>MAXSTEP) dy=0;
-      }
-    }
-    /* Two things make a slash carry: how fast you TURN (rotation) and how hard
-       you MOVE (accelerometer). Before, only the first counted. */
-    var boost=1+Math.min(BOOST, Math.sqrt(dx*dx+dy*dy)/6)
-               +Math.min(ACCEL, swing/12);
-    vx+=dx*GAIN*boost; vy+=dy*GAIN*boost;
-    /* The accelerometer's DIRECTIONAL push used to be added here. It was
-       removed: accelScreen() works in the screen-orientation frame while
-       swordAxes() works in the gravity frame, so in a real grip the two
-       disagreed and could push opposite ways — the cause of the blade
-       sometimes moving against the swing. Acceleration still contributes,
-       through `swing` in the boost above, where it has no direction of its
-       own and so cannot fight the steering. */
+    /* SLASH (everything that is not aim): physical movement only. Rotating
+       the phone on the spot does nothing; shove it and the blade goes that way. */
+    if(GRIP!=="slash" || !haveMotion) return;
+    var A=accelScreen();
+    vx+=A.x*SLASHGAIN; vy+=A.y*SLASHGAIN;
     vx*=FRICTION; vy*=FRICTION;
     bx+=vx; by+=vy;
     if(bx<0){ bx=0; vx*=-0.25; } if(bx>1){ bx=1; vx*=-0.25; }   /* soft bounce off the edges */
@@ -365,10 +294,10 @@ document.getElementById("recenter").addEventListener("click", function(){
     GRIP=g; saveGrip(); paintGrip();
     if(document.body.className.indexOf("playing")>=0)
       document.body.className="playing";
-    hxP=null; hyP=null; vx=0; vy=0; bx=0.5; by=0.5;
+    vx=0; vy=0; bx=0.5; by=0.5;
     aim0x=null; aim0y=null;                              /* re-learn centre from the current pose */
     setStatus(g==="aim" ? "Aim mode — <b>tilt and the blade follows</b>, hold still and it stays"
-                        : "Slash mode — <b>swing</b> to throw the blade");
+                        : "Slash mode — <b>move the phone</b> to throw the blade");
   }
   (function(){
     var a=document.getElementById("gripAim"), b=document.getElementById("gripSlash");
@@ -423,8 +352,8 @@ document.getElementById("recenter").addEventListener("click", function(){
     Promise.all(reqs.map(function(p){ return p.catch(function(){ return "denied"; }); })).then(function(res){
       if(res.indexOf("granted")<0){ setStatus("Motion was blocked. Reload the page and tap Allow when asked."); return; }
       startMotion(); connect();
-      /* orientation alone is still playable — only the swing boost is lost */
-      if(res.indexOf("denied")>=0) setStatus("Partly allowed — tilt works, but swing power is off.");
+      /* Aim needs orientation, Slash needs motion — say which is missing */
+      if(res.indexOf("denied")>=0) setStatus("Only part of the motion access was allowed — one of the two control modes may not work.");
     }).catch(function(){ setStatus("Motion needs an https page. Make sure you opened the vercel.app link."); });
   });
 </script>
