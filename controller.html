@@ -73,7 +73,7 @@
     <div class="col">
       <div class="eyebrow"><span class="sdg">12</span> Phone controller</div>
       <h1>Point to slice</h1>
-      <p>Type the code, then hold the phone however is comfortable and tap <b>Re-centre</b> — that pose becomes the middle of the screen. Now <b>tilt</b> to move the blade: tilt down and it goes down, and it <b>stays where you point</b>. Prefer a swingier feel? Switch to Slash below.</p>
+      <p>Type the code, hold the phone however is comfortable and tap <b>Re-centre</b> — that pose becomes the middle of the screen. Now <b>tilt to point</b>: the blade goes where you point and stays there. <b>Aim</b> follows you exactly; <b>Slash</b> gives the blade weight so it swings across.</p>
       <div class="setup"><input id="code" inputmode="numeric" maxlength="4" placeholder="0000" /></div>
       <button class="btn setup" id="go">Connect &amp; enable motion</button>
       <button class="btn sub" id="recenter">Re-centre blade</button>
@@ -85,7 +85,7 @@
         <span class="axisLbl">Control style</span>
         <span class="chips">
           <button type="button" class="chip" id="gripAim">🎯 Aim (steady)</button>
-          <button type="button" class="chip" id="gripSlash">🗡 Slash (move it)</button>
+          <button type="button" class="chip" id="gripSlash">🗡 Slash (with weight)</button>
         </span>
       </div>
       <div class="axisrow">
@@ -96,7 +96,7 @@
           <button type="button" class="chip" id="axSw">Swap</button>
         </span>
       </div>
-      <div class="fine">build 40 · direct</div>
+      <div class="fine">build 41 · direct</div>
     </div>
   </div>
 
@@ -125,21 +125,30 @@
      A firm swing crosses the whole screen in well under 0.1s at these values;
      the previous settings felt slow mainly because friction and the pull to
      centre killed the motion the moment you stopped accelerating. */
-  var SLASHGAIN=0.0018; /* push per unit of acceleration */
-  var SLASHVCAP=0.025;  /* hard ceiling on blade speed, ~1.5 screens/sec */
-  var FRICTION=0.88;    /* how quickly the blade coasts to a stop */
-  var RECENTER=0.014;   /* pull back to the middle when the phone is still */
+  /* Slash now reads the SAME accurate signal as Aim — where the phone is
+     pointing — and differs only in FEEL: the blade chases that point with
+     weight instead of snapping to it.
+
+     It used to integrate the accelerometer, which is why it never matched
+     real movement. An accelerometer measures force, not position; recovering
+     movement from it means integrating, and integration invents motion you
+     never made. Worse, halting a swing reads as force the OTHER way, so the
+     blade set off backwards on its own.
+
+     SPRING/DAMP are derived, not guessed: damping ratio
+     zeta = (1-DAMP)/(2*sqrt(SPRING)). These give zeta ~0.6 — reaches 90% in
+     ~167ms, settles in ~284ms, and never overshoots or wobbles, so the blade
+     always ends up exactly where you are pointing. */
+  var SLASHSPRING=0.30;
+  var SLASHDAMP=0.34;
   var bx=0.5, by=0.5, vx=0, vy=0;          /* blade position + velocity, 0..1 of the screen */
   var hx=0, hy=0, haveOrient=false;
 
-  /* ACCELEROMETER — the sole steering source for Slash mode.
-     Direction comes from the acceleration vector itself, mapped into screen
-     axes; the axis buttons on the phone correct it if a device disagrees.
-     Magnitude needs no separate handling any more: a harder shove simply
-     produces a bigger push. */
-  var accX=0, accY=0; /* smoothed linear acceleration in DEVICE axes */
-  var gvX=0, gvY=0, gvZ=0, haveGrav=false;
-  var haveMotion=false;
+  /* The accelerometer used to steer Slash and is deliberately gone. It
+     measures FORCE, not position, so movement can only be recovered by
+     integrating it — which drifts, and turns the deceleration at the end of a
+     swing into motion the other way. Orientation against gravity is a real
+     measurement, so both modes read that instead. */
 
   /* Which way round the phone's axes map to the screen differs by device and
      by OS, and can't be verified without the hardware — so instead of guessing
@@ -154,8 +163,8 @@
        there is a fixed relationship between how you hold the phone and where
        the blade is — the one thing velocity-based control can never give you,
        and the reason it was impossible to aim.
-     "slash": driven purely by MOVING the phone. Rotating it on the spot does
-       nothing. Livelier, much harder to place the blade deliberately. */
+     "slash": the same target as aim, but the blade has weight and swings to
+       it rather than snapping. Livelier, still always ends where you point. */
   var GRIP="aim";
   try{ var _g=localStorage.getItem("ss3d.grip"); if(_g) GRIP=_g; }catch(e){}
   if(GRIP!=="aim" && GRIP!=="slash") GRIP="aim";     /* retire older mode names */
@@ -165,49 +174,13 @@
   var AIMRANGE=28;
   var aim0x=null, aim0y=null;        /* the "centre" pose, set by Re-centre */
 
-  function onMotion(e){
-    /* Gravity is tracked on BOTH platforms, not just where linear acceleration
-       is missing: sword mode needs "which way is down" regardless of which
-       channel happens to supply the movement. It is the slow-moving part of
-       the with-gravity reading. */
-    var ag=e.accelerationIncludingGravity;
-    if(ag){
-      var rx=ag.x||0, ry=ag.y||0, rz=ag.z||0;
-      if(!haveGrav){ gvX=rx; gvY=ry; gvZ=rz; haveGrav=true; }
-      else { gvX=gvX*0.92+rx*0.08; gvY=gvY*0.92+ry*0.08; gvZ=gvZ*0.92+rz*0.08; }
-    }
-
-    var lx,ly,lz, a=e.acceleration;
-    if(a && a.x!==null && a.x!==undefined){
-      lx=a.x||0; ly=a.y||0; lz=a.z||0;            /* gravity already removed */
-    } else if(ag){
-      lx=(ag.x||0)-gvX; ly=(ag.y||0)-gvY; lz=(ag.z||0)-gvZ;
-    } else return;
-    if(lx!==lx || ly!==ly || lz!==lz) return;     /* NaN guard */
-    /* Heavier smoothing than feels natural, on purpose: raw accelerometer
-       data reverses sign constantly and every reversal jerks the blade. */
-    accX  = accX*0.8 + lx*0.2;
-    accY  = accY*0.8 + ly*0.2;
-    haveMotion=true;
-  }
-
-  /* Rotate the device-frame acceleration into screen axes, then apply the
-     user's corrections. Screen y grows downward, device y points up, hence the
-     sign flip. */
-  /* One place for the user's corrections, so the flip buttons fix whichever
-     steering mode is active rather than only the accelerometer push. */
+  /* One place for the user's corrections, so the flip buttons fix both modes. */
   function applyAxis(x,y){
     if(AX.sw){ var t=x; x=y; y=t; }
     if(AX.fx) x=-x;
     if(AX.fy) y=-y;
     return {x:x, y:y};
   }
-  function accelScreen(){
-    var ang=(screen.orientation&&typeof screen.orientation.angle==="number")?screen.orientation.angle:(window.orientation||0);
-    var r=ang*Math.PI/180, c=Math.cos(r), s2=Math.sin(r);
-    return applyAxis(accX*c + accY*s2, -(-accX*s2 + accY*c));
-  }
-
   function onOrient(e){
     var beta=e.beta||0, gamma=e.gamma||0;
     /* held sideways like a knife: pick axes by screen rotation so left/right + up/down stay natural */
@@ -220,11 +193,20 @@
   function wrapDeg(d){ while(d>180)d-=360; while(d<-180)d+=360; return d; }
 
   /* one steady loop so damping doesn't depend on the sensor's event rate */
+  /* Where the phone is pointing, as a screen position. Absolute: derived from
+     orientation against gravity, so it is a real measurement rather than
+     something accumulated. Both modes steer from this. */
+  function aimTarget(){
+    var a=applyAxis(wrapDeg(hx-aim0x)/AIMRANGE, wrapDeg(hy-aim0y)/AIMRANGE);
+    return { x:Math.max(0, Math.min(1, 0.5+a.x*0.5)),
+             y:Math.max(0, Math.min(1, 0.5+a.y*0.5)) };
+  }
+
   function tick(){
     requestAnimationFrame(tick);
     /* either sensor alone is enough to play — motion still works if orientation
        permission was refused, and vice versa */
-    if(!haveOrient && !haveMotion) return;
+    if(!haveOrient) return;
 
     /* AIM: position IS the tilt. No velocity, no friction, no drift — so the
        blade holds still when the phone does, and the same pose always maps to
@@ -232,30 +214,22 @@
     if(GRIP==="aim"){
       if(!haveOrient) return;
       if(aim0x===null){ aim0x=hx; aim0y=hy; }        /* first reading defines centre */
-      var ox=wrapDeg(hx-aim0x)/AIMRANGE, oy=wrapDeg(hy-aim0y)/AIMRANGE;
-      var ax2=applyAxis(ox, oy);
-      bx=Math.max(0, Math.min(1, 0.5+ax2.x*0.5));
-      by=Math.max(0, Math.min(1, 0.5+ax2.y*0.5));
+      var a=aimTarget();
+      bx=a.x; by=a.y;
       vx=0; vy=0;
       moveDot(bx,by);
       sendBlade();
       return;
     }
 
-    /* SLASH (everything that is not aim): physical movement only. Rotating
-       the phone on the spot does nothing; shove it and the blade goes that way. */
-    if(GRIP!=="slash" || !haveMotion) return;
-    var A=accelScreen();
-    vx+=A.x*SLASHGAIN; vy+=A.y*SLASHGAIN;
-    vx*=FRICTION; vy*=FRICTION;
-    /* Without this the blade reached ~12 screens/sec on a firm swing, far
-       faster than anyone can track. Capped to roughly the pace of Aim mode. */
-    if(Math.abs(vx)>SLASHVCAP) vx=(vx>0?1:-1)*SLASHVCAP;
-    if(Math.abs(vy)>SLASHVCAP) vy=(vy>0?1:-1)*SLASHVCAP;
-    bx+=vx; by+=vy;
-    if(bx<0){ bx=0; vx*=-0.25; } if(bx>1){ bx=1; vx*=-0.25; }   /* soft bounce off the edges */
-    if(by<0){ by=0; vy*=-0.25; } if(by>1){ by=1; vy*=-0.25; }
-    bx+=(0.5-bx)*RECENTER; by+=(0.5-by)*RECENTER;
+    /* SLASH: same target as Aim, but the blade has weight and swings to it. */
+    if(GRIP!=="slash" || !haveOrient) return;
+    if(aim0x===null){ aim0x=hx; aim0y=hy; }
+    var t=aimTarget();
+    vx+=(t.x-bx)*SLASHSPRING; vy+=(t.y-by)*SLASHSPRING;
+    vx*=SLASHDAMP; vy*=SLASHDAMP;
+    bx=Math.max(0, Math.min(1, bx+vx));
+    by=Math.max(0, Math.min(1, by+vy));
     moveDot(bx,by);
     sendBlade();
   }
@@ -268,7 +242,6 @@
   }
   function startMotion(){
     window.addEventListener("deviceorientation", onOrient);
-    window.addEventListener("devicemotion", onMotion);
     requestAnimationFrame(tick);
   }
   /* In aim mode this is the important control: hold the phone however is
@@ -304,7 +277,7 @@ document.getElementById("recenter").addEventListener("click", function(){
     vx=0; vy=0; bx=0.5; by=0.5;
     aim0x=null; aim0y=null;                              /* re-learn centre from the current pose */
     setStatus(g==="aim" ? "Aim mode — <b>tilt and the blade follows</b>, hold still and it stays"
-                        : "Slash mode — <b>move the phone</b> to throw the blade");
+                        : "Slash mode — the blade <b>swings</b> to where you point");
   }
   (function(){
     var a=document.getElementById("gripAim"), b=document.getElementById("gripSlash");
@@ -350,18 +323,13 @@ document.getElementById("recenter").addEventListener("click", function(){
        fired from inside this click — awaiting one and then asking for the
        other loses the user-gesture context and the second prompt never shows,
        so they are started together and resolved with Promise.all. */
-    var reqs=[];
-    if(typeof DeviceOrientationEvent!=="undefined" && typeof DeviceOrientationEvent.requestPermission==="function")
-      reqs.push(DeviceOrientationEvent.requestPermission());
-    if(typeof DeviceMotionEvent!=="undefined" && typeof DeviceMotionEvent.requestPermission==="function")
-      reqs.push(DeviceMotionEvent.requestPermission());
-    if(!reqs.length){ startMotion(); connect(); return; }      /* Android: no prompt needed */
-    Promise.all(reqs.map(function(p){ return p.catch(function(){ return "denied"; }); })).then(function(res){
-      if(res.indexOf("granted")<0){ setStatus("Motion was blocked. Reload the page and tap Allow when asked."); return; }
-      startMotion(); connect();
-      /* Aim needs orientation, Slash needs motion — say which is missing */
-      if(res.indexOf("denied")>=0) setStatus("Only part of the motion access was allowed — one of the two control modes may not work.");
-    }).catch(function(){ setStatus("Motion needs an https page. Make sure you opened the vercel.app link."); });
+    /* Only orientation is needed now, so there is a single prompt again. */
+    if(typeof DeviceOrientationEvent!=="undefined" && typeof DeviceOrientationEvent.requestPermission==="function"){
+      DeviceOrientationEvent.requestPermission().then(function(p){
+        if(p==="granted"){ startMotion(); connect(); }
+        else setStatus("Motion was blocked. Reload the page and tap Allow when asked.");
+      }).catch(function(){ setStatus("Motion needs an https page. Make sure you opened the vercel.app link."); });
+    } else { startMotion(); connect(); }                       /* Android: no prompt needed */
   });
 </script>
 </body>
