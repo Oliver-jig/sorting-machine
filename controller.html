@@ -96,7 +96,7 @@
           <button type="button" class="chip" id="axSw">Swap</button>
         </span>
       </div>
-      <div class="fine">build 39 · direct</div>
+      <div class="fine">build 40 · direct</div>
     </div>
   </div>
 
@@ -125,9 +125,10 @@
      A firm swing crosses the whole screen in well under 0.1s at these values;
      the previous settings felt slow mainly because friction and the pull to
      centre killed the motion the moment you stopped accelerating. */
-  var SLASHGAIN=0.008;  /* push per unit of acceleration */
-  var FRICTION=0.88;    /* higher than before, so the blade carries further */
-  var RECENTER=0.014;   /* gentler, so it stops dragging you back mid-swing */
+  var SLASHGAIN=0.0018; /* push per unit of acceleration */
+  var SLASHVCAP=0.025;  /* hard ceiling on blade speed, ~1.5 screens/sec */
+  var FRICTION=0.88;    /* how quickly the blade coasts to a stop */
+  var RECENTER=0.014;   /* pull back to the middle when the phone is still */
   var bx=0.5, by=0.5, vx=0, vy=0;          /* blade position + velocity, 0..1 of the screen */
   var hx=0, hy=0, haveOrient=false;
 
@@ -183,8 +184,10 @@
       lx=(ag.x||0)-gvX; ly=(ag.y||0)-gvY; lz=(ag.z||0)-gvZ;
     } else return;
     if(lx!==lx || ly!==ly || lz!==lz) return;     /* NaN guard */
-    accX  = accX*0.6 + lx*0.4;                    /* lighter smoothing: direction must stay responsive */
-    accY  = accY*0.6 + ly*0.4;
+    /* Heavier smoothing than feels natural, on purpose: raw accelerometer
+       data reverses sign constantly and every reversal jerks the blade. */
+    accX  = accX*0.8 + lx*0.2;
+    accY  = accY*0.8 + ly*0.2;
     haveMotion=true;
   }
 
@@ -245,6 +248,10 @@
     var A=accelScreen();
     vx+=A.x*SLASHGAIN; vy+=A.y*SLASHGAIN;
     vx*=FRICTION; vy*=FRICTION;
+    /* Without this the blade reached ~12 screens/sec on a firm swing, far
+       faster than anyone can track. Capped to roughly the pace of Aim mode. */
+    if(Math.abs(vx)>SLASHVCAP) vx=(vx>0?1:-1)*SLASHVCAP;
+    if(Math.abs(vy)>SLASHVCAP) vy=(vy>0?1:-1)*SLASHVCAP;
     bx+=vx; by+=vy;
     if(bx<0){ bx=0; vx*=-0.25; } if(bx>1){ bx=1; vx*=-0.25; }   /* soft bounce off the edges */
     if(by<0){ by=0; vy*=-0.25; } if(by>1){ by=1; vy*=-0.25; }
