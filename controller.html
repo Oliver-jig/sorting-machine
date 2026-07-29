@@ -96,7 +96,7 @@
           <button type="button" class="chip" id="axSw">Swap</button>
         </span>
       </div>
-      <div class="fine">build 42 · direct</div>
+      <div class="fine">build 43 · direct</div>
     </div>
   </div>
 
@@ -135,11 +135,17 @@
      never made. Worse, halting a swing reads as force the OTHER way, so the
      blade set off backwards on its own.
 
-     SPRING/DAMP are derived, not guessed: damping ratio
-     zeta = (1-DAMP)/(2*sqrt(SPRING)). These give zeta ~0.6 — reaches 90% in
-     ~167ms, settles in ~284ms, and never overshoots or wobbles, so the blade
-     always ends up exactly where you are pointing. */
-  var SLASHSPRING=0.30;
+     SPRING and DAMP are measured, not guessed. Note the response rate is set
+     by their PRODUCT, because v is scaled by DAMP every frame — raising SPRING
+     alone does almost nothing, and past ~0.5 it actually gets slower.
+
+     The old 0.30/0.34 took 217ms to cover 90% of a move, which is what read as
+     lag. 0.78/0.34 does it in 67ms with only 1.5% overshoot. Stiffer also
+     passes more sensor noise through: held still the blade drifts about 1.15%
+     of the screen instead of 0.70% — smaller than the blade marker, so it is
+     not visible, and that is the trade being made. Do not push SPRING much
+     past this without re-checking the shake. */
+  var SLASHSPRING=0.78;
   var SLASHDAMP=0.34;
   var bx=0.5, by=0.5, vx=0, vy=0;          /* blade position + velocity, 0..1 of the screen */
   var hx=0, hy=0, haveOrient=false;
