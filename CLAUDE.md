@@ -10,7 +10,7 @@ Production)** — a Fruit-Ninja-style slicer about Hong Kong recycling. No build
 step, no framework, no backend. It's plain HTML + CSS + JavaScript with a few
 CDN libraries. Deployed as a static site (Vercel).
 
-Current state: **build 40** (SDG 12 amber theme, code split into `css/` + `js/`,
+Current state: **build 41** (SDG 12 amber theme, code split into `css/` + `js/`,
 phone controller has absolute Aim mode + Slash mode, Quiz rebuilt and Defend
 replaced by the "Bin It" sorting mode, pause available in every mode,
 Fruit-Ninja-style special items in Sort, owner-only score database).
@@ -129,21 +129,19 @@ launcher, update, slice-check, game-over, and draw:
     position. No velocity, friction or drift, so the blade HOLDS STILL and a
     pose always maps to the same spot. This exists because every earlier mode
     was velocity-based and therefore impossible to aim.
-  - **Slash** — physical MOVEMENT only, from the accelerometer via
-    `accelScreen()`, fed into the damped velocity integrator. Rotating the
-    phone on the spot does nothing by design. `SLASHGAIN` 0.0018 + `SLASHVCAP`
-    0.025: a firm swing crosses in ~0.47s at ~1.5 screens/sec, roughly Aim's
-    pace. **Known limitation, not a tuning bug:** stopping a swing registers
-    as acceleration in the OPPOSITE direction, so the blade travels out and
-    then comes back on its own. No amount of tuning removes this — it is what
-    an accelerometer measures. Aim exists because of it.
-  Tuning gotcha for Slash: the damped integrator multiplies `GAIN` by
-  `1/(1-FRICTION)` (~5.5x) — `GAIN` is deliberately tiny (0.0025).
-  **Never add a second steering source in a different reference frame.** An
-  accelerometer push using the screen-orientation frame was once added
-  alongside gravity-frame gyro steering; in a real grip they disagreed and the
-  blade moved AGAINST the swing. Acceleration now only feeds `swing`, which is
-  a magnitude and so has no direction to conflict with.
+  - **Slash** — the SAME absolute target as Aim (`aimTarget()`), but the blade
+    chases it with a spring instead of snapping: `vx+=(target-bx)*SLASHSPRING;
+    vx*=SLASHDAMP`. Weighty and swingy, yet it always ends exactly where you
+    point and never moves on its own.
+  Pick SPRING/DAMP from a damping ratio, don't guess: zeta =
+  (1-DAMP)/(2*sqrt(SPRING)). 0.30/0.34 gives zeta ~0.6 — 90% in ~150ms, no
+  overshoot, no ringing.
+  **The accelerometer is deliberately not used, and must not come back.** It
+  measures force, not position, so movement only comes from integrating it —
+  which drifts, and turns the deceleration at the END of a swing into motion
+  in the opposite direction. That made the blade wander off on its own and was
+  reported three times as "cannot control it". Orientation against gravity is
+  an actual measurement; both modes use it.
   The MQTT/WebRTC wire format is unchanged (`{g,b}`, g:-30..30, b:15..70).
 - Requires https (deploy) — won't work from a local file.
 
