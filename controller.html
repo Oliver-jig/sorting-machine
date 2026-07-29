@@ -40,7 +40,6 @@
   #dot{position:absolute; width:46px; height:46px; border-radius:50%; background:var(--amber); box-shadow:0 2px 8px rgba(150,110,30,.35); transform:translate(-50%,-50%); left:50%; top:50%}
   #status{font-size:15px; color:var(--muted); margin-top:12px; min-height:20px} #status b{color:var(--ink)}
   .fine{font-size:12px; color:var(--muted); margin-top:12px}
-  #rotate{display:none; margin-top:12px; padding:10px; border-radius:14px; background:#f8eccf; border:1px solid var(--line); color:var(--amber-d); font-size:14px; font-weight:600}
   .axisrow{margin-top:10px}
   .axisLbl{display:block; font-size:11px; color:var(--muted); margin-bottom:5px}
   .chips{display:flex; gap:6px; justify-content:center; flex-wrap:wrap}
@@ -63,34 +62,30 @@
     #status{font-size:13px; margin-top:8px; text-align:center}
     .fine{margin-top:8px; text-align:center}
   }
-  /* While playing, hide the setup fields. The "turn it sideways" nudge applies
-     ONLY to the flat/tilt grip — a sword grip is meant to be upright, so
-     nagging about it there would be wrong. */
-  body.playing #pad, body.playing .setup{display:none}
-  @media (orientation:portrait){ body.playing:not(.sword) #rotate{display:block} }
-  @media (orientation:landscape){ body.playing #pad{display:block} }
-  body.playing.sword #pad{display:block}
+  /* While playing, hide the setup fields but KEEP the pad — it is the only
+     feedback showing where the blade currently is, which matters most in aim
+     mode. Both modes work in any orientation, so there is no rotate nag. */
+  body.playing .setup{display:none}
 </style>
 </head>
 <body>
   <div class="card">
     <div class="col">
       <div class="eyebrow"><span class="sdg">12</span> Phone controller</div>
-      <h1>Slash to slice</h1>
-      <p>Type the code, then grip your phone <b>upright in your fist like a sword hilt</b>. <b>Sweep</b> it across to move the blade sideways, <b>chop</b> to move it up and down. Hold still and the blade settles back to the middle. Prefer holding it flat? Switch to tilt below.</p>
+      <h1>Point to slice</h1>
+      <p>Type the code, then hold the phone however is comfortable and tap <b>Re-centre</b> — that pose becomes the middle of the screen. Now <b>tilt</b> to move the blade: tilt down and it goes down, and it <b>stays where you point</b>. Prefer a swingier feel? Switch to Slash below.</p>
       <div class="setup"><input id="code" inputmode="numeric" maxlength="4" placeholder="0000" /></div>
       <button class="btn setup" id="go">Connect &amp; enable motion</button>
       <button class="btn sub" id="recenter">Re-centre blade</button>
     </div>
     <div class="col">
       <div id="pad"><div class="cross cx"></div><div class="cross cy"></div><div id="dot"></div></div>
-      <div id="rotate">↻ Turn your phone sideways and grip it like a knife.</div>
       <div id="status">Not connected</div>
       <div class="axisrow">
-        <span class="axisLbl">How are you holding it?</span>
+        <span class="axisLbl">Control style</span>
         <span class="chips">
-          <button type="button" class="chip" id="gripSword">🗡 Sword grip</button>
-          <button type="button" class="chip" id="gripTilt">📱 Flat / tilt</button>
+          <button type="button" class="chip" id="gripAim">🎯 Aim (steady)</button>
+          <button type="button" class="chip" id="gripSlash">🗡 Slash (swing)</button>
         </span>
       </div>
       <div class="axisrow">
@@ -101,7 +96,7 @@
           <button type="button" class="chip" id="axSw">Swap</button>
         </span>
       </div>
-      <div class="fine">build 35 · direct</div>
+      <div class="fine">build 38 · direct</div>
     </div>
   </div>
 
@@ -166,17 +161,22 @@
   try{ var _ax=localStorage.getItem("ss3d.axis"); if(_ax) AX=JSON.parse(_ax); }catch(e){}
   function saveAxis(){ try{ localStorage.setItem("ss3d.axis", JSON.stringify(AX)); }catch(e){} }
 
-  /* ---- GRIP ----
-     "sword": phone upright in the fist, tip forward. Swinging it is a SWEEP
-       (turning about the vertical) and a CHOP (tipping the point up/down),
-       neither of which is a tilt, so tilt-based steering reads them poorly.
-     "tilt": the original landscape/remote grip.
-     Sword mode uses the gyroscope with gravity as the reference, which makes
-     it independent of how the phone happens to be angled in the hand — the
-     one thing that cannot be assumed when someone grips it like a hilt. */
-  var GRIP="sword";
+  /* ---- CONTROL MODE ----
+     "aim":   the blade sits where you point. Tilt right and it goes right and
+       STAYS there; level the phone and it returns to the middle. ABSOLUTE, so
+       there is a fixed relationship between how you hold the phone and where
+       the blade is — the one thing velocity-based control can never give you,
+       and the reason it was impossible to aim.
+     "slash": swing-driven, using the gyroscope with gravity as the reference.
+       Livelier, much harder to place the blade deliberately. */
+  var GRIP="aim";
   try{ var _g=localStorage.getItem("ss3d.grip"); if(_g) GRIP=_g; }catch(e){}
+  if(GRIP!=="aim" && GRIP!=="slash") GRIP="aim";     /* retire older mode names */
   function saveGrip(){ try{ localStorage.setItem("ss3d.grip", GRIP); }catch(e){} }
+
+  /* Aim mode: how far you must tilt to reach a screen edge, in degrees. */
+  var AIMRANGE=28;
+  var aim0x=null, aim0y=null;        /* the "centre" pose, set by Re-centre */
 
   var SWORD=1.0;              /* sword sensitivity; scales degrees-per-frame */
   var rrX=0, rrY=0, rrZ=0;    /* gyroscope, deg/s, device axes */
@@ -268,8 +268,25 @@
        permission was refused, and vice versa */
     if(!haveOrient && !haveMotion) return;
     var tNow=Date.now(), sdt=Math.min(50, tPrev? tNow-tPrev : 16); tPrev=tNow;
+
+    /* AIM: position IS the tilt. No velocity, no friction, no drift — so the
+       blade holds still when the phone does, and the same pose always maps to
+       the same spot. Nothing else in tick() applies in this mode. */
+    if(GRIP==="aim"){
+      if(!haveOrient) return;
+      if(aim0x===null){ aim0x=hx; aim0y=hy; }        /* first reading defines centre */
+      var ox=wrapDeg(hx-aim0x)/AIMRANGE, oy=wrapDeg(hy-aim0y)/AIMRANGE;
+      var ax2=applyAxis(ox, oy);
+      bx=Math.max(0, Math.min(1, 0.5+ax2.x*0.5));
+      by=Math.max(0, Math.min(1, 0.5+ax2.y*0.5));
+      vx=0; vy=0;
+      moveDot(bx,by);
+      sendBlade();
+      return;
+    }
+
     var dx=0, dy=0;
-    if(GRIP==="sword" && haveMotion){
+    if(GRIP==="slash" && haveMotion){
       /* Gyroscope, split into sweep and chop about the world's vertical.
          deg/s * seconds = degrees turned this frame, the same quantity the
          tilt path produces, so all the existing GAIN/boost tuning carries. */
@@ -291,9 +308,13 @@
     var boost=1+Math.min(BOOST, Math.sqrt(dx*dx+dy*dy)/6)
                +Math.min(ACCEL, swing/12);
     vx+=dx*GAIN*boost; vy+=dy*GAIN*boost;
-    /* and moving the phone bodily pushes the blade the same way, so a flat
-       sideways shove with no rotation at all now moves it */
-    if(AGAIN>0 && haveMotion){ var A=accelScreen(); vx+=A.x*AGAIN; vy+=A.y*AGAIN; }
+    /* The accelerometer's DIRECTIONAL push used to be added here. It was
+       removed: accelScreen() works in the screen-orientation frame while
+       swordAxes() works in the gravity frame, so in a real grip the two
+       disagreed and could push opposite ways — the cause of the blade
+       sometimes moving against the swing. Acceleration still contributes,
+       through `swing` in the boost above, where it has no direction of its
+       own and so cannot fight the steering. */
     vx*=FRICTION; vy*=FRICTION;
     bx+=vx; by+=vy;
     if(bx<0){ bx=0; vx*=-0.25; } if(bx>1){ bx=1; vx*=-0.25; }   /* soft bounce off the edges */
@@ -314,7 +335,13 @@
     window.addEventListener("devicemotion", onMotion);
     requestAnimationFrame(tick);
   }
-  document.getElementById("recenter").addEventListener("click", function(){ bx=0.5; by=0.5; vx=0; vy=0; setStatus("Re-centred — <b>slash to slice</b>"); });
+  /* In aim mode this is the important control: hold the phone however is
+   comfortable, tap, and THAT pose becomes the centre of the screen. */
+document.getElementById("recenter").addEventListener("click", function(){
+  bx=0.5; by=0.5; vx=0; vy=0;
+  aim0x=(GRIP==="aim"&&haveOrient)?hx:null; aim0y=(GRIP==="aim"&&haveOrient)?hy:null;
+  setStatus("Centred on how you're holding it now — <b>tilt to move</b>");
+});
 
   /* Axis corrections live on the phone because that is the only place the
      mapping can actually be observed. Saved, so it is a one-time fix. */
@@ -330,22 +357,23 @@
   bindAxis("axFx","fx"); bindAxis("axFy","fy"); bindAxis("axSw","sw"); paintAxis();
 
   function paintGrip(){
-    var a=document.getElementById("gripSword"), b=document.getElementById("gripTilt");
-    if(a) a.className="chip"+(GRIP==="sword"?" on":"");
-    if(b) b.className="chip"+(GRIP!=="sword"?" on":"");
+    var a=document.getElementById("gripAim"), b=document.getElementById("gripSlash");
+    if(a) a.className="chip"+(GRIP==="aim"?" on":"");
+    if(b) b.className="chip"+(GRIP==="slash"?" on":"");
   }
   function setGrip(g){
     GRIP=g; saveGrip(); paintGrip();
     if(document.body.className.indexOf("playing")>=0)
-      document.body.className="playing"+(g==="sword"?" sword":"");
-    hxP=null; hyP=null; vx=0; vy=0; bx=0.5; by=0.5;      /* clean slate for the new mode */
-    setStatus(g==="sword" ? "Sword grip — <b>sweep and chop</b> to slice"
-                          : "Flat grip — <b>tilt and slash</b> to slice");
+      document.body.className="playing";
+    hxP=null; hyP=null; vx=0; vy=0; bx=0.5; by=0.5;
+    aim0x=null; aim0y=null;                              /* re-learn centre from the current pose */
+    setStatus(g==="aim" ? "Aim mode — <b>tilt and the blade follows</b>, hold still and it stays"
+                        : "Slash mode — <b>swing</b> to throw the blade");
   }
   (function(){
-    var a=document.getElementById("gripSword"), b=document.getElementById("gripTilt");
-    if(a) a.addEventListener("click", function(){ setGrip("sword"); });
-    if(b) b.addEventListener("click", function(){ setGrip("tilt"); });
+    var a=document.getElementById("gripAim"), b=document.getElementById("gripSlash");
+    if(a) a.addEventListener("click", function(){ setGrip("aim"); });
+    if(b) b.addEventListener("click", function(){ setGrip("slash"); });
     paintGrip();
   })();
 
@@ -353,7 +381,7 @@
     setStatus("Reaching the game…");
     if(typeof mqtt==="undefined"){ setStatus("Couldn't load the relay — check internet and reload."); return; }
     client=mqtt.connect(BROKER,{clientId:"ctrl_"+room+"_"+Math.random().toString(16).slice(2,8), reconnectPeriod:2500, connectTimeout:9000});
-    client.on("connect", function(){ sending=true; client.subscribe("slicesort/"+room); pub({from:"ctrl",type:"hello",cid:CID}); document.body.className="playing"+(GRIP==="sword"?" sword":""); setStatus("Connected — <b>slash to slice</b>"); startWebRTC(); });
+    client.on("connect", function(){ sending=true; client.subscribe("slicesort/"+room); pub({from:"ctrl",type:"hello",cid:CID}); document.body.className="playing"; setStatus("Connected — <b>slash to slice</b>"); startWebRTC(); });
     client.on("message", function(t, payload){ var d; try{ d=JSON.parse(payload.toString()); }catch(e){ return; }
       if(d.from==="ctrl") return;                                   /* ignore our own echoed messages */
       /* signalling and slot messages are addressed by cid — ignore the other phone's */
