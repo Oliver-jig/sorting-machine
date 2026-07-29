@@ -10,7 +10,7 @@ Production)** — a Fruit-Ninja-style slicer about Hong Kong recycling. No build
 step, no framework, no backend. It's plain HTML + CSS + JavaScript with a few
 CDN libraries. Deployed as a static site (Vercel).
 
-Current state: **build 38** (SDG 12 amber theme, code split into `css/` + `js/`,
+Current state: **build 39** (SDG 12 amber theme, code split into `css/` + `js/`,
 phone controller has absolute Aim mode + Slash mode, Quiz rebuilt and Defend
 replaced by the "Bin It" sorting mode, pause available in every mode,
 Fruit-Ninja-style special items in Sort, owner-only score database).
@@ -129,8 +129,10 @@ launcher, update, slice-check, game-over, and draw:
     position. No velocity, friction or drift, so the blade HOLDS STILL and a
     pose always maps to the same spot. This exists because every earlier mode
     was velocity-based and therefore impossible to aim.
-  - **Slash** — gyro + gravity (`swordAxes`): yaw = sweep, pitch = chop, fed
-    into the damped velocity integrator.
+  - **Slash** — physical MOVEMENT only, from the accelerometer via
+    `accelScreen()`, fed into the damped velocity integrator. Rotating the
+    phone on the spot does nothing by design. `SLASHGAIN` 0.008 with
+    `FRICTION` 0.88: a firm swing crosses the screen in ~0.08s.
   Tuning gotcha for Slash: the damped integrator multiplies `GAIN` by
   `1/(1-FRICTION)` (~5.5x) — `GAIN` is deliberately tiny (0.0025).
   **Never add a second steering source in a different reference frame.** An
