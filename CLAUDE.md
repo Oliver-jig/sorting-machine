@@ -11,7 +11,7 @@ step, no framework, no backend. It's plain HTML + CSS + JavaScript with a few
 CDN libraries. Deployed as a static site (Vercel).
 
 Current state: **build 38** (SDG 12 amber theme, code split into `css/` + `js/`,
-phone controller reworked to landscape "slash" control, Quiz rebuilt and Defend
+phone controller has absolute Aim mode + Slash mode, Quiz rebuilt and Defend
 replaced by the "Bin It" sorting mode, pause available in every mode,
 Fruit-Ninja-style special items in Sort, owner-only score database).
 The build number is stamped in the start-screen note — see "Build stamping".
@@ -123,13 +123,21 @@ launcher, update, slice-check, game-over, and draw:
   (`broker.emqx.io:8084` wss), then a WebRTC data channel for low latency, with
   MQTT relay as fallback. `applyRemote(g,b)` maps incoming orientation to the
   blade.
-- The PHONE runs `controller.html` (separate file). It reads DeviceOrientation and
-  uses **relative "slash" control**: per-frame angle *deltas* feed a velocity that is
-  integrated, damped (`FRICTION`) and pulled back to centre (`RECENTER`), so the blade
-  moves by how fast you swing rather than by the angle you hold. Layout goes two-column
-  in landscape and nags you to rotate if you're portrait while playing.
-  Tuning gotcha: the damped integrator multiplies `GAIN` by `1/(1-FRICTION)` (~5.5x) —
-  `GAIN` is deliberately tiny (0.0025); raising it makes the blade hair-trigger.
+- The PHONE runs `controller.html` (separate file), with TWO control modes:
+  - **Aim** (default) — position IS the tilt, absolute. `aim0x/aim0y` hold the
+    neutral pose (set by Re-centre); offset / `AIMRANGE` maps straight to blade
+    position. No velocity, friction or drift, so the blade HOLDS STILL and a
+    pose always maps to the same spot. This exists because every earlier mode
+    was velocity-based and therefore impossible to aim.
+  - **Slash** — gyro + gravity (`swordAxes`): yaw = sweep, pitch = chop, fed
+    into the damped velocity integrator.
+  Tuning gotcha for Slash: the damped integrator multiplies `GAIN` by
+  `1/(1-FRICTION)` (~5.5x) — `GAIN` is deliberately tiny (0.0025).
+  **Never add a second steering source in a different reference frame.** An
+  accelerometer push using the screen-orientation frame was once added
+  alongside gravity-frame gyro steering; in a real grip they disagreed and the
+  blade moved AGAINST the swing. Acceleration now only feeds `swing`, which is
+  a magnitude and so has no direction to conflict with.
   The MQTT/WebRTC wire format is unchanged (`{g,b}`, g:-30..30, b:15..70).
 - Requires https (deploy) — won't work from a local file.
 
