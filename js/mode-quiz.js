@@ -4,12 +4,15 @@
    Depends on game.js for: G, GMODE, W, H, fxc, el, show, resize, shuffle,
    fxRR, segDist, wrapFx, drawHeart, spawnBurst, ITEMBYT, QBINS, ART, hx, FACTS. */
 var QUIZ=[
-  {type:"item", q:"Which of these can NOT go in a recycling bin?", pool:["bottle","canTall","news","bag"], correctType:"bag", why:"soft plastic bags jam the sorting machines, so they're general waste."},
+  /* The bag/foam/carton answers here used to contradict the roster: all three
+     are accepted recyclables on the HK list and are binned as such, so the
+     questions now use real traps from the not-accepted list instead. */
+  {type:"item", q:"Which of these can NOT go in a recycling bin?", pool:["bottle","canTall","news","receipt"], correctType:"receipt", why:"receipts are coated thermal paper, not recyclable paper — general waste."},
   {type:"item", q:"Which belongs in the yellow METAL bin?", pool:["news","canTall","bottle","wine"], correctType:"canTall", why:"aluminium drink cans go in the yellow metal bin."},
-  {type:"item", q:"Which is a wishcycling trap (looks recyclable but isn't)?", pool:["news","bottle","foam","canTall"], correctType:"foam", why:"expanded polystyrene foam isn't accepted — general waste."},
+  {type:"item", q:"Which is a wishcycling trap (looks recyclable but isn't)?", pool:["news","bottle","ceramic","canTall"], correctType:"ceramic", why:"ceramics melt at a different temperature to glass and ruin the whole batch — general waste."},
   {type:"item", q:"Which goes to a green GLASS point, not the tricolour bins?", pool:["wine","bottle","canTall","box"], correctType:"wine", why:"glass isn't in the tricolour bins; use the green glass collection points."},
   {type:"item", q:"Which belongs in the blue PAPER bin?", pool:["bag","bottle","news","canTall"], correctType:"news", why:"clean paper like newspaper goes in the blue bin."},
-  {type:"item", q:"Which one is general waste?", pool:["bottle","carton","canTall","news"], correctType:"carton", why:"drink cartons mix paper, plastic and foil, so most bins can't recycle them."},
+  {type:"item", q:"Which one is general waste?", pool:["bottle","tissue","canTall","news"], correctType:"tissue", why:"tissue fibres are too short to re-pulp — general waste."},
   {type:"bin", q:"Where does a greasy pizza box go?", correctBin:"trash", why:"food-soiled cardboard contaminates recycling — general waste."},
   {type:"bin", q:"Where does a rinsed plastic water bottle go?", correctBin:"plastic", why:"empty, rinsed PET bottles go in the brown plastic bin."},
   {type:"bin", q:"Where does an aluminium soda can go?", correctBin:"metal", why:"cans go in the yellow metal bin."},
@@ -18,7 +21,7 @@ var QUIZ=[
   {type:"text", q:"True or False: greasy pizza boxes can be recycled.", opts:["True","False"], correct:1, why:"false — grease contaminates the paper fibres."},
   {type:"text", q:"True or False: you should rinse containers before recycling.", opts:["True","False"], correct:0, why:"true — rinsing keeps the whole batch usable."},
   {type:"text", q:"About how much waste does Hong Kong landfill each day?", opts:["1,100 tonnes","Over 11,000 tonnes","Under 500 tonnes"], correct:1, why:"Hong Kong sends over 11,000 tonnes to landfill every day."},
-  {type:"text", q:"True or False: plastic bags belong in the curbside recycling bin.", opts:["True","False"], correct:1, why:"false — soft plastic bags aren't accepted in the bins."},
+  {type:"text", q:"True or False: clean plastic bags can be recycled in Hong Kong.", opts:["True","False"], correct:0, why:"true — clean, dry plastic bags are accepted at GREEN@COMMUNITY points."},
   {type:"text", q:"Which colour bin is for METAL?", opts:["Blue","Yellow","Brown"], correct:1, why:"yellow is metal; blue is paper and brown is plastic."},
   {type:"text", q:"True or False: used batteries can go in the recycling bin.", opts:["True","False"], correct:1, why:"false — batteries are hazardous and need special disposal."},
   {type:"item", q:"Which belongs in the brown PLASTIC bin?", pool:["news","bottle","canTall","wine"], correctType:"bottle", why:"empty, rinsed plastic bottles go in the brown plastic bin."},
@@ -28,7 +31,11 @@ var QUIZ=[
   {type:"item", q:"Which one is general waste?", pool:["news","canTall","bubbletea","wine"], correctType:"bubbletea", why:"a bubble-tea cup and straw are contaminated plastic — general waste."},
   {type:"bin", q:"Where does a flattened cardboard box go?", correctBin:"paper", why:"flatten it into the blue paper bin."},
   {type:"bin", q:"Where does a rinsed yogurt tub go?", correctBin:"plastic", why:"rinsed #5 PP tubs go in the brown plastic bin."},
-  {type:"bin", q:"Where does a foam takeaway box go?", correctBin:"trash", why:"foam isn't accepted — general waste."},
+  {type:"bin", q:"Where does a clean foam box go?", correctBin:"plastic", why:"clean foam is accepted as plastic at GREEN@COMMUNITY points."},
+  {type:"bin", q:"Where does a rinsed drink carton go?", correctBin:"paper", why:"GREEN@COMMUNITY collects beverage cartons — they are not general waste."},
+  {type:"item", q:"Which of these is NOT glass recycling?", pool:["wine","jar","mirror","beer"], correctType:"mirror", why:"mirrors are coated and melt differently to bottles — general waste."},
+  {type:"item", q:"Which is a wishcycling trap?", pool:["box","foil","photo","jar"], correctType:"photo", why:"photo paper carries a chemical emulsion layer — general waste."},
+  {type:"item", q:"Which belongs in the yellow METAL bin?", pool:["poonChoi","cdCase","textbook","perfume"], correctType:"poonChoi", why:"a rinsed poon choi tray is metal — the yellow bin."},
   {type:"text", q:"True or False: glass belongs in the tricolour bins.", opts:["True","False"], correct:1, why:"false — glass has its own green collection points."},
   {type:"text", q:"Which colour bin is for PAPER?", opts:["Blue","Yellow","Brown"], correct:0, why:"blue is paper; yellow is metal and brown is plastic."},
   {type:"text", q:"True or False: you should flatten cardboard before recycling.", opts:["True","False"], correct:0, why:"true — flattening saves space and helps collection."},
@@ -43,15 +50,54 @@ var Q={running:false, score:0, opts:[], cur:null, locked:false, answer:"", why:"
        lives:3, asked:0, streak:0, mult:1, qLeft:0, teach:0, teachOK:false, missed:[], lastIdx:-1};
 var Qseq=[];
 
+/* The handwritten questions above teach nuance — traps, contamination, the
+   tricolour scheme — but each one names specific items by hand. That meant the
+   roster could grow to 50 items and Quiz would still only ever show the same
+   dozen. These generated questions are built from the WHOLE of ITEMS, so every
+   item reaches Quiz, and adding more items later needs no work here. */
+var QBINWHY={
+  paper:"paper and card go in the blue paper bin.",
+  plastic:"rinsed plastics go in the brown plastic bin.",
+  metal:"rinsed metal goes in the yellow metal bin.",
+  glass:"glass goes to the green glass collection points, not the tricolour bins.",
+  trash:"this one is not accepted for recycling — general waste."
+};
+function quizGenItems(n){
+  var bins=["paper","plastic","metal","glass","trash"], out=[];
+  for(var i=0;i<n;i++){
+    var b=bins[i%bins.length];
+    var right=ITEMS.filter(function(x){ return x.bin===b; });
+    var wrong=shuffle(ITEMS.filter(function(x){ return x.bin!==b; }).slice());
+    if(!right.length || wrong.length<3) continue;
+    var correct=right[Math.floor(Math.random()*right.length)];
+    /* One distractor per bin at most: two items from the same wrong bin is
+       fine, but two from the CORRECT bin would give the question two right
+       answers, so bins are tracked rather than items. */
+    var pool=[correct.t], used={}; used[b]=1;
+    wrong.forEach(function(w){
+      if(pool.length>=4 || used[w.bin]) return;
+      used[w.bin]=1; pool.push(w.t);
+    });
+    if(pool.length<4) continue;
+    out.push({type:"item",
+      q:(b==="trash" ? "Which one is general waste?"
+                     : "Which belongs in the "+QBINS[b].n.toUpperCase()+" bin?"),
+      pool:shuffle(pool), correctType:correct.t, why:QBINWHY[b]});
+  }
+  return out;
+}
+var QBANK=QUIZ;                       /* rebuilt each run so generated items vary */
+
 function qpick(){
-  if(Qseq.length===0){ Qseq=QUIZ.map(function(_,i){return i;}); shuffle(Qseq);
+  if(Qseq.length===0){ Qseq=QBANK.map(function(_,i){return i;}); shuffle(Qseq);
     if(Qseq[0]===Q.lastIdx && Qseq.length>1){ var t=Qseq[0]; Qseq[0]=Qseq[1]; Qseq[1]=t; } }
-  var idx=Qseq.shift(); Q.lastIdx=idx; return QUIZ[idx];
+  var idx=Qseq.shift(); Q.lastIdx=idx; return QBANK[idx];
 }
 
 function launchQuiz(){
   GMODE="quiz"; Q.running=true; Q.score=0; Q.lives=QCFG.lives; Q.asked=0;
   Q.streak=0; Q.mult=1; Q.missed=[]; Q.locked=false; Q.teach=0; Qseq=[];
+  QBANK=QUIZ.concat(quizGenItems(15));      /* fresh roster-wide questions each run */
   BLADE.trail=[]; G.parts=[]; G.pops=[]; G.flashes=[];
   el("scoreN").textContent="0"; el("topicName").textContent="Quiz"; el("topicDot").style.background="#7f77dd";
   el("timeFill").style.width="100%"; el("pauseBtn").style.display="";
