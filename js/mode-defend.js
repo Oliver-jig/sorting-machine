@@ -23,7 +23,13 @@ var DBINS=["paper","plastic","metal","glass","trash"];
 
 var DCFG={
   lives:3,
-  binW:150, binH:54, itemR:45,
+  /* binW is LOAD-BEARING and must stay 150. The catch test uses exactly this
+     width (see the landing test) and dSpawn's reachability window and corridor
+     guard are both sized from it — changing it silently changes the fairness
+     guarantee. binH is cosmetic only: item y is interpolated from land TIME, not
+     a physics fall, so the bin's height and the line's position affect how far
+     things visually travel and nothing else. */
+  binW:150, binH:82, itemR:45,
   switchMs:17000, warnMs:3000,          /* how long a target holds, and the heads-up */
   fall0:2200, fallMin:1250,             /* fall time ramps down with elapsed */
   gap0:900,   gapMin:450,               /* spawn gap ramps down too */
@@ -76,7 +82,7 @@ var DSCFG={first:9000, every:13000, everyRand:7000};
 function dFall(){ var r=Math.min(1,TS.elapsed/DCFG.rampMs); return DCFG.fall0+(DCFG.fallMin-DCFG.fall0)*r; }
 function dGap(){  var r=Math.min(1,TS.elapsed/DCFG.rampMs); return DCFG.gap0 +(DCFG.gapMin -DCFG.gap0 )*r; }
 function dTrapBias(){ return 0.15+0.5*Math.min(1,TS.elapsed/DCFG.rampMs); }
-function binLineY(){ return H-70; }
+function binLineY(){ return H-104; }        /* raised so the taller bin still fits */
 function binRect(){ return {x:TS.binX-DCFG.binW/2, y:binLineY(), w:DCFG.binW, h:DCFG.binH}; }
 
 function tsunamiIntro(){
@@ -282,17 +288,92 @@ function tsunamiGameOver(){
   show("result");
 }
 
+/* ---- the bin's artwork ----
+   Modelled on an EPD three-coloured waste separation bin: colour-coded upright
+   body, proud lid, chasing-arrows mark, bilingual label.
+
+   The LID is drawn at exactly br.w, because the lid opening IS the catch mouth.
+   The widest drawn element and the catch test have to agree — an earlier version
+   caught within binW+itemR while drawing binW, so items that visibly missed
+   still counted, and that is the single worst thing this mode can do. The body
+   tapers BELOW the lid, which is what the real bins do and costs nothing,
+   because items are caught at the mouth.
+
+   Everything here is deliberately bold. The bin moves the full width of the
+   screen in a second and is read at a glance; fine detail would be mud. */
+function dShade(hex, f){
+  var n=parseInt(hex.slice(1),16);
+  return "rgb("+Math.round(((n>>16)&255)*f)+","+Math.round(((n>>8)&255)*f)+","+Math.round((n&255)*f)+")";
+}
+/* Three chasing arrows. A faithful mobius loop is illegible at this size.
+   The first attempt drew three thick strokes on a triangle with arrowheads
+   partway along each side: the heads overshot into the neighbouring side and
+   the strokes merged into a lumpy outline with a stray wedge. So each arrow is
+   now ONE filled polygon — strokes cannot merge if there are no strokes — and
+   the sides are shortened to leave a visible gap at each corner. */
+function dBinArrows(cx, cy, r){
+  var d=r*0.40, hw=r*0.115;           /* side offset from centre, and bar half-thickness */
+  fxc.save(); fxc.translate(cx, cy);
+  fxc.fillStyle="#ffffff";
+  for(var i=0;i<3;i++){
+    fxc.save(); fxc.rotate(i*Math.PI*2/3);
+    var x0=-r*0.56, x1=r*0.10, tip=r*0.60, flare=r*0.30;
+    fxc.beginPath();
+    fxc.moveTo(x0, -d-hw);            /* bar, top edge */
+    fxc.lineTo(x1, -d-hw);
+    fxc.lineTo(x1, -d-flare);         /* head flares out */
+    fxc.lineTo(tip, -d);              /* tip, pointing round the triangle */
+    fxc.lineTo(x1, -d+flare);
+    fxc.lineTo(x1, -d+hw);
+    fxc.lineTo(x0, -d+hw);            /* bar, bottom edge */
+    fxc.closePath(); fxc.fill();
+    fxc.restore();
+  }
+  fxc.restore();
+}
+function dBinArt(br, q){
+  var lidH=18, tap=7, bx=br.x, bw=br.w, by=br.y, bh=br.h;
+  var bodyTop=by+lidH-2, bodyMid=bodyTop+(bh-lidH)*0.5;
+
+  /* body */
+  fxc.beginPath();
+  fxc.moveTo(bx+2, bodyTop); fxc.lineTo(bx+bw-2, bodyTop);
+  fxc.lineTo(bx+bw-2-tap, by+bh); fxc.lineTo(bx+2+tap, by+bh);
+  fxc.closePath();
+  fxc.fillStyle=q.c; fxc.fill();
+  fxc.lineWidth=4; fxc.strokeStyle=OL; fxc.stroke();
+
+  /* ONE seam, sitting in the gap between the mark and the label so it reads as
+     a panel line and doubles as a divider. Two evenly spaced ribs were tried
+     first and the second ran straight through the label text, which read as a
+     rendering artifact rather than part of the bin. */
+  fxc.strokeStyle=dShade(q.c,0.76); fxc.lineWidth=3;
+  fxc.beginPath();
+  fxc.moveTo(bx+54, bodyTop+7);
+  fxc.lineTo(bx+54+tap*0.45, by+bh-5);
+  fxc.stroke();
+
+  /* lid at FULL width — this is the catch mouth */
+  fxRR(bx, by, bw, lidH, 6); fxc.fillStyle=dShade(q.c,0.70); fxc.fill();
+  fxc.lineWidth=4; fxc.strokeStyle=OL; fxc.stroke();
+  /* the opening: inset vertically only, so the full catch WIDTH still reads */
+  fxRR(bx+5, by+4, bw-10, lidH-9, 4); fxc.fillStyle="rgba(18,14,9,.55)"; fxc.fill();
+
+  /* mark + bilingual label */
+  dBinArrows(bx+28, bodyMid+1, 17);
+  var tx=bx+bw*0.5+16;
+  cjk(fxc, q.zh||q.n, tx, bodyMid-9, 17, "#ffffff");
+  fxc.fillStyle="rgba(255,255,255,.95)";
+  fxc.font="700 12px 'Fredoka',system-ui,sans-serif";
+  fxc.textAlign="center"; fxc.textBaseline="middle";
+  fxc.fillText(q.n.toUpperCase(), tx, bodyMid+12);
+}
+
 function tsunamiDraw(now){
   if(G.paused) return;
   var br=binRect(), q=QBINS[TS.target];
 
-  /* the bin */
-  fxRR(br.x, br.y, br.w, br.h, 12); fxc.fillStyle=q.c; fxc.fill();
-  fxc.lineWidth=3; fxc.strokeStyle="rgba(255,255,255,.9)"; fxc.stroke();
-  fxRR(br.x+8, br.y-8, br.w-16, 12, 5); fxc.fillStyle=q.c; fxc.fill(); fxc.stroke();
-  fxc.fillStyle="#ffffff"; fxc.font="700 17px 'Fredoka',system-ui,sans-serif";
-  fxc.textAlign="center"; fxc.textBaseline="middle";
-  fxc.fillText(q.n, br.x+br.w/2, br.y+br.h/2+3);
+  dBinArt(br, q);
 
   /* No guide column up the screen — it was visual noise. The bin itself shows
      its position, and the catch mouth is exactly the bin's drawn width (see
