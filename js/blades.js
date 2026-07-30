@@ -25,32 +25,44 @@
 
 var XPRATE={ sort:0.33, quiz:0.05, tsunami:0.33 };   /* good run ~= 100 XP each */
 
-/* Fast early, slower later, as asked: the first unlock lands at 60 XP, which is
-   well under a single good run, so someone playing once at an exhibition still
-   sees a reward. Later gaps widen for players who come back. */
-var LEVELXP=[0, 60, 160, 320, 560, 900, 1400, 2100];
+/* Fifteen levels with a blade every SECOND one, so levelling alternates between
+   a new blade and progress towards the next.
 
-/* Two-tone trails: `outer` is the wide bright pass, `inner` the narrow accent.
-   `w` scales thickness. `cycle` re-hues on every swipe.
-   Level 1 is the current look, so an unlocked player loses nothing. */
+   The early gaps are deliberately no smaller than about one good run (~100 XP).
+   A first attempt used 45/65/85 and levels got SKIPPED — two runs cleared both
+   level 3 and level 4, so the player saw "Lv 2" jump straight to "Lv 4" and
+   never saw the level their blade was attached to. Gaps still widen throughout
+   (55 -> 580); they just do not start below the granularity of a single run.
+
+   Blade 2 lands at level 3, about 2 runs in, so a one-session player still
+   unlocks something. The last is around 38 runs. */
+var LEVELXP=[0, 55, 130, 230, 350, 500, 680, 890, 1140, 1430, 1770, 2160, 2610, 3120, 3700];
+
+/* `glow` is the blade's IDENTITY colour and is the WIDE pass. `core` is the
+   bright hot centre and is narrow. That order matters and was originally the
+   wrong way round: every blade had a near-white wide pass with the colour only
+   in a thin low-alpha accent, so in play they all looked like the same pale
+   streak and picking one appeared to do nothing. The colour has to be the part
+   you actually see.
+   `w` scales thickness. `cycle` re-hues the glow on every swipe. */
 var BLADES=[
-  {id:"classic", n:"Classic",   zh:"經典",   lvl:1, outer:"255,255,255", inner:"32,164,90",  w:1.00,
+  {id:"classic", n:"Classic",   zh:"經典",   lvl:1,  glow:"32,164,90",  core:"255,255,255", w:1.00,
    d:"The blade you started with."},
-  {id:"ocean",   n:"Ocean",     zh:"海洋",   lvl:2, outer:"235,248,255", inner:"47,127,209", w:1.00,
+  {id:"ocean",   n:"Ocean",     zh:"海洋",   lvl:3,  glow:"47,127,209", core:"235,248,255", w:1.00,
    d:"Cool blue, for the plastic that should never reach the sea."},
-  {id:"amber",   n:"Amber",     zh:"琥珀",   lvl:3, outer:"255,250,235", inner:"191,139,46", w:1.05,
+  {id:"amber",   n:"Amber",     zh:"琥珀",   lvl:5,  glow:"223,160,48", core:"255,250,235", w:1.05,
    d:"The colour of this whole game."},
   /* A bright lime, NOT the same green as Classic: at 31,157,85 it was within a
-     few units of Classic's accent and the two tiles were indistinguishable. */
-  {id:"leaf",    n:"Leaf",      zh:"綠葉",   lvl:4, outer:"244,255,220", inner:"124,201,45", w:0.90,
+     few units of Classic's and the two were indistinguishable. */
+  {id:"leaf",    n:"Leaf",      zh:"綠葉",   lvl:7,  glow:"124,201,45", core:"244,255,220", w:0.90,
    d:"Thin and quick. Slices clean."},
-  {id:"sunset",  n:"Sunset",    zh:"晚霞",   lvl:5, outer:"255,236,214", inner:"224,72,63",  w:1.15,
+  {id:"sunset",  n:"Sunset",    zh:"晚霞",   lvl:9,  glow:"224,72,63",  core:"255,236,214", w:1.15,
    d:"Heavy and warm. You can see where you have been."},
-  {id:"disco",   n:"Disco",     zh:"彩虹",   lvl:6, outer:null,           inner:null,         w:1.05,
+  {id:"disco",   n:"Disco",     zh:"彩虹",   lvl:11, glow:null,         core:"255,255,255", w:1.05,
    d:"Changes colour with every swipe. Funky.", cycle:true},
-  {id:"ice",     n:"Ice",       zh:"冰刃",   lvl:7, outer:"255,255,255", inner:"120,220,240", w:0.85,
+  {id:"ice",     n:"Ice",       zh:"冰刃",   lvl:13, glow:"90,206,235", core:"255,255,255", w:0.85,
    d:"The narrowest blade. For people who do not miss."},
-  {id:"gold",    n:"Zero Waste",zh:"零廢棄", lvl:8, outer:"255,252,232", inner:"216,161,60",  w:1.25,
+  {id:"gold",    n:"Zero Waste",zh:"零廢棄", lvl:15, glow:"216,161,60", core:"255,252,232", w:1.25,
    d:"The last one. Nothing wasted."}
 ];
 
@@ -134,42 +146,47 @@ function hslRGB(h,s,l){
     r=q(P,Q,h+1/3); g=q(P,Q,h); b=q(P,Q,h-1/3); }
   return Math.round(r*255)+","+Math.round(g*255)+","+Math.round(b*255);
 }
-/* Draws the player's blade. Delegates to game.js's drawTrail, which Versus
-   already uses — the only addition there was an optional inner colour. */
 /* ================= UI =================
    The picker is its own screen rather than a section of the start card, which was
    already long enough to need scrolling on a phone. */
 
-/* A short swipe drawn into a small canvas, so the tile shows the actual blade
-   rather than a swatch. Uses the same alpha/width ramp as drawTrail so what you
-   pick is what you get. */
+/* ONE renderer, used by the live trail AND by the picker tiles.
+   They were separate before, with different alpha ramps, so a tile showed a
+   strongly coloured swipe while the game drew a pale one — and picking a blade
+   looked like it had done nothing, or given you a different blade. Sharing this
+   function is what makes the tile an honest preview: it cannot drift again
+   without both changing together.
+
+   `scale` is the only difference between the two callers, because a 112px tile
+   needs thinner strokes than a 1280px playfield. */
+function bladeStroke(c, pts, b, seed, scale){
+  if(!pts || pts.length<2) return;
+  var sc=(b.w||1)*(scale||1), n=pts.length, rainbow=!!b.cycle;
+  var glow=b.glow, core=b.core||"255,255,255";
+  if(rainbow && !glow) glow=bladeHue(seed||0);
+  c.lineCap="round"; c.lineJoin="round";
+  /* wide identity-colour pass */
+  for(var p=1;p<n;p++){ var f=p/n;
+    var g=rainbow ? hslRGB((((seed||0)*47)+300*f)%360, 0.85, 0.55) : glow;
+    c.strokeStyle="rgba("+g+","+(0.25+0.6*f)+")"; c.lineWidth=(f*13+3)*sc;
+    c.beginPath(); c.moveTo(pts[p-1].x,pts[p-1].y); c.lineTo(pts[p].x,pts[p].y); c.stroke(); }
+  /* narrow hot core */
+  for(var q=1;q<n;q++){ var e=q/n;
+    c.strokeStyle="rgba("+core+","+(0.30+0.65*e)+")"; c.lineWidth=(e*5+1.2)*sc;
+    c.beginPath(); c.moveTo(pts[q-1].x,pts[q-1].y); c.lineTo(pts[q].x,pts[q].y); c.stroke(); }
+}
+
+/* A short arc into a small canvas, drawn by bladeStroke — the same code the game
+   uses, so the tile is what you will actually get. */
 function bladePreview(cv, b){
   var c=cv.getContext("2d"), w=cv.width, h=cv.height;
   c.clearRect(0,0,w,h);
-  var pts=[], N=16;
+  var pts=[], N=18;
   for(var i=0;i<N;i++){
     var t=i/(N-1);
-    pts.push({x:6+t*(w-12), y:h*0.5+Math.sin(t*Math.PI)* -h*0.26});
+    pts.push({x:7+t*(w-14), y:h*0.56+Math.sin(t*Math.PI)*-h*0.28});
   }
-  var outer=b.outer, inner=b.inner, rainbow=!!b.cycle;
-  if(rainbow) outer="255,255,255";
-  /* A cycling blade shown at one fixed hue is a lie AND it collided with the two
-     green tiles. Its preview sweeps hue along the stroke instead, which says
-     "this one changes colour" without needing the description. */
-  /* In play the trail is 60+ points long and reads by accumulation. A tile has
-     16 points on a strip 40px tall, so reusing the in-game alpha ramp (which
-     starts near 0) made every preview a faint grey smudge — Ocean and Leaf were
-     indistinguishable. The ramp here therefore starts at 0.45 and the accent is
-     drawn at full strength, which is what actually shows the COLOUR. */
-  var sc=(b.w||1)*0.85;
-  c.lineCap="round"; c.lineJoin="round";
-  for(var p=1;p<pts.length;p++){ var f=0.45+0.55*(p/pts.length);
-    c.strokeStyle="rgba("+outer+","+f+")"; c.lineWidth=(p/pts.length*11+3)*sc;
-    c.beginPath(); c.moveTo(pts[p-1].x,pts[p-1].y); c.lineTo(pts[p].x,pts[p].y); c.stroke(); }
-  for(var q=1;q<pts.length;q++){ var g=0.55+0.45*(q/pts.length);
-    var col=rainbow ? hslRGB(300*(q/pts.length), 0.85, 0.55) : inner;
-    c.strokeStyle="rgba("+col+","+g+")"; c.lineWidth=(q/pts.length*6+2)*sc;
-    c.beginPath(); c.moveTo(pts[q-1].x,pts[q-1].y); c.lineTo(pts[q].x,pts[q].y); c.stroke(); }
+  bladeStroke(c, pts, b, 3, 0.72);
 }
 
 function bladeRenderLvl(id){
@@ -213,7 +230,7 @@ function bladeRenderList(){
     else {
       /* Locked tiles still show the SHAPE, greyed — a silhouette is a reason to
          keep playing; a blank box is not. */
-      bladePreview(cv, {outer:"150,150,150", inner:"110,110,110", w:b.w});
+      bladePreview(cv, {glow:"120,120,124", core:"168,168,172", w:b.w});
     }
     row.addEventListener("click", function(){
       if(bladeSelect(b.id)){ bladeRenderList(); }
@@ -260,13 +277,16 @@ document.addEventListener("DOMContentLoaded", function(){
 function bladeMarkerRGB(){
   var b=bladeCurrent();
   if(b.cycle) return bladeHue(BLState.swipes);
-  return b.inner||"32,164,90";
+  return b.glow||"32,164,90";
 }
+/* Sort and Quiz draw through here. It expires stale points the way drawTrail
+   does, then hands off to the shared renderer. Versus keeps calling drawTrail
+   directly with a single colour, because its blue/red are how players tell each
+   other apart and must never follow a skin. */
 function bladeDrawTrail(trail, now){
+  while(trail.length && now-trail[0].t>=140) trail.shift();
   var live=trail.length>1;
   if(live && !BLState.drawing) BLState.swipes++;
   BLState.drawing=live;
-  var b=bladeCurrent(), outer=b.outer, inner=b.inner;
-  if(b.cycle){ outer="255,255,255"; inner=bladeHue(BLState.swipes); }
-  drawTrail(trail, now, outer, inner, b.w);
+  bladeStroke(fxc, trail, bladeCurrent(), BLState.swipes, 1);
 }
