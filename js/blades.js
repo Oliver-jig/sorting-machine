@@ -44,26 +44,42 @@ var LEVELXP=[0, 55, 130, 230, 350, 500, 680, 890, 1140, 1430, 1770, 2160, 2610, 
    in a thin low-alpha accent, so in play they all looked like the same pale
    streak and picking one appeared to do nothing. The colour has to be the part
    you actually see.
-   `w` scales thickness. `cycle` re-hues the glow on every swipe. */
+   `w` scales thickness. `cycle` re-hues the glow on every swipe.
+
+   `life` is how long a trail point survives, in ms, and is the strongest FEEL
+   cue available — a long-lived trail smears behind your hand, a short one is
+   crisp. Everything used to sit at a hard-coded 140ms, which made the shipped
+   descriptions untrue: Sunset promises "you can see where you have been" and
+   Leaf promises "thin and quick", while both behaved identically. These values
+   make that copy honest.
+
+   `sparkle` is a count of small dots scattered along the trail, kept for the
+   late unlocks so reaching them looks like a reward.
+
+   EVERY FIELD HERE IS COSMETIC AND MUST STAY THAT WAY. No blade may change
+   score, reach, hit radius, lives or speed — the whole system is unit-tested on
+   that promise, because scores from this game go to a database a teacher reads
+   and have to mean "how well do you know your bins", not "how long have you
+   been playing". */
 var BLADES=[
-  {id:"classic", n:"Classic",   zh:"經典",   lvl:1,  glow:"32,164,90",  core:"255,255,255", w:1.00,
+  {id:"classic", n:"Classic",   zh:"經典",   lvl:1,  glow:"32,164,90",  core:"255,255,255", w:1.00, life:140,
    d:"The blade you started with."},
-  {id:"ocean",   n:"Ocean",     zh:"海洋",   lvl:3,  glow:"47,127,209", core:"235,248,255", w:1.00,
+  {id:"ocean",   n:"Ocean",     zh:"海洋",   lvl:3,  glow:"47,127,209", core:"235,248,255", w:1.00, life:140,
    d:"Cool blue, for the plastic that should never reach the sea."},
-  {id:"amber",   n:"Amber",     zh:"琥珀",   lvl:5,  glow:"223,160,48", core:"255,250,235", w:1.05,
+  {id:"amber",   n:"Amber",     zh:"琥珀",   lvl:5,  glow:"223,160,48", core:"255,250,235", w:1.08, life:150,
    d:"The colour of this whole game."},
   /* A bright lime, NOT the same green as Classic: at 31,157,85 it was within a
      few units of Classic's and the two were indistinguishable. */
-  {id:"leaf",    n:"Leaf",      zh:"綠葉",   lvl:7,  glow:"124,201,45", core:"244,255,220", w:0.90,
+  {id:"leaf",    n:"Leaf",      zh:"綠葉",   lvl:7,  glow:"124,201,45", core:"244,255,220", w:0.86, life:105,
    d:"Thin and quick. Slices clean."},
-  {id:"sunset",  n:"Sunset",    zh:"晚霞",   lvl:9,  glow:"224,72,63",  core:"255,236,214", w:1.15,
+  {id:"sunset",  n:"Sunset",    zh:"晚霞",   lvl:9,  glow:"224,72,63",  core:"255,236,214", w:1.18, life:185,
    d:"Heavy and warm. You can see where you have been."},
-  {id:"disco",   n:"Disco",     zh:"彩虹",   lvl:11, glow:null,         core:"255,255,255", w:1.05,
-   d:"Changes colour with every swipe. Funky.", cycle:true},
-  {id:"ice",     n:"Ice",       zh:"冰刃",   lvl:13, glow:"90,206,235", core:"255,255,255", w:0.85,
-   d:"The narrowest blade. For people who do not miss."},
-  {id:"gold",    n:"Zero Waste",zh:"零廢棄", lvl:15, glow:"216,161,60", core:"255,252,232", w:1.25,
-   d:"The last one. Nothing wasted."}
+  {id:"disco",   n:"Disco",     zh:"彩虹",   lvl:11, glow:null,         core:"255,255,255", w:1.05, life:140,
+   d:"Changes colour with every swipe. Funky.", cycle:true, sparkle:5},
+  {id:"ice",     n:"Ice",       zh:"冰刃",   lvl:13, glow:"90,206,235", core:"255,255,255", w:0.80, life:100,
+   d:"The narrowest blade. For people who do not miss.", sparkle:7},
+  {id:"gold",    n:"Zero Waste",zh:"零廢棄", lvl:15, glow:"216,161,60", core:"255,252,232", w:1.35, life:195,
+   d:"The last one. Nothing wasted.", sparkle:9}
 ];
 
 function bladeById(id){
@@ -174,6 +190,23 @@ function bladeStroke(c, pts, b, seed, scale){
   for(var q=1;q<n;q++){ var e=q/n;
     c.strokeStyle="rgba("+core+","+(0.30+0.65*e)+")"; c.lineWidth=(e*5+1.2)*sc;
     c.beginPath(); c.moveTo(pts[q-1].x,pts[q-1].y); c.lineTo(pts[q].x,pts[q].y); c.stroke(); }
+  /* Sparkle: dots scattered along the trail, offset off the line so they read as
+     sparks rather than a dotted stroke. Deliberately NOT pushed into G.parts —
+     keeping them here means no shared state, nothing to clean up, and no chance
+     of interfering with the slice debris that carries correct/wrong meaning.
+     The offset is derived from the point index, not Math.random, so a still
+     frame and its preview tile look the same every time. */
+  var sp=b.sparkle|0;
+  if(!sp) return;
+  for(var s=0;s<sp;s++){
+    var i=1+Math.floor((s+0.5)/sp*(n-1)), a=pts[i], prev=pts[i-1];
+    var t=(s*0.618)%1;                                  /* golden ratio: spreads without clumping */
+    var dx=a.x-prev.x, dy=a.y-prev.y, len=Math.sqrt(dx*dx+dy*dy)||1;
+    var nx=-dy/len, ny=dx/len, off=(t-0.5)*16*sc;       /* perpendicular to the stroke */
+    var r=(0.9+t*1.5)*sc, fade=0.35+0.6*(i/n);
+    c.fillStyle="rgba("+core+","+fade+")";
+    c.beginPath(); c.arc(a.x+nx*off, a.y+ny*off, Math.max(0.4,r), 0, 7); c.fill();
+  }
 }
 
 /* A short arc into a small canvas, drawn by bladeStroke — the same code the game
@@ -230,7 +263,10 @@ function bladeRenderList(){
     else {
       /* Locked tiles still show the SHAPE, greyed — a silhouette is a reason to
          keep playing; a blank box is not. */
-      bladePreview(cv, {glow:"120,120,124", core:"168,168,172", w:b.w});
+      /* Greyed but otherwise FAITHFUL: width and sparkle are passed through, so a
+         locked tile shows the real silhouette and teases what it will look like.
+         Only the colour is withheld. */
+      bladePreview(cv, {glow:"120,120,124", core:"168,168,172", w:b.w, sparkle:b.sparkle});
     }
     row.addEventListener("click", function(){
       if(bladeSelect(b.id)){ bladeRenderList(); }
@@ -284,9 +320,13 @@ function bladeMarkerRGB(){
    directly with a single colour, because its blue/red are how players tell each
    other apart and must never follow a skin. */
 function bladeDrawTrail(trail, now){
-  while(trail.length && now-trail[0].t>=140) trail.shift();
+  var b=bladeCurrent();
+  /* Per-blade lifetime, not a fixed 140. drawTrail in game.js keeps its own
+     literal because Versus must not follow a skin. */
+  var life=b.life||140;
+  while(trail.length && now-trail[0].t>=life) trail.shift();
   var live=trail.length>1;
   if(live && !BLState.drawing) BLState.swipes++;
   BLState.drawing=live;
-  bladeStroke(fxc, trail, bladeCurrent(), BLState.swipes, 1);
+  bladeStroke(fxc, trail, b, BLState.swipes, 1);
 }
