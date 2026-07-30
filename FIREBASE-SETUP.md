@@ -43,6 +43,17 @@ service cloud.firestore {
         && request.resource.data.score <= 100000;
       allow read, update, delete: if false;
     }
+    match /players/{name} {
+      allow get: if true;
+      allow create, update: if request.resource.data.keys().hasOnly(['name','xp','at'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 16
+        && request.resource.data.xp is int
+        && request.resource.data.xp >= 0
+        && request.resource.data.xp <= 10000000;
+      allow list, delete: if false;
+    }
   }
 }
 ```
@@ -54,6 +65,28 @@ client-side for them to bypass. You read the data in the Firebase console,
 which sits behind your Google login.
 
 `update` and `delete` are also denied, so nobody can alter or wipe results.
+
+### About the `players` block
+
+That second block is a different thing with a different purpose, and it is
+deliberately weaker. It stores nothing but `{name, xp}` so a player can type
+their name on another device and get their blade unlocks back.
+
+`allow get: if true` means anyone can read one player document **if they already
+know the name**. `allow list: if false` still stops anyone enumerating all of
+them. There is no login, so a name is not a secret: someone who types a
+classmate's name will load that classmate's level.
+
+That is an accepted trade, not an oversight — the only thing it grants is a
+blade colour, which changes nothing about how the game plays or scores. The
+`scores` collection stays completely unreadable, so the actual results are
+unaffected by this.
+
+**Do not put anything in `players` that matters more than a cosmetic.**
+
+Until you publish this block, the reads simply fail and the game falls back to
+progress stored on the device. Nothing breaks and nothing errors — you just do
+not get cross-device unlocks.
 
 ## 4. Get your two values
 

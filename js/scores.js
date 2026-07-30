@@ -78,6 +78,76 @@ function fbSubmit(mode,name,score){
   });
 }
 
+/* ---- players: XP carried between devices by name ----
+   A SEPARATE collection from `scores`, which stays write-only. This one needs to
+   be READABLE, so the rules must allow get on players/{name} — see
+   FIREBASE-SETUP.md. Until you make that change in the console, every read here
+   fails and the game simply falls back to local progress: no errors, no blocking.
+
+   Understood limitation: there is no authentication, so a name is not a secret
+   and anyone can type someone else's to load their level. That is accepted
+   because the only thing it unlocks is a blade colour. Do NOT put anything here
+   that matters more than that. */
+function pDocId(name){
+  /* Firestore document ids cannot contain "/" and must not be "." or "..".
+     Lowercased so "Oliver" and "oliver" are one player rather than two. */
+  return encodeURIComponent(cleanName(name).toLowerCase()).replace(/[.%]/g,"_").slice(0,80);
+}
+function pUrl(name){
+  return "https://firestore.googleapis.com/v1/projects/"+FB.projectId+
+         "/databases/(default)/documents/players/"+pDocId(name)+
+         "?key="+encodeURIComponent(FB.apiKey);
+}
+function pTimeout(opts){
+  if(typeof AbortController!=="undefined"){
+    var ac=new AbortController(); opts.signal=ac.signal;
+    setTimeout(function(){ try{ ac.abort(); }catch(e){} }, SCFG.timeout);
+  }
+  return opts;
+}
+/* Read the stored XP for a name. Resolves to a number, or 0 for "nothing there
+   or not allowed" — callers never need to care which. */
+function playersFetch(name){
+  if(!fbReady() || !cleanName(name)) return Promise.resolve(0);
+  return fetch(pUrl(name), pTimeout({method:"GET"}))
+    .then(function(r){ if(!r.ok) return null; return r.json(); })
+    .then(function(j){
+      if(!j || !j.fields || !j.fields.xp) return 0;
+      return parseInt(j.fields.xp.integerValue||"0",10)||0;
+    })
+    .catch(function(){ return 0; });
+}
+/* Write the XP for a name, but only upwards: read first and skip if the stored
+   value is already higher, so playing badly on a second device cannot wipe out
+   progress made on the first. */
+function playersPush(name, xp){
+  if(!fbReady() || !cleanName(name)) return Promise.resolve(false);
+  xp=Math.round(xp)||0;
+  if(xp<=0) return Promise.resolve(false);
+  return playersFetch(name).then(function(had){
+    if(had>=xp) return false;
+    var body={ fields:{
+      name:{stringValue:cleanName(name)},
+      xp:{integerValue:String(xp)},
+      at:{timestampValue:new Date().toISOString()}
+    }};
+    return fetch(pUrl(name), pTimeout({method:"PATCH",
+      headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)}))
+      .then(function(r){ return r.ok; }).catch(function(){ return false; });
+  }).catch(function(){ return false; });
+}
+/* Pull a name's stored XP in as a floor for local progress. Called when a name
+   is already known at load, and again whenever one is saved. */
+function playersRestore(){
+  var n=getName(); if(!n || typeof bladeSetXPFloor!=="function") return;
+  playersFetch(n).then(function(xp){
+    if(xp>0){
+      bladeSetXPFloor(xp);
+      if(typeof bladeRenderLvl==="function") bladeRenderLvl("lvlBar");
+    }
+  });
+}
+
 /* ---- called by each mode's game-over ---- */
 function scoresRecord(mode,score){
   if(!SMODES[mode]) return;                    /* versus is not recorded */
@@ -89,7 +159,11 @@ function scoresRecord(mode,score){
   addRun(mode,score,getName());
   scoresRenderBest();
   scoresRenderPanel();
-  if(getName()) scoresSend();                  /* name already known — send silently */
+  if(getName()){
+    scoresSend();                              /* name already known — send silently */
+    /* XP is derived from the run history, so this must come AFTER addRun */
+    if(typeof bladeXP==="function") playersPush(getName(), bladeXP());
+  }
 }
 
 function scoresHidePanel(){
@@ -125,6 +199,16 @@ function scoresSaveName(){
   if(a.length){ a[a.length-1].n=n; setRuns(a); }
   inp.value=n;
   scoresSend();
+  /* Pull this name's stored level in first, THEN push the merged total, so
+     naming yourself on a new device restores progress instead of overwriting it
+     with whatever this device happens to have. */
+  if(typeof bladeSetXPFloor==="function"){
+    playersFetch(n).then(function(xp){
+      if(xp>0) bladeSetXPFloor(xp);
+      if(typeof bladeRenderLvl==="function"){ bladeRenderLvl("lvlBar"); bladeRenderLvl("lvlBarB"); }
+      return playersPush(n, bladeXP());
+    });
+  }
 }
 
 function scoresSend(){
@@ -161,4 +245,5 @@ document.addEventListener("DOMContentLoaded", function(){
   if(inp){ inp.value=getName();
     inp.addEventListener("keydown", function(e){ if(e.key==="Enter") scoresSaveName(); }); }
   scoresRenderStartBest();          /* the start screen is already visible on load */
+  playersRestore();                 /* if a name is already known, pull its level in */
 });
