@@ -629,6 +629,11 @@ function drawFx(now){
 
 /* ================= screens/wire ================= */
 function show(id){ ["start","connect","controller","play","result"].forEach(function(s){ el(s).classList.toggle("hidden", s!==id); });
+  /* These screens scroll now, and display:none does NOT reset scrollTop. Without
+     this, reaching "Play again" at the bottom of the result screen leaves it
+     scrolled there, so the NEXT game over opens past your score. Always open a
+     screen at the top. */
+  var sc=el(id); if(sc) sc.scrollTop=0;
   if(id==="start") scoresRenderStartBest();   /* refresh the best-score line after a run */ }
 document.querySelectorAll(".opt").forEach(function(o){ o.addEventListener("click", function(){
   document.querySelectorAll(".opt").forEach(function(x){x.classList.remove("sel"); x.setAttribute("aria-pressed","false");}); o.classList.add("sel"); o.setAttribute("aria-pressed","true"); controlMode=o.dataset.mode; }); });

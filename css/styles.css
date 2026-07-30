@@ -18,7 +18,19 @@
   .screen{flex:1; display:flex; flex-direction:column; min-height:0}
   .hidden{display:none !important}
 
-  #start,#result,#connect,#controller{justify-content:center; align-items:center; text-align:center}
+  /* These four screens are CONTENT, not gameplay, so they scroll. body keeps
+     overflow:hidden so the play screen can never scroll or rubber-band while
+     you are slicing or moving the bin.
+
+     `margin:auto` on the card, NOT justify-content:center. A centred flex child
+     that overflows its container has its top clipped and unreachable — no
+     scrolling can bring it back. That is exactly how the result screen's
+     "Play again" button became impossible to reach once the card grew taller
+     than a phone. With auto margins the card centres when it fits and the
+     margins collapse to 0 when it does not, so nothing is ever cut off. */
+  #start,#result,#connect,#controller{align-items:center; text-align:center;
+    overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch}
+  #start>.card,#result>.card,#connect>.card,#controller>.card{margin:auto; flex:0 0 auto}
   .card{background:var(--surface); border-radius:28px; box-shadow:var(--shadow); padding:40px 34px; max-width:600px; width:100%}
   h1{font-size:44px; line-height:1.03; margin:0; font-weight:600; letter-spacing:-.03em}
   .eyebrow{color:var(--accent); font-size:14px; font-weight:600; margin-bottom:10px}
