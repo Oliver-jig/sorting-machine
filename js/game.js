@@ -401,11 +401,21 @@ function vsGameOver(){
   stopCam();
   show("result");
 }
-function drawTrail(trail, now, rgb){
+/* `inner` and `w` are optional, so Versus's existing two single-colour calls are
+   unchanged. Sort and Quiz pass both, through the selected blade — they used to
+   carry their own duplicated copy of this loop. */
+function drawTrail(trail, now, rgb, inner, w){
   while(trail.length && now-trail[0].t>=140) trail.shift();
-  if(trail.length>1){ fxc.lineCap="round"; fxc.lineJoin="round";
-    for(var b=1;b<trail.length;b++){ fxc.strokeStyle="rgba("+rgb+","+(b/trail.length*0.85)+")"; fxc.lineWidth=b/trail.length*12+2;
-      fxc.beginPath(); fxc.moveTo(trail[b-1].x,trail[b-1].y); fxc.lineTo(trail[b].x,trail[b].y); fxc.stroke(); } }
+  if(trail.length<2) return;
+  w=w||1;
+  fxc.lineCap="round"; fxc.lineJoin="round";
+  for(var b=1;b<trail.length;b++){ var f=b/trail.length;
+    fxc.strokeStyle="rgba("+rgb+","+(f*0.85)+")"; fxc.lineWidth=(f*12+2)*w;
+    fxc.beginPath(); fxc.moveTo(trail[b-1].x,trail[b-1].y); fxc.lineTo(trail[b].x,trail[b].y); fxc.stroke(); }
+  if(!inner) return;
+  for(var c=1;c<trail.length;c++){ var g=c/trail.length;
+    fxc.strokeStyle="rgba("+inner+","+(g*0.55)+")"; fxc.lineWidth=(g*7+1)*w;
+    fxc.beginPath(); fxc.moveTo(trail[c-1].x,trail[c-1].y); fxc.lineTo(trail[c].x,trail[c].y); fxc.stroke(); }
 }
 function vsDraw(now){
   fxc.save(); fxc.strokeStyle="rgba(120,140,130,.45)"; fxc.lineWidth=3; fxc.setLineDash([10,10]); fxc.beginPath(); fxc.moveTo(W/2,0); fxc.lineTo(W/2,H); fxc.stroke(); fxc.setLineDash([]); fxc.restore();
@@ -621,19 +631,19 @@ function drawFx(now){
   /* blade trail + marker (single-blade modes; VS draws its own two coloured
      blades, and Bin It has no blade at all — the bin IS the cursor there). */
   if(GMODE!=="vs" && GMODE!=="tsunami"){
-  BLADE.trail=BLADE.trail.filter(function(b){return now-b.t<140});
-  if(BLADE.trail.length>1){ fxc.lineCap="round"; fxc.lineJoin="round";
-    for(var b=1;b<BLADE.trail.length;b++){ var a=BLADE.trail[b-1],c=BLADE.trail[b];
-      fxc.strokeStyle="rgba(255,255,255,"+(b/BLADE.trail.length*0.9)+")"; fxc.lineWidth=b/BLADE.trail.length*14+2;
-      fxc.beginPath(); fxc.moveTo(a.x,a.y); fxc.lineTo(c.x,c.y); fxc.stroke(); }
-    for(var b2=1;b2<BLADE.trail.length;b2++){ var a2=BLADE.trail[b2-1],c2=BLADE.trail[b2];
-      fxc.strokeStyle="rgba(32,164,90,"+(b2/BLADE.trail.length*0.55)+")"; fxc.lineWidth=b2/BLADE.trail.length*7+1;
-      fxc.beginPath(); fxc.moveTo(a2.x,a2.y); fxc.lineTo(c2.x,c2.y); fxc.stroke(); } }
+  /* This used to be its own copy of drawTrail's loop. It now goes through the
+     player's chosen blade, which delegates back to drawTrail — the same function
+     Versus uses — so there is one trail implementation instead of two. */
+  bladeDrawTrail(BLADE.trail, now);
   /* blade marker for cam/remote */
   if((controlMode==="cam"||controlMode==="remote") && BLADE.active){
+    /* Tinted to the blade: on webcam and phone this ring is on screen far more
+       than the trail is, so leaving it fixed green would hide the player's
+       choice in exactly the modes where it is most visible. */
+    var mk=(typeof bladeMarkerRGB==="function") ? bladeMarkerRGB() : "32,164,90";
     fxc.save();
-    fxc.strokeStyle="rgba(32,164,90,.95)"; fxc.lineWidth=3; fxc.beginPath(); fxc.arc(BLADE.x,BLADE.y,20,0,7); fxc.stroke();
-    fxc.fillStyle="rgba(32,164,90,.95)"; fxc.beginPath(); fxc.arc(BLADE.x,BLADE.y,6,0,7); fxc.fill();
+    fxc.strokeStyle="rgba("+mk+",.95)"; fxc.lineWidth=3; fxc.beginPath(); fxc.arc(BLADE.x,BLADE.y,20,0,7); fxc.stroke();
+    fxc.fillStyle="rgba("+mk+",.95)"; fxc.beginPath(); fxc.arc(BLADE.x,BLADE.y,6,0,7); fxc.fill();
     roundedText(controlMode==="cam"?"YOUR HAND":"YOUR BLADE", BLADE.x, BLADE.y-30);
     fxc.restore();
   }
@@ -641,13 +651,16 @@ function drawFx(now){
 }
 
 /* ================= screens/wire ================= */
-function show(id){ ["start","connect","controller","play","result"].forEach(function(s){ el(s).classList.toggle("hidden", s!==id); });
+function show(id){ ["start","connect","controller","play","result","blades"].forEach(function(s){ var e=el(s); if(e) e.classList.toggle("hidden", s!==id); });
   /* These screens scroll now, and display:none does NOT reset scrollTop. Without
      this, reaching "Play again" at the bottom of the result screen leaves it
      scrolled there, so the NEXT game over opens past your score. Always open a
      screen at the top. */
   var sc=el(id); if(sc) sc.scrollTop=0;
-  if(id==="start") scoresRenderStartBest();   /* refresh the best-score line after a run */ }
+  if(id==="start"){
+    scoresRenderStartBest();                  /* refresh the best-score line after a run */
+    if(typeof bladeRenderLvl==="function") bladeRenderLvl("lvlBar");   /* XP may have just changed */
+  } }
 document.querySelectorAll(".opt").forEach(function(o){ o.addEventListener("click", function(){
   document.querySelectorAll(".opt").forEach(function(x){x.classList.remove("sel"); x.setAttribute("aria-pressed","false");}); o.classList.add("sel"); o.setAttribute("aria-pressed","true"); controlMode=o.dataset.mode; }); });
 document.querySelectorAll("#diffSeg button").forEach(function(bn){ bn.addEventListener("click", function(){
