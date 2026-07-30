@@ -294,9 +294,9 @@ function tsunamiDraw(now){
   fxc.textAlign="center"; fxc.textBaseline="middle";
   fxc.fillText(q.n, br.x+br.w/2, br.y+br.h/2+3);
 
-  /* a soft column so you can see what the bin will and will not take */
-  fxc.save(); fxc.globalAlpha=0.10; fxc.fillStyle=q.c;
-  fxc.fillRect(br.x, 0, br.w, br.y); fxc.restore();
+  /* No guide column up the screen — it was visual noise. The bin itself shows
+     its position, and the catch mouth is exactly the bin's drawn width (see
+     the landing test), so nothing is hidden by dropping it. */
 
   /* halo on power-ups only — ordinary items must be judged on what they ARE */
   for(var s=0;s<G.objs.length;s++){ var so=G.objs[s];
