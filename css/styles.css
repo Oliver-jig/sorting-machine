@@ -18,19 +18,24 @@
   .screen{flex:1; display:flex; flex-direction:column; min-height:0}
   .hidden{display:none !important}
 
-  /* These four screens are CONTENT, not gameplay, so they scroll. body keeps
-     overflow:hidden so the play screen can never scroll or rubber-band while
-     you are slicing or moving the bin.
+  /* Every CONTENT screen scrolls and centres. body keeps overflow:hidden so the
+     play screen can never scroll or rubber-band while you are slicing or moving
+     the bin.
 
      `margin:auto` on the card, NOT justify-content:center. A centred flex child
      that overflows its container has its top clipped and unreachable — no
      scrolling can bring it back. That is exactly how the result screen's
      "Play again" button became impossible to reach once the card grew taller
      than a phone. With auto margins the card centres when it fits and the
-     margins collapse to 0 when it does not, so nothing is ever cut off. */
-  #start,#result,#connect,#controller{align-items:center; text-align:center;
+     margins collapse to 0 when it does not, so nothing is ever cut off.
+
+     ADD ANY NEW SCREEN TO BOTH SELECTORS BELOW. The blades screen was added
+     later and left out of them, which cost it centring AND scrolling in one go —
+     its Back button ended up below the fold with no way to reach it, trapping
+     the player on the screen. */
+  #start,#result,#connect,#controller,#blades{align-items:center; text-align:center;
     overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch}
-  #start>.card,#result>.card,#connect>.card,#controller>.card{margin:auto; flex:0 0 auto}
+  #start>.card,#result>.card,#connect>.card,#controller>.card,#blades>.card{margin:auto; flex:0 0 auto}
   .card{background:var(--surface); border-radius:28px; box-shadow:var(--shadow); padding:40px 34px; max-width:600px; width:100%}
   h1{font-size:44px; line-height:1.03; margin:0; font-weight:600; letter-spacing:-.03em}
   .eyebrow{color:var(--accent); font-size:14px; font-weight:600; margin-bottom:10px}
@@ -154,6 +159,9 @@
   .lvlXp{ font-size:12px; color:var(--muted); flex:none; font-variant-numeric:tabular-nums }
 
   /* blade picker */
+  #blades>.card{ position:relative }
+  .bladeClose{ position:absolute; top:16px; left:16px; padding:8px 14px; font-size:14px;
+    width:auto; margin:0; z-index:2 }
   .bladelist{ display:flex; flex-direction:column; gap:9px; margin:16px 0 4px }
   .blade{ display:flex; align-items:center; gap:14px; text-align:left; width:100%;
     font-family:inherit; cursor:pointer; padding:10px 12px; border-radius:18px;

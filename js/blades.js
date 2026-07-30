@@ -236,11 +236,22 @@ function bladeSyncNote(){
     : "Progress is saved on this device. Add your name after a run to carry it to another device.";
 }
 
+function bladeClose(){ show("start"); }
+
 document.addEventListener("DOMContentLoaded", function(){
   var b=document.getElementById("bladesBtn");
   if(b) b.addEventListener("click", bladeOpen);
-  var k=document.getElementById("bladesBack");
-  if(k) k.addEventListener("click", function(){ show("start"); });
+  /* Two exits, top and bottom, plus Escape. The list is long, and a screen you
+     cannot leave is the worst kind of bug. */
+  ["bladesBack","bladesBackTop"].forEach(function(id){
+    var k=document.getElementById(id);
+    if(k) k.addEventListener("click", bladeClose);
+  });
+  document.addEventListener("keydown", function(e){
+    if(e.key!=="Escape") return;
+    var s=document.getElementById("blades");
+    if(s && !s.classList.contains("hidden")) bladeClose();
+  });
   bladeRenderLvl("lvlBar");
 });
 

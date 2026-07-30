@@ -67,7 +67,7 @@
           if(location.protocol==="file:"){ n.innerHTML='<b>You opened this file directly.</b> Phone mode won\'t work. Serve with:<br><code style="background:#f0f0f5;padding:2px 6px;border-radius:4px">python3 -m http.server 8137</code><br>Then open <b>http://localhost:8137/</b> (same WiFi as phone) — or deploy to Vercel.'; n.style.color='#c0392b'; }
           else if(location.hostname==="localhost"||location.hostname==="127.0.0.1"){
             n.innerHTML='Running locally. <b>Make sure your phone is on the same WiFi.</b>';
-          } else { n.innerHTML='Webcam + mouse modes run in your browser. Phone controller: scan the QR or type the code. · build 50 · SDG 12 theme (Sort · Quiz · Bin It · Versus)'; }
+          } else { n.innerHTML='Webcam + mouse modes run in your browser. Phone controller: scan the QR or type the code. · build 51 · SDG 12 theme (Sort · Quiz · Bin It · Versus)'; }
         })();
       </script>
     </div>
@@ -153,6 +153,10 @@
   <!-- BLADES (cosmetic unlocks) -->
   <section id="blades" class="screen hidden">
     <div class="card">
+      <!-- A second exit at the TOP, because the list is long enough to push the
+           bottom one off a phone screen and being unable to leave is worse than
+           a duplicated button. -->
+      <button class="btn ghost bladeClose" id="bladesBackTop" type="button" aria-label="Back to the menu">← Back</button>
       <div class="eyebrow">Your blades</div>
       <h1 style="font-size:34px">Blades</h1>
       <p class="lead" style="font-size:15px">Play any mode to earn XP and unlock these.
@@ -160,7 +164,7 @@
       <div class="lvlbar" id="lvlBarB" aria-live="polite"></div>
       <div class="bladelist" id="bladeList"></div>
       <div class="src" id="bladeSync"></div>
-      <div class="row"><button class="btn" id="bladesBack" type="button">Back</button></div>
+      <div class="row"><button class="btn" id="bladesBack" type="button">Done — back to the menu</button></div>
     </div>
   </section>
 
