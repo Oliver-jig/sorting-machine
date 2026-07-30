@@ -663,10 +663,41 @@ function show(id){ ["start","connect","controller","play","result","blades"].for
   } }
 document.querySelectorAll(".opt").forEach(function(o){ o.addEventListener("click", function(){
   document.querySelectorAll(".opt").forEach(function(x){x.classList.remove("sel"); x.setAttribute("aria-pressed","false");}); o.classList.add("sel"); o.setAttribute("aria-pressed","true"); controlMode=o.dataset.mode; }); });
-document.querySelectorAll("#diffSeg button").forEach(function(bn){ bn.addEventListener("click", function(){
-  document.querySelectorAll("#diffSeg button").forEach(function(x){x.classList.remove("on")}); bn.classList.add("on"); DIFF=DIFFS[bn.dataset.d]; }); });
-document.querySelectorAll("#modeSeg button").forEach(function(bn){ bn.addEventListener("click", function(){
-  document.querySelectorAll("#modeSeg button").forEach(function(x){x.classList.remove("on")}); bn.classList.add("on"); GMODE=bn.dataset.g; }); });
+/* Segmented controls delegate from the CONTAINER, not from each button.
+   Listeners were on the buttons, and a measurement of the mode selector found
+   that 33% of the pill's pixels hit no button at all: the pill is 43px tall but
+   the buttons are 33px, leaving 5px dead bands above and below, plus a 5px inset
+   at the left and the fully rounded 980px ends. A tap landing in any of that did
+   nothing — which is exactly why picking a mode sometimes appeared to be ignored,
+   and why it felt random rather than reproducible.
+
+   The 3px inset is deliberate styling, so rather than change how it looks, every
+   pixel of the container now resolves to a button: a click outside any button
+   takes the horizontally nearest one. That also makes the touch targets bigger
+   than the paint, which is what you want on a phone. */
+function segDelegate(id, onPick){
+  var box=el(id); if(!box) return;
+  box.addEventListener("click", function(e){
+    var btns=[].slice.call(box.querySelectorAll("button"));
+    if(!btns.length) return;
+    var b=(e.target && e.target.closest) ? e.target.closest("button") : null;
+    if(!b || btns.indexOf(b)<0){
+      var x=e.clientX, best=null, bd=Infinity;
+      btns.forEach(function(t){
+        var r=t.getBoundingClientRect();
+        var d=(x<r.left) ? r.left-x : (x>r.right) ? x-r.right : 0;
+        if(d<bd){ bd=d; best=t; }
+      });
+      b=best;
+    }
+    if(!b) return;
+    btns.forEach(function(t){ t.classList.remove("on"); });
+    b.classList.add("on");
+    onPick(b);
+  });
+}
+segDelegate("diffSeg", function(b){ DIFF=DIFFS[b.dataset.d]; });
+segDelegate("modeSeg", function(b){ GMODE=b.dataset.g; });
 
 function startChosen(){ if(GMODE==="quiz") launchQuiz(); else if(GMODE==="tsunami") launchTsunami(); else if(GMODE==="vs") launchVS(); else launchGame(); }
 el("playBtn").addEventListener("click", function(){
@@ -782,6 +813,23 @@ if(IS_CONTROLLER){
     el("ctrlStatus").innerHTML = "Error: " + (e.message || "page load failed") + " — reload the page.";
   }
 } else {
-  initThree(); resize(); requestAnimationFrame(loop);
+  /* Guarded, and it says so when it fails. initThree() creates a WebGL context,
+     which can fail for reasons that have nothing to do with this code — a GPU
+     reset, too many live contexts across tabs, a driver hiccup. Unguarded, the
+     throw took resize() and the render loop down with it, so the menu still
+     responded but starting a game gave a blank frozen screen with nothing in the
+     console pointing at why. Intermittent and silent is the worst combination,
+     so a failure now surfaces on the start screen instead. */
+  try {
+    initThree(); resize(); requestAnimationFrame(loop);
+  } catch(e) {
+    var n=el("startNote");
+    if(n){
+      n.innerHTML='<b>Graphics failed to start</b> ('+((e&&e.message)||"WebGL unavailable")+
+        ').<br>Reload the page. If it keeps happening, close some other tabs — each one uses a graphics context.';
+      n.style.color="#c0392b";
+    }
+    if(typeof console!=="undefined" && console.error) console.error("initThree failed:", e);
+  }
 }
 
