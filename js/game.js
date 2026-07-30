@@ -197,7 +197,11 @@ function endGame(){ G.running=false;
 /* ================= QUIZ MODE ================= */
 var GMODE="sort";
 var ITEMBYT={}; ITEMS.forEach(function(it){ ITEMBYT[it.t]=it; });
-var QBINS={paper:{n:"Paper",c:"#2f7fd1"},plastic:{n:"Plastic",c:"#e0762b"},metal:{n:"Metal",c:"#e0a92b"},glass:{n:"Glass",c:"#2fae6a"},trash:{n:"General",c:"#8a97a0"}};
+/* `zh` is used by the Bin It bin artwork, which is bilingual to match the item
+   roster (every ITEMS name is "中文 English"). Additive — nothing else reads it.
+   Colours follow the HK EPD scheme: blue paper, yellow metal, brown plastic,
+   grey general waste, with glass at separate green collection points. */
+var QBINS={paper:{n:"Paper",zh:"廢紙",c:"#2f7fd1"},plastic:{n:"Plastic",zh:"塑膠",c:"#e0762b"},metal:{n:"Metal",zh:"金屬",c:"#e0a92b"},glass:{n:"Glass",zh:"玻璃",c:"#2fae6a"},trash:{n:"General",zh:"其他垃圾",c:"#8a97a0"}};
 /* A roster mistake is silent otherwise: a typo'd `t` still renders, because
    getTex falls back to ART._def — a plain grey square — and a duplicate `t`
    just overwrites the earlier entry in ITEMBYT. Both ship looking almost fine.
@@ -589,7 +593,16 @@ function drawFx(now){
   else if(GMODE==="vs"){ vsDraw(now); }
   else if(G.running && !G.paused){ specialDraw(now); }
   /* item name labels */
-  if(G.running || (GMODE==="tsunami" && TS.running) || (GMODE==="vs" && VS.running)){ for(var i=0;i<G.objs.length;i++){ var o=G.objs[i]; if(o.a<0.5) continue; roundedText(o.it.n, o.x, o.y+o.r+4); } }
+  if(G.running || (GMODE==="tsunami" && TS.running) || (GMODE==="vs" && VS.running)){
+    for(var i=0;i<G.objs.length;i++){ var o=G.objs[i]; if(o.a<0.5) continue;
+      var ly=o.y+o.r+4;
+      /* Bin It's bin is 82px tall, so a label sitting UNDER an item that is
+         about to land covers the bin's own label — at exactly the moment the
+         player needs to read what the bin wants. Flip it above instead. */
+      if(GMODE==="tsunami" && ly>binLineY()-16) ly=o.y-o.r-12;
+      roundedText(o.it.n, o.x, ly);
+    }
+  }
   /* score pops */
   for(var k=G.pops.length-1;k>=0;k--){ var p=G.pops[k]; p.y-=1.1; p.a-=0.02;
     fxc.save(); fxc.globalAlpha=Math.max(0,p.a); fxc.fillStyle=p.col;
