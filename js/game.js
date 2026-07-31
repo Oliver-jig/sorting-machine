@@ -582,7 +582,7 @@ function hostAnswer(offer){
     hostPC.onicecandidate=function(e){ if(e.candidate) hostPub({from:"host", type:"ice", cand:e.candidate}); };
     hostPC.ondatachannel=function(e){ var ch=e.channel;
       ch.onopen=function(){ roomLine("Direct link to the phone — lowest delay."); };
-      ch.onmessage=function(m){ try{ var o=JSON.parse(m.data); applyRemote(o.g,o.b); }catch(_){} }; };
+      ch.onmessage=function(m){ try{ var o=JSON.parse(m.data); applyRemote(o.g,o.b,0,false); }catch(_){} }; };
     /* Flush the moment the remote description lands, not when the answer is
        published — candidates queued in between are still valid and waiting
        longer than necessary only lengthens the handshake. */
@@ -604,7 +604,7 @@ function connectHostMqtt(){
     }
     else if(d.type==="orient"){
       var s = d.cid ? REM[d.cid] : 0;               /* no cid = older controller, treat as Player 1 */
-      if(s!==undefined) applyRemote(d.g,d.b,s);     /* unknown cid = room was full; ignore it */
+      if(s!==undefined) applyRemote(d.g,d.b,s,true); /* unknown cid = room was full; ignore it */
     }
     /* Two phones can't share one RTCPeerConnection, so Versus stays on the
        relay. The controller falls back on its own when no answer arrives. */
@@ -621,7 +621,7 @@ function connectHostMqtt(){
    second gets Player 2. Versus takes two; every other mode takes one. */
 var REM={}, remOrder=[];
 function remMax(){ return GMODE==="vs" ? 2 : 1; }
-function remReset(){ REM={}; remOrder=[]; }
+function remReset(){ REM={}; remOrder=[]; remoteReset(); }
 function remSlot(cid){
   if(!cid) cid="anon";
   if(REM[cid]===undefined){
@@ -632,16 +632,90 @@ function remSlot(cid){
 }
 function remCount(){ return remOrder.length; }
 
+/* ---- dead reckoning for phone input ----
+   Samples arrive at 60Hz on the WebRTC data channel but only ~11Hz on the MQTT
+   relay, because that broker caps there (see RELAYMS in controller.html).
+
+   Simply holding the last sample until the next one arrives makes an 11Hz feed
+   LOOK like 11Hz: the blade sits still for 90ms and then jumps. That reads as
+   lag on its own, on top of the transport delay — and the transport delay is
+   not removable. Measured across four public brokers the round trip is
+   188-206ms whichever you pick, so switching brokers buys nothing.
+
+   So estimate velocity between samples and carry the blade along it each frame.
+   That removes the step entirely and cancels the sample-gap part of the delay.
+
+   `lead` additionally aims at where the hand will be, to cover the transport
+   delay itself. It is applied ONLY to relay samples. Swept against a simulated
+   swing (tests/latency.js runs the same model):
+
+     lead    felt lag   tracking error   worst excursion
+       0ms     200ms        23.7%             41%
+      90ms     150ms        20.6%             40%
+     180ms     115ms        18.4%             43%
+
+   Every metric improves and the worst excursion barely moves, because during a
+   fast swing the blade is already far from the hand — the lead is not what puts
+   it there. On the DIRECT link the same lead is pure harm (0.00% error at lead
+   0, 5.2% at 45ms), which is why it is per-path and not global.
+
+   Smoothing used to live here and was removed: it lagged behind its own
+   prediction and made every metric worse, including leaving the blade hundreds
+   of pixels from the last known-good position after a reconnect.
+
+   `cap` bounds total extrapolation, `maxJump` bounds how far a bad velocity
+   estimate can throw the blade, and `vmin` stops a resting hand from jittering
+   once the lead multiplies its noise. */
+var RCFG={ lead:180, cap:320, maxJump:0.35, vlp:0.6, vmin:0.02, stale:500 };
+var RSAMP={};
+function remoteReset(){ RSAMP={}; }
+function remoteSample(slot, x, y, viaRelay){
+  var now=performance.now(), r=RSAMP[slot];
+  var lead=viaRelay ? RCFG.lead : 0;
+  if(!r){ RSAMP[slot]={x:x, y:y, t:now, vx:0, vy:0, lead:lead}; return; }
+  r.lead=lead;
+  var dt=now-r.t;
+  if(dt>=RCFG.stale){ r.vx=0; r.vy=0; }        /* long gap: stop guessing */
+  else if(dt>4){
+    /* Low-passed, so one noisy sample cannot fling the blade across the screen */
+    r.vx += ((x-r.x)/dt - r.vx)*RCFG.vlp;
+    r.vy += ((y-r.y)/dt - r.vy)*RCFG.vlp;
+    /* px per ms. Below this the hand is holding still and any "velocity" is
+       sensor noise, which the lead would otherwise magnify into a shake. */
+    if(Math.abs(r.vx)<RCFG.vmin) r.vx=0;
+    if(Math.abs(r.vy)<RCFG.vmin) r.vy=0;
+  }
+  r.x=x; r.y=y; r.t=now;
+}
+function remotePos(slot, now){
+  var r=RSAMP[slot]; if(!r) return null;
+  var age=Math.min(now-r.t+r.lead, RCFG.cap);
+  var px=r.x+r.vx*age, py=r.y+r.vy*age;
+  var mx=W*RCFG.maxJump, my=H*RCFG.maxJump;
+  px=Math.max(r.x-mx, Math.min(r.x+mx, px));
+  py=Math.max(r.y-my, Math.min(r.y+my, py));
+  return { x:Math.max(0,Math.min(W,px)), y:Math.max(0,Math.min(H,py)) };
+}
+/* Called once per frame from loop(), so the blade moves at the render rate
+   rather than at whatever rate the network happens to deliver. */
+function remoteDrive(now){
+  var p0=remotePos(0, now);
+  if(p0){ BLADE.x=p0.x; BLADE.y=p0.y; BLADE.active=true; }
+  if(GMODE==="vs"){
+    var p1=remotePos(1, now);
+    if(p1){ BLADE2.x=p1.x; BLADE2.y=p1.y; BLADE2.active=true; }
+  }
+}
 /* Versus gives each player half the screen, matching the webcam split. */
-function applyRemote(g,b,slot){
+/* viaRelay decides how far ahead we aim — see RCFG.lead. The two callers know
+   which transport they are: the data channel is direct, MQTT is the relay. */
+function applyRemote(g,b,slot,viaRelay){
   var fx=Math.max(0,Math.min(1, 0.5+(g||0)/60));
   var y=Math.max(0,Math.min(H, H*(((b||45)-15)/55)));
-  if(GMODE==="vs"){
-    if(slot===1){ BLADE2.x=W/2+6+fx*(W/2-6); BLADE2.y=y; BLADE2.active=true; }
-    else        { BLADE.x=fx*(W/2-6);        BLADE.y=y;  BLADE.active=true; }
-    return;
-  }
-  BLADE.x=fx*W; BLADE.y=y; BLADE.active=true;
+  var x;
+  if(GMODE==="vs") x = (slot===1) ? W/2+6+fx*(W/2-6) : fx*(W/2-6);
+  else             x = fx*W;
+  remoteSample(slot||0, x, y, !!viaRelay);
 }
 function stopPeer(){ if(mqttClient){ try{ mqttClient.end(true); }catch(e){} } }
 
@@ -649,6 +723,10 @@ function stopPeer(){ if(mqttClient){ try{ mqttClient.end(true); }catch(e){} } }
 var last=performance.now(), tnow=0;
 function loop(now){
   var dt=Math.min(48,now-last); last=now; tnow=now;
+  /* Advance the phone blade BEFORE any mode reads it, so every mode sees a
+     position for this frame rather than whatever the last packet left behind.
+     Mouse and webcam already update at their own event rate and are untouched. */
+  if(controlMode==="remote") remoteDrive(now);
   if(GMODE==="quiz"){
     if(Q.running && !G.paused){
       quizUpdate(dt);

@@ -8,7 +8,7 @@ A single-page browser arcade game for **SDG 12** — a Fruit-Ninja-style slicer
 teaching Hong Kong recycling. No build step, no framework, no bundler. Plain
 HTML + CSS + ES5-ish JS with CDN libraries, deployed static to Vercel.
 
-Current state: **build 61**. Dark "dojo-arcade" theme, 50 items, four modes,
+Current state: **build 62**. Dark "dojo-arcade" theme, 50 items, four modes,
 blade skins with an XP/level system.
 
 Repo: `Oliver-jig/sorting-machine`. Two branches, **kept in sync after every
@@ -30,7 +30,7 @@ for f in js/*.js; do node --check $f || echo "FAIL $f"; done
 ```
 
 ```bash
-npm test                  # all seven invariant harnesses
+npm test                  # all eight invariant harnesses
 node tests/fairness.js    # or run one on its own
 npm run check             # syntax-check every js file
 ```
@@ -131,9 +131,21 @@ single missed detection made it flash and made fast swipes silently fail to cut.
 The broker caps near **11 messages/second** whatever you send, so the old 60 Hz
 publish bought nothing and discarded 80% of the player's input as random
 stutter. `RELAYMS` (90ms) holds the relay just under the cap; `DCMS` (16ms)
-keeps the WebRTC data channel at full rate. The ~205ms floor is the round trip
-to a distant public broker and CANNOT be tuned away — the only cure is the
+keeps the WebRTC data channel at full rate. The ~195ms floor is the round trip
+to a distant public broker and CANNOT be tuned away — switching broker does not
+help (emqx 206ms, hivemq 190, mosquitto 200, emqx-cn 188). The only cure is the
 direct link.
+
+**Phone input is dead-reckoned, and the lead is per-transport.** Holding the
+last packet made an 11Hz relay feed *look* like 11Hz — the blade froze for 90ms
+then jumped, which reads as lag on top of the transport delay. `remoteSample`
+estimates velocity, `remotePos` carries the blade along it every frame, and
+`RCFG.lead` (180ms) additionally aims ahead to cover the transport — **only for
+relay samples**. Measured by `tests/latency.js`: felt lag on the relay
+**230ms -> 115ms**, tracking error 25.7% -> 18.2% of the screen. On the direct
+link the lead is 0 and tracking stays exact (0.00%); applying it there costs
+5.2% error for nothing. Do not add smoothing back — it lagged behind its own
+prediction and made every metric worse.
 
 **There is no TURN server, deliberately.** `openrelay.metered.ca` was in
 `HICE`/`CICE` for years and is dead: gathering with `iceTransportPolicy:"relay"`
@@ -188,6 +200,7 @@ Run with `node <file>`; each exits non-zero on failure.
 | `xp.js` | XP curve, unlock pacing, and the cosmetic-only guarantee |
 | `controller.js` | Phone: a real arm swing moves the blade, in both modes |
 | `signalling.js` | Phone: no ICE candidate is lost; the relay is not flooded |
+| `latency.js` | Phone: dead reckoning cuts felt lag and never overshoots off-screen |
 
 They are the only automated protection for the invariants above. Run `npm test`
 before pushing.
