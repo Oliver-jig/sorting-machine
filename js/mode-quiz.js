@@ -3,7 +3,7 @@
    Every answer teaches immediately; nothing is saved for the result screen.
    Depends on game.js for: G, GMODE, W, H, fxc, el, show, resize, shuffle,
    fxRR, segDist, wrapFx, drawHeart, spawnBurst, ITEMBYT, QBINS, ART, hx, FACTS,
-   BLADE, setRoundLbl. */
+   BLADE, setRoundLbl, setTopic. */
 var QUIZ=[
   /* The bag/foam/carton answers here used to contradict the roster: all three
      are accepted recyclables on the HK list and are binned as such, so the
@@ -101,7 +101,7 @@ function launchQuiz(){ setRoundLbl("question");
   Q.streak=0; Q.mult=1; Q.missed=[]; Q.locked=false; Q.teach=0; Qseq=[];
   QBANK=QUIZ.concat(quizGenItems(15));      /* fresh roster-wide questions each run */
   BLADE.trail=[]; G.parts=[]; G.pops=[]; G.flashes=[];
-  el("scoreN").textContent="0"; el("topicName").textContent="Quiz"; el("topicDot").style.background="#7f77dd";
+  el("scoreN").textContent="0"; setTopic("Quiz", "#7f77dd");
   el("timeFill").style.width="100%"; el("pauseBtn").style.display="";
   show("play"); resize();
   el("ovl").classList.add("hidden"); el("pauseOvl").classList.add("hidden"); el("quizQ").classList.remove("hidden");
@@ -297,13 +297,13 @@ function quizDraw(now){
     fxc.lineWidth=o.showCorrect?6:2.5;
     fxc.strokeStyle=o.showCorrect?"#20a45a":(armed?"#cfe6d8":"#e8eeea"); fxc.stroke();
     if(o.kind==="item"){ fxc.save(); fxRR(-w/2,-h/2,w,h,20); fxc.clip(); fxc.translate(0,-14); fxc.scale(0.5,0.5); fxc.translate(-110,-110); (ART[o.t]||ART._def)(fxc, hx(o.col)); fxc.restore();
-      fxc.fillStyle="#173a2a"; fxc.font="600 15px 'Fredoka',system-ui,sans-serif"; fxc.textAlign="center"; fxc.textBaseline="middle"; fxc.fillText((o.name+"").replace(/^[^ ]+\s/,""), 0, 58); }
-    else if(o.kind==="bin"){ var b=QBINS[o.bin]; fxc.beginPath(); fxc.arc(0,-20,34,0,7); fxc.fillStyle=b.c; fxc.fill(); fxc.fillStyle="#173a2a"; fxc.font="700 20px 'Fredoka',system-ui,sans-serif"; fxc.textAlign="center"; fxc.textBaseline="middle"; fxc.fillText(b.n, 0, 40); }
-    else { fxc.fillStyle="#173a2a"; fxc.font="700 20px 'Fredoka',system-ui,sans-serif"; fxc.textAlign="center"; fxc.textBaseline="middle"; wrapFx(o.txt, 0, 0, w-26); }
+      fxc.fillStyle="#173a2a"; fxc.font="600 15px "+FONT; fxc.textAlign="center"; fxc.textBaseline="middle"; fxc.fillText((o.name+"").replace(/^[^ ]+\s/,""), 0, 58); }
+    else if(o.kind==="bin"){ var b=QBINS[o.bin]; fxc.beginPath(); fxc.arc(0,-20,34,0,7); fxc.fillStyle=b.c; fxc.fill(); fxc.fillStyle="#173a2a"; fxc.font="700 20px "+FONT; fxc.textAlign="center"; fxc.textBaseline="middle"; fxc.fillText(b.n, 0, 40); }
+    else { fxc.fillStyle="#173a2a"; fxc.font="700 20px "+FONT; fxc.textAlign="center"; fxc.textBaseline="middle"; wrapFx(o.txt, 0, 0, w-26); }
     fxc.restore();
   }
   for(var hI=0;hI<QCFG.lives;hI++){ drawHeart(28+hI*30, 26, 12, hI<Q.lives?"#e24b4a":"#e2e2e2"); }
-  if(Q.mult>1){ fxc.fillStyle="#7f77dd"; fxc.font="700 18px 'Fredoka',system-ui,sans-serif"; fxc.textAlign="left"; fxc.textBaseline="middle"; fxc.fillText("streak x"+Q.mult, 28, 56); }
+  if(Q.mult>1){ fxc.fillStyle="#7f77dd"; fxc.font="700 18px "+FONT; fxc.textAlign="left"; fxc.textBaseline="middle"; fxc.fillText("streak x"+Q.mult, 28, 56); }
   if(Q.teach>0) quizDrawTeach();
 }
 
@@ -311,7 +311,7 @@ function quizDraw(now){
    mistake, not on the result screen after the run is already over. */
 function quizDrawTeach(){
   var w=Math.min(560,W-40), lines=[], cy=H*0.78;
-  fxc.font="600 16px 'Fredoka',system-ui,sans-serif";
+  fxc.font="600 16px "+FONT;
   var head=Q.teachOK?"Correct":"Answer: "+Q.answer;
   var body=Q.why||"";
   var h=104;
@@ -320,9 +320,9 @@ function quizDrawTeach(){
   fxc.fillStyle="rgba(255,255,255,.96)"; fxc.fill();
   fxc.lineWidth=3; fxc.strokeStyle=Q.teachOK?"#20a45a":"#d70015"; fxc.stroke();
   fxc.textAlign="center"; fxc.textBaseline="middle";
-  fxc.fillStyle=Q.teachOK?"#20a45a":"#d70015"; fxc.font="700 20px 'Fredoka',system-ui,sans-serif";
+  fxc.fillStyle=Q.teachOK?"#20a45a":"#d70015"; fxc.font="700 20px "+FONT;
   fxc.fillText(head, W/2, cy-28);
-  fxc.fillStyle="#173a2a"; fxc.font="600 15px 'Fredoka',system-ui,sans-serif";
+  fxc.fillStyle="#173a2a"; fxc.font="600 15px "+FONT;
   wrapFx(body, W/2, cy+12, w-44);
   fxc.restore();
 }

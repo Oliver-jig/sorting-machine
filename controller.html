@@ -3,49 +3,53 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="theme-color" content="#bf8b2e">
+<meta name="theme-color" content="#14100c">
 <title>Slice &amp; Sort — Phone controller</title>
-<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  /* SDG 12 amber theme — kept in step with css/styles.css "theme layer".
+  /* Dark dojo theme — kept in step with css/styles.css "theme layer".
      If the palette changes there, change it here too; this file is standalone
      by design (the phone loads it without the site's stylesheet). */
-  :root{ --ink:#3a2f1c; --muted:#8a7a5c; --line:#ecdfc4;
-    --amber:#bf8b2e; --amber-d:#9a6f22; --amber-l:#e0aa46;
-    --panel:#ffffff; --panel2:#fbf5e8;
-    --shadow:0 10px 28px rgba(120,90,20,.14);
-    --font:'Fredoka',-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif; }
+  :root{ --ink:#f7ede0; --muted:#a8977e; --line:rgba(255,255,255,.12);
+    --amber:#e2703a; --amber-d:#b8532a; --amber-l:#f5854d;
+    --panel:#1a1410; --panel2:#241a12;
+    --shadow:0 12px 30px rgba(0,0,0,.45);
+    --font:'Space Grotesk',-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+    --display:'Anton',var(--font); }
   *{box-sizing:border-box}
   html,body{margin:0;height:100%}
-  html{color-scheme:light}
-  body{background:radial-gradient(1100px 700px at 50% -14%, #fbe9bf 0%, #fdf6e6 52%, #f3ead2 100%);
+  html{color-scheme:dark}
+  body{background:radial-gradient(ellipse 900px 600px at 50% -10%, rgba(191,139,46,.16), transparent 55%), #14100c;
     color:var(--ink); font-family:var(--font);
     -webkit-user-select:none; user-select:none; display:flex; align-items:center; justify-content:center; padding:16px}
   button:focus-visible, input:focus-visible{ outline:3px solid var(--amber); outline-offset:2px }
-  .card{background:var(--panel); border-radius:26px; box-shadow:var(--shadow); border:1px solid #f0e6cf; padding:28px 22px; max-width:420px; width:100%; text-align:center}
-  .eyebrow{display:inline-flex; align-items:center; gap:9px; color:var(--amber-d); background:#f8eccf; border-radius:999px; padding:5px 15px 5px 6px; font-size:13px; font-weight:600}
-  .eyebrow .sdg{display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:8px; background:var(--amber); color:#fff; font-weight:700; font-size:14px; line-height:1}
-  h1{font-size:30px; font-weight:700; margin:10px 0 0; letter-spacing:-.01em}
+  .card{background:linear-gradient(165deg,rgba(20,13,8,.92),rgba(10,7,4,.95)); border-radius:18px; box-shadow:var(--shadow);
+    border:1px solid rgba(226,112,58,.32); padding:28px 22px; max-width:420px; width:100%; text-align:center}
+  .eyebrow{display:inline-flex; align-items:center; gap:9px; color:#e8dcc6; background:rgba(0,0,0,.35); border:1px solid var(--line);
+    border-radius:999px; padding:5px 15px 5px 6px; font-size:11.5px; font-weight:600; letter-spacing:1.2px; text-transform:uppercase}
+  .eyebrow .sdg{display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:6px; background:#3fa06a; color:#fff; font-weight:700; font-size:13px; line-height:1}
+  h1{font-family:var(--display); font-size:34px; font-weight:400; margin:10px 0 0; letter-spacing:.5px; color:#f7ede0}
   p{color:var(--muted); font-size:15px; line-height:1.5; margin:10px 0 0}
   p b{color:var(--ink); font-weight:600}
   input{font-family:inherit; font-size:30px; text-align:center; letter-spacing:8px; width:180px; padding:12px; margin:14px 0 4px;
-    border:2px solid var(--line); border-radius:16px; background:var(--panel2); color:var(--ink)}
-  .btn{font-family:inherit; background:linear-gradient(180deg,var(--amber-l),var(--amber)); color:#fff; border:none;
-    border-bottom:4px solid var(--amber-d); border-radius:16px; padding:15px 26px; font-size:17px; font-weight:600; width:100%; margin-top:10px;
-    box-shadow:0 4px 12px rgba(150,110,30,.24); transition:transform .06s, filter .18s}
-  .btn:active{transform:translateY(3px); border-bottom-width:1px}
-  .btn.sub{background:#fff; color:var(--ink); border:2px solid var(--line); border-bottom:4px solid var(--line); font-size:14px; padding:11px; box-shadow:none}
-  #pad{width:min(70vw,280px); height:min(70vw,280px); background:var(--panel2); border:1.5px solid var(--line); border-radius:24px; position:relative; margin:16px auto 4px; overflow:hidden}
-  #pad .cross{position:absolute; background:#f0e3c6} #pad .cx{left:0;right:0;top:50%;height:2px} #pad .cy{top:0;bottom:0;left:50%;width:2px}
-  #dot{position:absolute; width:46px; height:46px; border-radius:50%; background:var(--amber); box-shadow:0 2px 8px rgba(150,110,30,.35); transform:translate(-50%,-50%); left:50%; top:50%}
-  #status{font-size:15px; color:var(--muted); margin-top:12px; min-height:20px} #status b{color:var(--ink)}
+    border:1px solid var(--line); border-radius:12px; background:rgba(0,0,0,.35); color:#fbe9d0}
+  .btn{font-family:inherit; background:var(--amber); color:#1a0e06; border:none;
+    border-radius:10px; padding:15px 26px; font-size:16px; font-weight:700; letter-spacing:.5px; width:100%; margin-top:10px;
+    box-shadow:0 6px 16px rgba(191,89,46,.35); transition:transform .06s, filter .18s}
+  .btn:active{transform:translateY(2px)}
+  .btn.sub{background:linear-gradient(180deg,#5a3a20,#422a16); color:#fbe9d0; border:1px solid rgba(0,0,0,.5); font-size:14px; padding:11px;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.15), 0 4px 10px rgba(0,0,0,.35)}
+  #pad{width:min(70vw,280px); height:min(70vw,280px); background:rgba(0,0,0,.4); border:1px solid var(--line); border-radius:18px; position:relative; margin:16px auto 4px; overflow:hidden}
+  #pad .cross{position:absolute; background:rgba(255,255,255,.10)} #pad .cx{left:0;right:0;top:50%;height:2px} #pad .cy{top:0;bottom:0;left:50%;width:2px}
+  #dot{position:absolute; width:46px; height:46px; border-radius:50%; background:var(--amber); box-shadow:0 0 18px rgba(226,112,58,.6); transform:translate(-50%,-50%); left:50%; top:50%}
+  #status{font-size:15px; color:var(--muted); margin-top:12px; min-height:20px} #status b{color:#fbe9d0}
   .fine{font-size:12px; color:var(--muted); margin-top:12px}
   .axisrow{margin-top:10px}
   .axisLbl{display:block; font-size:11px; color:var(--muted); margin-bottom:5px}
   .chips{display:flex; gap:6px; justify-content:center; flex-wrap:wrap}
   .chip{font-family:inherit; font-size:12px; font-weight:600; padding:6px 10px; border-radius:999px;
-    border:1.5px solid var(--line); background:#fff; color:var(--muted)}
-  .chip.on{background:var(--amber); border-color:var(--amber); color:#fff}
+    border:1px solid var(--line); background:rgba(255,255,255,.04); color:var(--muted)}
+  .chip.on{background:var(--amber); border-color:var(--amber); color:#1a0e06}
   @media (prefers-reduced-motion: reduce){ *{transition:none !important} .btn:active{transform:none} }
 
   /* held sideways like a knife: two columns so the whole card fits a landscape phone */

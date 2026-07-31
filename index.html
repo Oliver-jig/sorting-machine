@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="theme-color" content="#bf8b2e">
+<meta name="theme-color" content="#14100c">
 <title>Slice &amp; Sort 3D — HK recycling (SDG 12)</title>
 <link rel="stylesheet" href="css/styles.css">
-<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 
 </head>
 <body>
@@ -14,62 +14,65 @@
 
   <!-- START -->
   <section id="start" class="screen">
-    <div class="card">
-      <div class="eyebrow"><span class="sdg">12</span> Responsible consumption &amp; production</div>
-      <div style="display:flex; align-items:center; justify-content:center; gap:14px; flex-wrap:wrap">
-        <svg width="52" height="52" viewBox="0 0 48 48" aria-hidden="true" style="flex:none">
-          <g fill="none" stroke="#bf8b2e" stroke-width="4" stroke-linecap="round">
-            <path d="M24 7a17 17 0 0 1 14.7 8.5"/>
-            <path d="M38.5 30.5A17 17 0 0 1 12 37"/>
-            <path d="M9.3 32.5A17 17 0 0 1 16 10"/>
-          </g>
-          <g fill="#bf8b2e">
-            <path d="M37 9l3.5 7-7.7-.6z"/>
-            <path d="M35 34l-7.8.4 5-6z"/>
-            <path d="M11 34l-3.4-7 7.7.7z"/>
-          </g>
-        </svg>
-        <h1>Slice &amp; Sort 3D</h1>
-      </div>
-      <p class="lead">Reduce, reuse, recycle — <b>slice only the items that fit the round's bin</b>.
-      The last round is the <b>wishcycling traps</b>. Wrong slice, lose marks.</p>
+    <!-- Two columns on desktop, matching the mockup; stacks below 900px.
+         NOTE: the scroll/centring rule keys off the DIRECT child of #start, so
+         .menuWrap (not .card) is what carries margin:auto now. -->
+    <div class="menuWrap">
 
-      <div class="bestbar hidden" id="startBest" aria-live="polite"></div>
-
-      <div class="label">Game mode</div>
-      <div class="seg" id="modeSeg">
-        <button data-g="sort" class="on">Sort</button>
-        <button data-g="quiz">Quiz</button>
-        <button data-g="tsunami">Bin It</button>
-        <button data-g="vs">Versus</button>
+      <div class="hero">
+        <div class="eyebrow"><span class="sdg">12</span> SDG 12 · Responsible consumption</div>
+        <div class="wordmark">
+          <h1>SLICE<br/>&amp; SORT<br/><span class="accent">3D</span></h1>
+          <span class="slash heroSlash" aria-hidden="true"></span>
+        </div>
+        <p class="lead">Reduce, reuse, recycle — <b>slice only the items that fit the round's bin</b>.
+        Wrong slice, lose marks. The last round is the <b>wishcycling traps</b>.</p>
+        <div class="bestbar hidden" id="startBest" aria-live="polite"></div>
+        <div class="lvlbar hidden" id="lvlBar" aria-live="polite"></div>
       </div>
 
-      <div class="label">How do you want to play?</div>
-      <div class="choose" id="choose">
-        <button type="button" class="opt sel" data-mode="cam" aria-pressed="true"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#bf8b2e" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 13V6a1.5 1.5 0 0 1 3 0v5m0-.5V4.5a1.5 1.5 0 0 1 3 0V11m0-1a1.5 1.5 0 0 1 3 0v1m0-.5a1.5 1.5 0 0 1 3 0V15a6 6 0 0 1-6 6h-1a6 6 0 0 1-5.2-3l-2-3.4a1.5 1.5 0 0 1 2.6-1.5L8 15"/></svg></div><div class="ti">Webcam hand</div><div class="ds">Your hand is the blade</div></button>
-        <button type="button" class="opt" data-mode="remote" aria-pressed="false"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#bf8b2e" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2.5"/><line x1="11" y1="18.5" x2="13" y2="18.5"/></svg></div><div class="ti">Phone controller</div><div class="ds">Scan a QR, swing to slice</div></button>
-        <button type="button" class="opt" data-mode="mouse" aria-pressed="false"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#bf8b2e" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="3" width="12" height="18" rx="6"/><line x1="12" y1="7" x2="12" y2="11"/></svg></div><div class="ti">Mouse / touch</div><div class="ds">Move or swipe to slice</div></button>
-      </div>
+      <div class="card menuPanel">
+        <div class="label">Game mode</div>
+        <div class="modeList" id="modeSeg">
+          <button data-g="sort" class="on"><span class="bar"></span><span class="mtxt"><b>Sort</b><i>Slice items into the right bin</i></span></button>
+          <button data-g="quiz"><span class="bar"></span><span class="mtxt"><b>Quiz</b><i>Answer recycling questions fast</i></span></button>
+          <button data-g="tsunami"><span class="bar"></span><span class="mtxt"><b>Bin It</b><i>Move the bin, catch what belongs</i></span></button>
+          <button data-g="vs"><span class="bar"></span><span class="mtxt"><b>Versus</b><i>Race a friend to sort first</i></span></button>
+        </div>
 
-      <div class="label">Speed</div>
-      <div class="seg" id="diffSeg">
-        <button data-d="relaxed" class="on">Relaxed</button>
-        <button data-d="normal">Normal</button>
-      </div>
+        <div class="hr"></div>
 
-      <div class="row"><button class="btn" id="playBtn">Start game</button>
-        <button class="btn ghost" id="bladesBtn" type="button">🗡 Blades</button></div>
-      <div class="lvlbar hidden" id="lvlBar" aria-live="polite"></div>
-      <div class="fineprint" id="startNote"></div>
+        <div class="label">How do you want to play?</div>
+        <div class="choose" id="choose">
+          <button type="button" class="opt sel" data-mode="cam" aria-pressed="true"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 13V6a1.5 1.5 0 0 1 3 0v5m0-.5V4.5a1.5 1.5 0 0 1 3 0V11m0-1a1.5 1.5 0 0 1 3 0v1m0-.5a1.5 1.5 0 0 1 3 0V15a6 6 0 0 1-6 6h-1a6 6 0 0 1-5.2-3l-2-3.4a1.5 1.5 0 0 1 2.6-1.5L8 15"/></svg></div><div class="ti">Webcam hand</div><div class="ds">Your hand is the blade</div></button>
+          <button type="button" class="opt" data-mode="remote" aria-pressed="false"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2.5"/><line x1="11" y1="18.5" x2="13" y2="18.5"/></svg></div><div class="ti">Phone controller</div><div class="ds">Scan a QR, swing to slice</div></button>
+          <button type="button" class="opt" data-mode="mouse" aria-pressed="false"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="3" width="12" height="18" rx="6"/><line x1="12" y1="7" x2="12" y2="11"/></svg></div><div class="ti">Mouse / touch</div><div class="ds">Move or swipe to slice</div></button>
+        </div>
+
+        <div class="speedRow">
+          <div class="label">Speed</div>
+          <div class="seg" id="diffSeg">
+            <button data-d="relaxed" class="on">Relaxed</button>
+            <button data-d="normal">Normal</button>
+          </div>
+        </div>
+
+        <div class="row">
+          <button class="btn" id="playBtn">START GAME →</button>
+          <button class="btn ghost" id="bladesBtn" type="button">🗡 Blades</button>
+        </div>
+        <div class="fineprint" id="startNote"></div>
       <script>
         (function(){
           var n=document.getElementById("startNote");
           if(location.protocol==="file:"){ n.innerHTML='<b>You opened this file directly.</b> Phone mode won\'t work. Serve with:<br><code style="background:#f0f0f5;padding:2px 6px;border-radius:4px">python3 -m http.server 8137</code><br>Then open <b>http://localhost:8137/</b> (same WiFi as phone) — or deploy to Vercel.'; n.style.color='#c0392b'; }
           else if(location.hostname==="localhost"||location.hostname==="127.0.0.1"){
             n.innerHTML='Running locally. <b>Make sure your phone is on the same WiFi.</b>';
-          } else { n.innerHTML='Webcam + mouse modes run in your browser. Phone controller: scan the QR or type the code. · build 56 · SDG 12 theme (Sort · Quiz · Bin It · Versus)'; }
+          } else { n.innerHTML='Webcam + mouse modes run in your browser. Phone controller: scan the QR or type the code. · build 59 · SDG 12 theme (Sort · Quiz · Bin It · Versus)'; }
         })();
       </script>
+      </div>
+
     </div>
   </section>
 
@@ -103,31 +106,43 @@
 
   <!-- PLAY -->
   <section id="play" class="screen hidden">
-    <div class="hud">
-      <div class="topicchip"><span class="dot" id="topicDot"></span><span id="topicName">Paper</span></div>
-      <div class="stat"><b id="scoreN">0</b><span>score</span></div>
-      <div class="stat"><b id="roundN">1/4</b><span id="roundLbl">round</span></div>
-      <div class="timebar"><div class="timefill" id="timeFill"></div></div>
-      <button id="pauseBtn" style="border:2px solid var(--line); border-bottom:3px solid var(--line); background:#fff; color:var(--ink); border-radius:12px; padding:8px 16px; font-family:inherit; font-weight:600; font-size:14px;">Pause</button>
-    </div>
     <div id="stage">
+      <!-- HUD floats OVER the playfield, as in the mockup, instead of sitting in
+           a row above it. Every id is unchanged so the mode code keeps working. -->
+      <div class="hud">
+        <div class="scoreBadge"><span>SCORE</span><b id="scoreN">0</b></div>
+        <div class="roundBanner">
+          <div class="rbTop">
+            <span class="dot" id="topicDot"></span>
+            <span id="topicName">Paper</span>
+            <span class="rbSep">·</span>
+            <b id="roundN">1/4</b><span id="roundLbl">round</span>
+          </div>
+          <!-- the mockup has no timebar, but every mode needs one (Sort round
+               clock, Quiz question clock, Bin It switch countdown) -->
+          <div class="timebar"><div class="timefill" id="timeFill"></div></div>
+        </div>
+        <button id="pauseBtn" class="pauseBtn" aria-label="Pause"><span></span><span></span></button>
+        <div class="targetPill hidden" id="targetPill"><span class="dot" id="targetDot"></span><span id="targetName"></span></div>
+      </div>
       <div id="bg">
         <div class="sun"></div>
+        <div class="ground"></div>
         <svg class="skyline" viewBox="0 0 900 300" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <g fill="#bfe0c6">
+          <g fill="#243026">
             <rect x="20" y="150" width="46" height="150"/><rect x="72" y="188" width="34" height="112"/>
             <rect x="112" y="120" width="40" height="180"/><rect x="158" y="170" width="30" height="130"/>
             <rect x="196" y="196" width="38" height="104"/><rect x="240" y="140" width="44" height="160"/>
             <rect x="700" y="150" width="44" height="150"/><rect x="748" y="184" width="34" height="116"/>
             <rect x="786" y="120" width="42" height="180"/><rect x="832" y="168" width="30" height="132"/>
           </g>
-          <g fill="#a6d4b0">
+          <g fill="#1d2820">
             <rect x="300" y="96" width="54" height="204"/><rect x="360" y="140" width="40" height="160"/>
             <rect x="404" y="70" width="46" height="230"/><rect x="456" y="126" width="42" height="174"/>
             <rect x="504" y="104" width="52" height="196"/><rect x="562" y="150" width="40" height="150"/>
             <rect x="608" y="118" width="46" height="182"/><rect x="660" y="160" width="34" height="140"/>
           </g>
-          <rect x="0" y="286" width="900" height="20" fill="#8fc79b"/>
+          <rect x="0" y="286" width="900" height="20" fill="#172018"/>
         </svg>
       </div>
       <canvas id="gl"></canvas>

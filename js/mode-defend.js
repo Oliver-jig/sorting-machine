@@ -17,7 +17,7 @@
    Depends on game.js for: G, GMODE, W, H, fxc, el, show, resize, scene,
    makeSprite, toWorld, fxRR, drawHeart, spawnBurst, clearObjs, BLADE,
    ITEMS, QBINS, controlMode, setupCam, setupMouse, stopCam, FACTS, hx,
-   setRoundLbl. */
+   setRoundLbl, setTopic. */
 
 var DBINS=["paper","plastic","metal","glass","trash"];
 
@@ -108,7 +108,7 @@ function launchTsunami(){
   TS.binX=W/2; TS.shield=false; TS.spNext=DSCFG.first;
   G.pops=[]; G.parts=[]; G.flashes=[]; BLADE.trail=[]; clearObjs();
   el("scoreN").textContent="0"; el("roundN").textContent=TS.lives; setRoundLbl("lives");
-  el("topicName").textContent=QBINS[TS.target].n; el("topicDot").style.background=QBINS[TS.target].c;
+  setTopic(QBINS[TS.target].n, QBINS[TS.target].c);
   el("timeFill").style.width="100%";
   el("quizQ").classList.add("hidden"); el("pauseBtn").style.display="";
   show("play"); resize(); el("pauseOvl").classList.add("hidden");
@@ -230,8 +230,7 @@ function tsunamiUpdate(dt, now){
   if(TS.switchT<=0){
     TS.target=TS.nextTarget; TS.nextTarget=dPickTarget(TS.target);
     TS.switchT=DCFG.switchMs; TS.lastC=null; TS.banner=1600;
-    el("topicName").textContent=QBINS[TS.target].n;
-    el("topicDot").style.background=QBINS[TS.target].c;
+    setTopic(QBINS[TS.target].n, QBINS[TS.target].c);
   }
   el("timeFill").style.width=(Math.max(0,TS.switchT)/DCFG.switchMs*100)+"%";
 
@@ -364,7 +363,7 @@ function dBinArt(br, q){
   var tx=bx+bw*0.5+16;
   cjk(fxc, q.zh||q.n, tx, bodyMid-9, 17, "#ffffff");
   fxc.fillStyle="rgba(255,255,255,.95)";
-  fxc.font="700 12px 'Fredoka',system-ui,sans-serif";
+  fxc.font="700 12px "+FONT;
   fxc.textAlign="center"; fxc.textBaseline="middle";
   fxc.fillText(q.n.toUpperCase(), tx, bodyMid+12);
 }
@@ -390,9 +389,9 @@ function tsunamiDraw(now){
   }
 
   for(var h=0;h<DCFG.lives;h++) drawHeart(28+h*30, 26, 12, h<TS.lives?"#e24b4a":"#e2e2e2");
-  if(TS.mult>1){ fxc.fillStyle="#20a45a"; fxc.font="700 18px 'Fredoka',system-ui,sans-serif";
+  if(TS.mult>1){ fxc.fillStyle="#20a45a"; fxc.font="700 18px "+FONT;
     fxc.textAlign="left"; fxc.textBaseline="middle"; fxc.fillText("combo x"+TS.mult, 28, 56); }
-  if(TS.shield){ fxc.fillStyle="#bf8b2e"; fxc.font="700 16px 'Fredoka',system-ui,sans-serif";
+  if(TS.shield){ fxc.fillStyle="#bf8b2e"; fxc.font="700 16px "+FONT;
     fxc.textAlign="left"; fxc.textBaseline="middle"; fxc.fillText("☀ shield ready", 28, TS.mult>1?80:56); }
 
   /* heads-up before the bin changes what it wants */
@@ -400,7 +399,7 @@ function tsunamiDraw(now){
     var a=0.55+0.45*Math.sin(now*0.012);
     fxc.save(); fxc.globalAlpha=a;
     fxc.fillStyle=QBINS[TS.nextTarget].c;
-    fxc.font="700 22px 'Fredoka',system-ui,sans-serif";
+    fxc.font="700 22px "+FONT;
     fxc.textAlign="center"; fxc.textBaseline="middle";
     fxc.fillText("next: "+QBINS[TS.nextTarget].n+"  "+Math.ceil(TS.switchT/1000), W/2, 40);
     fxc.restore();
@@ -408,10 +407,10 @@ function tsunamiDraw(now){
   if(TS.banner>0){
     var b=Math.min(1, TS.banner/500);
     fxc.save(); fxc.globalAlpha=b;
-    fxc.fillStyle=q.c; fxc.font="700 34px 'Fredoka',system-ui,sans-serif";
+    fxc.fillStyle=q.c; fxc.font="700 34px "+FONT;
     fxc.textAlign="center"; fxc.textBaseline="middle";
     fxc.fillText(q.n, W/2, H*0.2);
-    fxc.font="600 15px 'Fredoka',system-ui,sans-serif"; fxc.fillStyle="#5a7c6b";
+    fxc.font="600 15px "+FONT; fxc.fillStyle="#c9bda8";   /* was #5a7c6b: unreadable on the dark playfield */
     fxc.fillText("catch only "+q.n.toLowerCase(), W/2, H*0.2+30);
     fxc.restore();
   }

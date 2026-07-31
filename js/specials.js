@@ -170,7 +170,7 @@ function truckDraw(){
   fxc.fillStyle="#1d1d1f";
   fxc.beginPath(); fxc.arc(-w*0.22,h/2,13,0,7); fxc.fill();
   fxc.beginPath(); fxc.arc(w*0.28,h/2,13,0,7); fxc.fill();
-  fxc.fillStyle="#ffffff"; fxc.font="700 22px 'Fredoka',system-ui,sans-serif";
+  fxc.fillStyle="#ffffff"; fxc.font="700 22px "+FONT;
   fxc.textAlign="center"; fxc.textBaseline="middle"; fxc.fillText("♻", -w*0.2, 0);
   fxc.restore();
 }
@@ -215,7 +215,7 @@ function specialDrawChips(){
   if(PWR.magnet>0) chips.push({txt:"MAGNET "+(PWR.magnet/1000).toFixed(1)+"s",  col:"#e0762b"});
   if(!chips.length) return;
   fxc.save();
-  fxc.font="700 14px 'Fredoka',-apple-system,system-ui,sans-serif";
+  fxc.font="700 14px "+FONT;
   fxc.textAlign="left"; fxc.textBaseline="middle";
   for(var i=0;i<chips.length;i++){
     var c=chips[i], w=fxc.measureText(c.txt).width+22, y=26+i*30;
@@ -243,7 +243,7 @@ ART.spDouble=function(c){
   c.fillStyle="#20a45a";
   for(var i=0;i<3;i++){ c.save(); c.translate(110,110); c.rotate(i*2*Math.PI/3);
     c.beginPath(); c.moveTo(-24,-14); c.lineTo(24,-14); c.lineTo(6,20); c.closePath(); c.fill(); c.restore(); }
-  c.fillStyle="#173a2a"; c.font="700 34px 'Fredoka',system-ui,sans-serif";
+  c.fillStyle="#173a2a"; c.font="700 34px "+FONT;
   c.textAlign="center"; c.textBaseline="middle"; c.fillText("x2",110,176);
 };
 ART.spMagnet=function(c){
@@ -262,7 +262,7 @@ ART.spClock=function(c){
   c.beginPath(); c.moveTo(110,116); c.lineTo(110,76); c.stroke();
   c.beginPath(); c.moveTo(110,116); c.lineTo(142,128); c.stroke();
   c.lineCap="butt";
-  c.fillStyle="#bf8b2e"; c.font="700 26px 'Fredoka',system-ui,sans-serif";
+  c.fillStyle="#bf8b2e"; c.font="700 26px "+FONT;
   c.textAlign="center"; c.textBaseline="middle"; c.fillText("+5s",110,170);
 };
 ART.spTruck=function(c){
@@ -272,7 +272,7 @@ ART.spTruck=function(c){
   c.fillStyle="#1d1d1f";
   c.beginPath(); c.arc(66,158,17,0,7); c.fill();
   c.beginPath(); c.arc(150,158,17,0,7); c.fill();
-  c.fillStyle="#ffffff"; c.font="700 34px 'Fredoka',system-ui,sans-serif";
+  c.fillStyle="#ffffff"; c.font="700 34px "+FONT;
   c.textAlign="center"; c.textBaseline="middle"; c.fillText("♻",84,119);
 };
 ART.spBattery=function(c){
@@ -285,6 +285,6 @@ ART.spBattery=function(c){
     c.fillRect(0,-20,13,190); c.restore(); }
   c.restore();
   rr(c,66,42,88,140,10); outline(c);
-  c.fillStyle="#d70015"; c.font="700 46px 'Fredoka',system-ui,sans-serif";
+  c.fillStyle="#d70015"; c.font="700 46px "+FONT;
   c.textAlign="center"; c.textBaseline="middle"; c.fillText("⚠",110,116);
 };
