@@ -522,8 +522,44 @@ function hostStartConnect(){
     }catch(e){ el("connUrl").innerHTML='Link: <span style="word-break:break-all;font-size:12px">'+link+'</span>'; }
   });
 }
-var HICE={iceServers:[{urls:"stun:stun.l.google.com:19302"},{urls:"turn:openrelay.metered.ca:80",username:"openrelayproject",credential:"openrelayproject"}]};
+/* NO TURN. The openrelay.metered.ca entry that used to sit here is DEAD — that
+   free tier was discontinued, and gathering with iceTransportPolicy:"relay"
+   against it now returns zero candidates and ICE error 701 (STUN host lookup).
+   It cost handshake time and delivered nothing.
+
+   What that means: the direct link needs a path STUN can find. Same WiFi is the
+   easy one and is what the start screen already tells players to do. A phone on
+   mobile data behind carrier NAT, or school WiFi with client isolation, has no
+   path at all and falls back to the relay — ~205ms, capped near 11 updates/sec.
+   If that ever needs to work, it needs a real TURN server with real credentials;
+   there is no free one worth relying on. Multiple STUN hosts so one being
+   unreachable does not cost us the srflx candidate. */
+var HICE={iceServers:[{urls:["stun:stun.l.google.com:19302","stun:stun1.l.google.com:19302","stun:stun.cloudflare.com:3478"]}]};
 var hostPC=null, hostTopic=null;
+/* ICE candidates arrive over the same relay as the offer. The old code had
+   `d.type==="ice" && hostPC` — so any candidate arriving before the offer built
+   hostPC was SILENTLY DISCARDED, and addIceCandidate's rejection is a promise
+   the sync try/catch could never have caught anyway.
+
+   Honest scope: browsers queue addIceCandidate behind a pending
+   setRemoteDescription, so the common ordering is absorbed by the browser and
+   this was probably not the whole latency story. The discard when hostPC is
+   null is a real unconditional loss though, and losing candidates means ICE can
+   fail and the phone then plays the whole game on the relay — measured at
+   ~205ms round trip, capped near 11 msg/s. Cheap to make correct; do so. */
+var hostIceQ=[], hostRemoteSet=false;
+function hostAddIce(c){
+  if(!hostPC || !hostRemoteSet){ hostIceQ.push(c); return; }
+  try{ var p=hostPC.addIceCandidate(c); if(p&&p.catch) p.catch(function(){}); }catch(e){}
+}
+function hostFlushIce(){
+  hostRemoteSet=true;
+  /* Drain into a copy and clear FIRST. Replaying in place would let hostAddIce
+     push straight back into the array being iterated — the index and the length
+     then advance together and the loop never ends. */
+  var q=hostIceQ.slice(); hostIceQ.length=0;
+  for(var i=0;i<q.length;i++) hostAddIce(q[i]);
+}
 function hostPub(o){ if(mqttClient&&mqttClient.connected) mqttClient.publish(hostTopic, JSON.stringify(o), {qos:0}); }
 /* Versus needs both phones before it can start; every other mode needs one. */
 function remStatus(){
@@ -541,10 +577,16 @@ function remStatus(){
 function hostAnswer(offer){
   if(typeof RTCPeerConnection==="undefined") return;
   try{
+    hostRemoteSet=false; hostIceQ.length=0;          /* a fresh negotiation */
     hostPC=new RTCPeerConnection(HICE);
     hostPC.onicecandidate=function(e){ if(e.candidate) hostPub({from:"host", type:"ice", cand:e.candidate}); };
-    hostPC.ondatachannel=function(e){ var ch=e.channel; ch.onmessage=function(m){ try{ var o=JSON.parse(m.data); applyRemote(o.g,o.b); }catch(_){} }; };
-    hostPC.setRemoteDescription(offer).then(function(){ return hostPC.createAnswer(); }).then(function(a){ return hostPC.setLocalDescription(a); }).then(function(){ hostPub({from:"host", type:"answer", sdp:hostPC.localDescription}); }).catch(function(){});
+    hostPC.ondatachannel=function(e){ var ch=e.channel;
+      ch.onopen=function(){ roomLine("Direct link to the phone — lowest delay."); };
+      ch.onmessage=function(m){ try{ var o=JSON.parse(m.data); applyRemote(o.g,o.b); }catch(_){} }; };
+    /* Flush the moment the remote description lands, not when the answer is
+       published — candidates queued in between are still valid and waiting
+       longer than necessary only lengthens the handshake. */
+    hostPC.setRemoteDescription(offer).then(function(){ hostFlushIce(); return hostPC.createAnswer(); }).then(function(a){ return hostPC.setLocalDescription(a); }).then(function(){ hostPub({from:"host", type:"answer", sdp:hostPC.localDescription}); }).catch(function(){});
   }catch(e){}
 }
 function connectHostMqtt(){
@@ -567,7 +609,9 @@ function connectHostMqtt(){
     /* Two phones can't share one RTCPeerConnection, so Versus stays on the
        relay. The controller falls back on its own when no answer arrives. */
     else if(d.type==="offer"){ if(remMax()===1) hostAnswer(d.sdp); }
-    else if(d.type==="ice" && hostPC){ try{ hostPC.addIceCandidate(d.cand); }catch(e){} }
+    /* No `&& hostPC` guard: a candidate that beats the offer here used to be
+       thrown away, which is one of the two ways the direct link failed. */
+    else if(d.type==="ice"){ hostAddIce(d.cand); }
   });
   mqttClient.on("error", function(){ roomLine("Relay error — check internet, then reload."); });
 }
