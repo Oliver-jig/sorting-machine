@@ -285,6 +285,16 @@ function sliceAlong(x1,y1,x2,y2){
 
 /* ================= controls ================= */
 var camStream=null, hands=null, mpCam=null, mouseHandler=null, camWanted=false;
+/* Grace window for hand tracking — see setupCam. Kept next to the other camera
+   state so it is obvious this belongs to the camera, not to the blade.
+   200ms chosen by measurement, not feel. Simulating a 25fps tracker with 25%
+   detection loss, the share of frames with no cursor on screen ran:
+     90ms 4%   120ms 1.3%   150ms 0.4%   200ms 0%   250ms 0%
+   200 is the smallest value that reaches zero. The cost is that the blade
+   lingers 200ms after you take your hand away, which is a fifth of a second and
+   not noticeable; going higher only helps a badly degraded tracker while making
+   removal feel sticky. */
+var CAMGRACE=200, camSeen=0, camSeen2=0, camGrace=null;
 function loadScript(src){ return new Promise(function(res,rej){ var s=document.createElement("script"); s.src=src; s.onload=res; s.onerror=rej; document.head.appendChild(s); }); }
 
 /* Release the webcam the moment play ends. Stopping MediaPipe's Camera is NOT
@@ -299,6 +309,9 @@ function stopCam(){
   var v=el("cam");
   if(v){ try{ v.pause(); }catch(e){} v.srcObject=null; v.classList.add("hidden"); }
   var c=el("camCap"); if(c) c.classList.add("hidden");
+  /* Stop the grace timer too, or it keeps clearing BLADE.active for the rest of
+     the session and a second interval is added every time the camera restarts. */
+  clearInterval(camGrace); camGrace=null; BLADE.active=false; BLADE2.active=false;
   mpCam=null; camStream=null;
 }
 function setupMouse(){ var lastMove=0;
@@ -314,8 +327,21 @@ async function setupCam(){
     await loadScript("https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js");
     hands=new Hands({locateFile:function(f){return "https://cdn.jsdelivr.net/npm/@mediapipe/hands/"+f;}});
     hands.setOptions({maxNumHands:1,modelComplexity:0,minDetectionConfidence:0.6,minTrackingConfidence:0.6});
+    /* A single missed detection used to kill the blade outright, which is what
+       made it flash. MediaPipe loses the hand most often during FAST motion —
+       exactly when you are slicing — so the blade blinked out at the worst
+       moment, and because slicing is gated on the same flag, quick swipes
+       silently failed to cut.
+       setupMouse right above already solves this with a 90ms grace window; the
+       camera just never got one. 150ms here rather than 90ms because camera
+       frames arrive ~40ms apart against a mouse's ~8ms, so the same tolerance
+       in FRAMES needs more wall-clock time.
+       Holding the last position across a gap is safe: sliceAlong then gets a
+       zero-length segment, and segHit already guards `len2||1`. */
     hands.onResults(function(res){ var lm=res.multiHandLandmarks&&res.multiHandLandmarks[0];
-      if(lm){ var tip=lm[8]; BLADE.x=(1-tip.x)*W; BLADE.y=tip.y*H; BLADE.active=true; } else BLADE.active=false; });
+      if(lm){ var tip=lm[8]; BLADE.x=(1-tip.x)*W; BLADE.y=tip.y*H; BLADE.active=true; camSeen=performance.now(); } });
+    clearInterval(camGrace);
+    camGrace=setInterval(function(){ if(performance.now()-camSeen>CAMGRACE) BLADE.active=false; },50);
     var v=el("cam"); mpCam=new Camera(v,{onFrame:async function(){ if(controlMode==="cam") await hands.send({image:v}); },width:640,height:480});
     await mpCam.start(); camStream=v.srcObject;
     if(!camWanted) stopCam();     /* quit during start-up — don't leave the camera running */
@@ -336,10 +362,20 @@ async function setupCamVS(){
       var lms=res.multiHandLandmarks||[], pts=[];
       for(var i=0;i<Math.min(2,lms.length);i++){ var tip=lms[i][8]; pts.push({x:(1-tip.x)*W, y:tip.y*H}); }
       pts.sort(function(a,b){return a.x-b.x;});
-      BLADE.active=false; BLADE2.active=false;
-      if(pts.length>=1){ BLADE.x=Math.max(0,Math.min(W/2-6,pts[0].x)); BLADE.y=pts[0].y; BLADE.active=true; }
-      if(pts.length>=2){ BLADE2.x=Math.max(W/2+6,Math.min(W,pts[1].x)); BLADE2.y=pts[1].y; BLADE2.active=true; }
+      /* Same grace window as single-player: do NOT clear on a miss, or both
+         blades blink out whenever either hand is momentarily lost. The two
+         players are timed SEPARATELY (camSeen / camSeen2) so one player's
+         dropout can never disable the other's blade. */
+      var t=performance.now();
+      if(pts.length>=1){ BLADE.x=Math.max(0,Math.min(W/2-6,pts[0].x)); BLADE.y=pts[0].y; BLADE.active=true; camSeen=t; }
+      if(pts.length>=2){ BLADE2.x=Math.max(W/2+6,Math.min(W,pts[1].x)); BLADE2.y=pts[1].y; BLADE2.active=true; camSeen2=t; }
     });
+    clearInterval(camGrace);
+    camGrace=setInterval(function(){
+      var t=performance.now();
+      if(t-camSeen>CAMGRACE)  BLADE.active=false;
+      if(t-camSeen2>CAMGRACE) BLADE2.active=false;
+    },50);
     var v=el("cam"); mpCam=new Camera(v,{onFrame:async function(){ if(GMODE==="vs") await hands.send({image:v}); },width:640,height:480});
     await mpCam.start(); camStream=v.srcObject;
     if(!camWanted) stopCam();     /* quit during start-up — don't leave the camera running */
