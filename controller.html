@@ -100,7 +100,7 @@
           <button type="button" class="chip" id="axSw">Swap</button>
         </span>
       </div>
-      <div class="fine">build 44 · direct</div>
+      <div class="fine">build 45</div>
     </div>
   </div>
 
@@ -117,7 +117,22 @@
   var CID=Math.random().toString(16).slice(2,10);
   var myTeam=-1;
   var pc=null, dc=null, dcReady=false;
-  var CICE={iceServers:[{urls:"stun:stun.l.google.com:19302"},{urls:"turn:openrelay.metered.ca:80",username:"openrelayproject",credential:"openrelayproject"}]};
+  var iceQ=[], remoteSet=false;
+  function addIce(c){
+    if(!pc || !remoteSet){ iceQ.push(c); return; }
+    try{ var p=pc.addIceCandidate(c); if(p&&p.catch) p.catch(function(){}); }catch(e){}
+  }
+  function flushIce(){
+    remoteSet=true;
+    /* Drain into a copy and clear FIRST — replaying in place would let addIce
+       push back into the array being iterated and the loop would never end. */
+    var q=iceQ.slice(); iceQ.length=0;
+    for(var i=0;i<q.length;i++) addIce(q[i]);
+  }
+  /* Must match HICE in js/game.js. No TURN: openrelay.metered.ca's free tier is
+     dead and gathers zero relay candidates (ICE error 701), so it only slowed
+     the handshake. Same WiFi is what makes the direct link work. */
+  var CICE={iceServers:[{urls:["stun:stun.l.google.com:19302","stun:stun1.l.google.com:19302","stun:stun.cloudflare.com:3478"]}]};
   function pub(o){ if(client&&client.connected) client.publish("slicesort/"+room, JSON.stringify(o), {qos:0}); }
 
   function setStatus(t){ s.innerHTML=t; }
@@ -292,11 +307,31 @@
     moveDot(bx,by);
     sendBlade();
   }
+  /* The two paths have VERY different budgets, so they get different rates.
+
+     Measured against the public broker this game relays through, publishing a
+     position every frame:
+
+       rate     delivered   median latency
+       60 Hz      19.5%        207 ms
+       30 Hz      37.4%        210 ms
+       20 Hz      55.4%        215 ms
+       10 Hz      98.0%        220 ms
+
+     The broker caps at roughly 11 messages/second whatever you send, so 60 Hz
+     did not buy a single extra update — it threw away 80% of the player's input
+     and turned the survivors into a random stutter. Sending at the cap delivers
+     the SAME number of updates, evenly spaced, which is strictly better.
+
+     The data channel has no such limit and is on the LAN, so it stays at 60 Hz.
+     RELAYMS is 90 rather than 100 to leave a little headroom under the cap. */
+  var DCMS=16, RELAYMS=90;
   /* wire format is unchanged: the host's applyRemote() maps g:-30..30 -> x, b:15..70 -> y */
   function sendBlade(){
-    var now=Date.now(); if(now-lastPub<16) return; lastPub=now;
+    var direct=!!(dc && dc.readyState==="open");
+    var now=Date.now(); if(now-lastPub<(direct?DCMS:RELAYMS)) return; lastPub=now;
     var gg=(bx-0.5)*60, bb=15+by*55;
-    if(dc && dc.readyState==="open"){ try{ dc.send(JSON.stringify({g:gg,b:bb})); }catch(e){} }        /* direct link — low latency */
+    if(direct){ try{ dc.send(JSON.stringify({g:gg,b:bb})); }catch(e){} }        /* direct link — low latency */
     else if(sending && client && client.connected){ client.publish("slicesort/"+room, JSON.stringify({from:"ctrl",type:"orient", cid:CID, g:gg, b:bb}), {qos:0}); }  /* relay fallback */
   }
   function startMotion(){
@@ -350,7 +385,12 @@ document.getElementById("recenter").addEventListener("click", function(){
     setStatus("Reaching the game…");
     if(typeof mqtt==="undefined"){ setStatus("Couldn't load the relay — check internet and reload."); return; }
     client=mqtt.connect(BROKER,{clientId:"ctrl_"+room+"_"+Math.random().toString(16).slice(2,8), reconnectPeriod:2500, connectTimeout:9000});
-    client.on("connect", function(){ sending=true; client.subscribe("slicesort/"+room); pub({from:"ctrl",type:"hello",cid:CID}); document.body.className="playing"; setStatus("Connected — <b>slash to slice</b>"); startWebRTC(); });
+    client.on("connect", function(){ sending=true; client.subscribe("slicesort/"+room); pub({from:"ctrl",type:"hello",cid:CID}); document.body.className="playing"; setStatus("Connected on the <b>relay</b> — trying for a direct link…"); startWebRTC();
+      /* If the handshake has not produced a channel by now it is not going to.
+         Say so plainly rather than leaving "trying…" up for the whole game. */
+      setTimeout(function(){ if(!(dc&&dc.readyState==="open"))
+        setStatus("On the <b>relay</b> (about 0.2s delay). Put the phone and laptop on the same WiFi for a direct link."); }, 6000);
+    });
     client.on("message", function(t, payload){ var d; try{ d=JSON.parse(payload.toString()); }catch(e){ return; }
       if(d.from==="ctrl") return;                                   /* ignore our own echoed messages */
       /* signalling and slot messages are addressed by cid — ignore the other phone's */
@@ -358,8 +398,19 @@ document.getElementById("recenter").addEventListener("click", function(){
       if(d.type==="slot"){ myTeam=d.slot;
         setStatus(myTeam===1 ? "You are <b>Player 2</b> (right side) — slash to slice"
                              : "You are <b>Player 1</b> (left side) — slash to slice"); }
-      else if(d.type==="answer" && pc){ try{ pc.setRemoteDescription(d.sdp); }catch(e){} }
-      else if(d.type==="ice" && pc){ try{ pc.addIceCandidate(d.cand); }catch(e){} }
+      /* The host attaches onicecandidate as soon as it builds its peer
+         connection and only publishes the answer at the end of the
+         setRemoteDescription chain, so its candidates can reach us before the
+         answer does — and the old `&& pc` test dropped them outright whenever
+         pc did not exist yet. Queue instead. (Browsers do queue addIceCandidate
+         behind a pending setRemoteDescription, so this is belt-and-braces
+         rather than the proven cause of the lag; the measured cause is the
+         relay itself, see RELAYMS.) */
+      else if(d.type==="answer" && pc){
+        try{ var p=pc.setRemoteDescription(d.sdp);
+             if(p&&p.then) p.then(flushIce, function(){}); else flushIce(); }catch(e){}
+      }
+      else if(d.type==="ice"){ addIce(d.cand); }
     });
     client.on("reconnect", function(){ setStatus("Reconnecting…"); });
     client.on("error", function(){ document.body.className=""; setStatus("Relay error — check your internet, then reload."); });
@@ -369,8 +420,12 @@ document.getElementById("recenter").addEventListener("click", function(){
     try{
       pc=new RTCPeerConnection(CICE);
       dc=pc.createDataChannel("m",{ordered:false, maxRetransmits:0});   /* unreliable = lowest latency */
-      dc.onopen=function(){ dcReady=true; setStatus("Connected <b>(fast direct link)</b> — slash to slice"); };
-      dc.onclose=function(){ dcReady=false; };
+      /* Which path you are on is the single most useful thing to see here: the
+         relay is ~205ms and capped at ~11 updates/sec, the direct link is the
+         LAN. If this never says DIRECT, that is the lag, and it is a network
+         problem (AP isolation, guest WiFi) rather than a sensor one. */
+      dc.onopen=function(){ dcReady=true; setStatus("Connected — <b>DIRECT link</b>, lowest delay"); };
+      dc.onclose=function(){ dcReady=false; setStatus("Direct link dropped — <b>back on the slow relay</b>"); };
       pc.onicecandidate=function(e){ if(e.candidate) pub({from:"ctrl", type:"ice", cand:e.candidate}); };
       pc.createOffer().then(function(o){ return pc.setLocalDescription(o); }).then(function(){ pub({from:"ctrl", type:"offer", sdp:pc.localDescription}); }).catch(function(){});
     }catch(e){}

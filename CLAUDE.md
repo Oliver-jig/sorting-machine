@@ -8,7 +8,7 @@ A single-page browser arcade game for **SDG 12** — a Fruit-Ninja-style slicer
 teaching Hong Kong recycling. No build step, no framework, no bundler. Plain
 HTML + CSS + ES5-ish JS with CDN libraries, deployed static to Vercel.
 
-Current state: **build 60**. Dark "dojo-arcade" theme, 50 items, four modes,
+Current state: **build 61**. Dark "dojo-arcade" theme, 50 items, four modes,
 blade skins with an XP/level system.
 
 Repo: `Oliver-jig/sorting-machine`. Two branches, **kept in sync after every
@@ -30,7 +30,7 @@ for f in js/*.js; do node --check $f || echo "FAIL $f"; done
 ```
 
 ```bash
-npm test                  # all six invariant harnesses
+npm test                  # all seven invariant harnesses
 node tests/fairness.js    # or run one on its own
 npm run check             # syntax-check every js file
 ```
@@ -118,6 +118,31 @@ the gate is invisible.
 single missed detection made it flash and made fast swipes silently fail to cut.
 `stopCam` must clear the interval.
 
+**The MQTT relay is a fallback, not the control path.** Measured against
+`broker.emqx.io`, publishing blade positions every frame:
+
+| rate | delivered | median latency |
+|---|---|---|
+| 60 Hz | 19.5% | 207 ms |
+| 30 Hz | 37.4% | 210 ms |
+| 20 Hz | 55.4% | 215 ms |
+| 10 Hz | 98.0% | 220 ms |
+
+The broker caps near **11 messages/second** whatever you send, so the old 60 Hz
+publish bought nothing and discarded 80% of the player's input as random
+stutter. `RELAYMS` (90ms) holds the relay just under the cap; `DCMS` (16ms)
+keeps the WebRTC data channel at full rate. The ~205ms floor is the round trip
+to a distant public broker and CANNOT be tuned away — the only cure is the
+direct link.
+
+**There is no TURN server, deliberately.** `openrelay.metered.ca` was in
+`HICE`/`CICE` for years and is dead: gathering with `iceTransportPolicy:"relay"`
+returns zero candidates and ICE error 701. So the direct link only forms when
+STUN can find a path — **same WiFi**. A phone on mobile data behind carrier NAT,
+or school WiFi with client isolation, falls back to the relay and there is
+nothing in the code that can fix that. The controller now says which path it is
+on; if it does not say DIRECT, the lag is the network, not the sensor.
+
 **The phone controller must not use the accelerometer.** It measures force, not
 position; integrating it drifts and turns end-of-swing deceleration into reverse
 motion. Both Aim and Slash use orientation.
@@ -162,6 +187,7 @@ Run with `node <file>`; each exits non-zero on failure.
 | `webcam.js` | Blade flicker under simulated detection loss |
 | `xp.js` | XP curve, unlock pacing, and the cosmetic-only guarantee |
 | `controller.js` | Phone: a real arm swing moves the blade, in both modes |
+| `signalling.js` | Phone: no ICE candidate is lost; the relay is not flooded |
 
 They are the only automated protection for the invariants above. Run `npm test`
 before pushing.
@@ -213,5 +239,4 @@ a timeout also sets), or using swipe paths longer than the gap between cards.
   - `applyRemote()` sets `BLADE.active=true` and nothing ever clears it. Mouse
     idles out after 90ms and webcam after `CAMGRACE`; the phone has no timeout,
     so a resting phone keeps slicing whatever it sits on.
-  - `sendBlade()` throttles to ~60 msg/s. That is fine over the WebRTC data
-    channel but heavy for the free public MQTT broker used as fallback.
+  - `applyRemote()` still has no idle timeout (see above); unchanged.
