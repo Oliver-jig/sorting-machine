@@ -1,184 +1,194 @@
-# CLAUDE.md — working notes for Slice & Sort 3D
+# CLAUDE.md
 
-Context for anyone (including Claude Code) picking up this project. Read this
-before editing.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## What this is
 
-A single-page browser arcade game for **SDG 12 (Responsible Consumption &
-Production)** — a Fruit-Ninja-style slicer about Hong Kong recycling. No build
-step, no framework, no backend. It's plain HTML + CSS + JavaScript with a few
-CDN libraries. Deployed as a static site (Vercel).
+A single-page browser arcade game for **SDG 12** — a Fruit-Ninja-style slicer
+teaching Hong Kong recycling. No build step, no framework, no bundler. Plain
+HTML + CSS + ES5-ish JS with CDN libraries, deployed static to Vercel.
 
-Current state: **build 41** (SDG 12 amber theme, code split into `css/` + `js/`,
-phone controller has absolute Aim mode + Slash mode, Quiz rebuilt and Defend
-replaced by the "Bin It" sorting mode, pause available in every mode,
-Fruit-Ninja-style special items in Sort, owner-only score database).
-The build number is stamped in the start-screen note — see "Build stamping".
+Current state: **build 59**. Dark "dojo-arcade" theme, 50 items, four modes,
+blade skins with an XP/level system.
 
-## File map
+Repo: `Oliver-jig/sorting-machine`. Two branches, **kept in sync after every
+change**: work on `claude`, then merge into `master` and push both.
 
-```
-index.html        Page structure only. Five <section> "screens": start,
-                  connect, controller, play, result. Loads css/styles.css,
-                  then CDN libs (three.js r128, qrcodejs, mqtt), then js/game.js.
-                  One small inline <script> sets the start-screen note.
-controller.html   Separate, fully self-contained page opened on the PHONE via
-                  the QR code. Its own CSS + JS inline. Gyroscope controller.
-css/styles.css    All styling. Two layers: (1) base structural/layout CSS,
-                  (2) the SDG 12 amber theme that overrides it. Separated by a
-                  "/* ===== theme layer ===== */" comment.
-js/game.js        Engine + Sort + Versus + shared helpers (~700 lines). Loads FIRST;
-                  the two mode files below depend on its globals.
-js/mode-quiz.js   Quiz only: QUIZ data, Q state, launch/next/update/slice/draw.
-js/mode-defend.js "Bin It" sorting mode only: DBINS/DCFG/WAVES, TS state, bin
-                  geometry (binRects/binAt) and the steering slice.
-js/specials.js    Sort power-ups: SPECIALS/SPCFG, PWR timers, spawn/slice/
-                  update/draw + their ART. Bin It has its own DSPEC in
-                  js/mode-defend.js — the two modes consume specials differently.
-js/scores.js      Player sees ONLY their own best (localStorage). Every run is
-                  POSTed to Firestore under create-only rules; the owner reads
-                  it in the Firebase console. No leaderboard, no export.
-FIREBASE-SETUP.md 5-minute setup + the owner-only security rules.
-package.json      npm start = python http.server on :8137.
-vercel.json       Static config (cleanUrls).
-README.md         Player- and deployer-facing docs.
-LICENSE           MIT.
+## Commands
+
+```bash
+npm start                 # python3 -m http.server 8137 — then open localhost:8137
 ```
 
-Note: CSS and JS were factored OUT of `index.html`. Do not re-inline them.
+Serve it; do not open `index.html` from disk. Camera and device-motion APIs
+need a served origin, and the phone controller needs https (i.e. a deploy).
 
-## How to run / test
+**Syntax-check after every JS edit** — a parse error kills the game silently:
 
-- Serve it (webcam + phone modes need https or localhost):
-  `npm start` then open `http://localhost:8137`. Do NOT just double-click the
-  file — camera/motion APIs need a served origin.
-- Deploy: drag folder to Vercel, or `vercel`. Deploy gives the https link the
-  phone controller requires.
-- **Syntax check after every JS edit** (the game silently dies on a parse error):
-  `node --check js/game.js && node --check js/mode-quiz.js && node --check js/mode-defend.js`
-- There is no test suite. Verify by playing each mode in a browser. The webcam,
-  3D, and phone parts can't be checked headlessly.
+```bash
+for f in js/*.js; do node --check $f || echo "FAIL $f"; done
+```
 
-## Architecture of js/game.js
+```bash
+npm test                  # all five invariant harnesses
+node tests/fairness.js    # or run one on its own
+npm run check             # syntax-check every js file
+```
+
+The harnesses load the real game files into a `vm` context with stubbed browser
+globals, so they exercise shipped code rather than a copy.
+
+## Architecture
+
+### Load order matters
+
+`index.html` loads: CDN libs (three.js r128, qrcodejs, mqtt) → `js/items.js` →
+`js/game.js` → `js/mode-quiz.js` → `js/mode-defend.js` → `js/specials.js` →
+`js/scores.js` → `js/blades.js`. Everything is globals; the mode files depend on
+`game.js`. `items.js` is first because it defines `FONT` and the roster.
+
+### Files
+
+| File | Contains |
+|---|---|
+| `js/items.js` | `FONT` constant, the 50-item `ITEMS` roster, all item `ART` drawing functions, canvas helpers (`rr`/`fillIt`/`outline`/`cjk`) |
+| `js/game.js` | Engine, render loop, Sort mode, Versus, input (mouse/cam/phone), WebRTC+MQTT host, shared helpers |
+| `js/mode-quiz.js` | Quiz only — `QUIZ` bank, `quizGenItems()`, `Q` state |
+| `js/mode-defend.js` | "Bin It" only (still `GMODE==="tsunami"`) — `TS` state, bin art, spawner |
+| `js/specials.js` | Sort power-ups (`PWR` timers). Bin It has its own `DSPEC` |
+| `js/scores.js` | Local best + write-only Firestore `scores`, readable `players` (XP) |
+| `js/blades.js` | Blade skins, XP curve, levels, picker UI, `bladeStroke` renderer |
+| `css/styles.css` | Base layer, then a dark theme layer that overrides it |
+| `controller.html` | Fully self-contained phone page (own CSS+JS). Opened via QR |
+
+### One `GMODE` drives everything
+
+`"sort" | "quiz" | "tsunami" | "vs"`. `startChosen()` routes to the launcher;
+`loop()` and `drawFx()` branch on it. Each mode owns a state object (`G`, `Q`,
+`TS`, `VS`), a launcher, an update, a slice/hit check, a draw and a game-over.
+
+**Bin It is a catch mode, not a slicing mode.** You move a bin along the bottom
+and catch what belongs; there is no blade. It was rewritten from an earlier
+steering design where slicing nudged items sideways — that failed because the
+bin highlight ignored momentum (wrong 46% of the time), items coasted 1.13 bin
+widths after you stopped pushing, and the push saturated so every phone swing
+maxed out.
 
 ### Rendering
-- **Three.js (r128)** with an OrthographicCamera where world units == pixels.
-  Items are NOT 3D models — each is a flat `PlaneGeometry` textured with a 2D
-  canvas drawing, always facing the camera (`makeSprite` / `makeMesh`).
-- Per-item drawings live in the `ART` object (one function per item type).
-  Textures are cached in `TEXCACHE` via `getTex`, and all sprites share one
-  `SPRITE_GEO` — this matters for performance; don't create/dispose per frame.
-- A second `#fx` **canvas 2D** overlay draws particles, blade trails, quiz
-  cards, versus split UI, hearts, etc. `drawFx()` branches by mode.
-- `loop()` is the single requestAnimationFrame loop. It branches on `GMODE`.
 
-### Data tables (top of file — edit these to change content)
-- `ITEMS` — the 27 sliceable objects: `{t, name, bin, ...}`. `bin` is one of
-  paper/plastic/metal/glass/trash/hazard.
-- `ROUNDS` — Sort-mode topics (Paper, Plastic, Metal & Glass, Spot the traps),
-  each with the `bins` that count and a display `color`. Also reused as the
-  rotating target topics in Versus.
-- `QUIZ` — quiz questions (type item/bin/text). `qpick`/`shuffle`/`Qseq` give
-  no-repeat ordering.
-- `DIFFS` — `relaxed` and `normal` speed presets (gravity, spawn timing, etc.).
-- `FACTS` — end-screen facts. `BINCOL` — bin colors.
+- **Three.js** orthographic camera, world units == pixels. Items are flat
+  `PlaneGeometry` textured from 2D canvas drawings in `ART`, cached in `TEXCACHE`
+  and sharing one `SPRITE_GEO`. Never create/dispose per frame.
+- A second `#fx` **canvas 2D** overlay draws trails, quiz cards, the Bin It bin,
+  pops and hearts.
+- `#bg` is DOM/SVG (gradient + skyline), so it is restylable with CSS.
 
-### Modes — one `GMODE` string drives everything
-`GMODE` is `"sort" | "quiz" | "tsunami" | "vs"`, chosen by `#modeSeg` buttons.
-`startChosen()` routes to the right launcher. Each mode has its own state object,
-launcher, update, slice-check, game-over, and draw:
+## Invariants — these were each a shipped bug, do not regress
 
-- **Sort** — `G` state; `launchGame` / `startRound` / `endRound` / `spawn` /
-  `updatePhysics` / `sliceAlong`. Four rounds by `ROUNDS`.
-- **Quiz** (`js/mode-quiz.js`) — `Q` state (+ `Qseq`, `QCFG`). 12 questions or 3
-  lives. Answers rise then HOVER (they no longer fall back and get re-thrown).
-  The per-question clock only starts once every card has settled, and `quizTeach`
-  shows the `why` after every answer — that immediate explanation is the whole
-  point of the mode, so don't move it back to the result screen.
-- **Bin It** (`js/mode-defend.js`, still `GMODE==="tsunami"`) — `TS` state.
-  Every item has one correct bin. A slice does NOT destroy: `tsunamiSlice` adds
-  sideways velocity so you steer items. Bins tile the FULL width via `binRects()`
-  so nothing can land in a gap. Right bin scores x combo; wrong bin costs a life.
-  `tsunamiIntro()` MUST run before play — the mode is unguessable without it,
-  and shipping without it made slicing look broken. A slice pushes two ways:
-  the blade's horizontal travel, plus an off-centre `kick` so a straight-down
-  chop still bats the item sideways instead of doing nothing.
-- **Versus** — `VS` state; `setupCamVS` (MediaPipe maxNumHands:2, left/right by
-  x), `launchVS` / `vsSpawn` / `vsSliceFor` / `vsUpdate` / `vsGameOver` /
-  `vsDraw` / `drawTrail`. Split screen, 60s, `BLADE` (left/P1) + `BLADE2`
-  (right/P2). Follows a **rotating target topic** from `ROUNDS` (`VS.topicIdx`,
-  rotates every 15s); +1 slicing a match, −1 otherwise.
+**Canvas `arc()` throws on a negative radius** and kills the rAF loop entirely.
+Particle sizes are clamped (`Math.max(0.1, …)`). Keep all radius math positive.
 
-### Blades / input
-- `BLADE` (and `BLADE2` for Versus) hold blade position + a `trail` array.
-- Three control modes chosen on the start screen (`controlMode`):
-  - `mouse` — `setupMouse` (also touch via `touchPos`).
-  - `cam` — `setupCam` (MediaPipe Hands; landmark 8 = index tip).
-  - `remote` — phone controller (see below).
+**Screens must scroll and centre with `margin:auto`, never
+`justify-content:center`.** A centred flex child that overflows has its top
+clipped and unreachable — that made the result screen's "Play again" impossible
+to reach on a phone. Any new screen must be added to **both** selectors in
+`css/styles.css` (the `#start,#result,#connect,#controller,#blades` pair).
 
-### Phone controller (the fiddly part)
-- Laptop is the HOST: `hostStartConnect` → `connectHostMqtt` → shows QR
-  (`drawQR`) with a 4-digit room code. Signaling over MQTT
-  (`broker.emqx.io:8084` wss), then a WebRTC data channel for low latency, with
-  MQTT relay as fallback. `applyRemote(g,b)` maps incoming orientation to the
-  blade.
-- The PHONE runs `controller.html` (separate file), with TWO control modes:
-  - **Aim** (default) — position IS the tilt, absolute. `aim0x/aim0y` hold the
-    neutral pose (set by Re-centre); offset / `AIMRANGE` maps straight to blade
-    position. No velocity, friction or drift, so the blade HOLDS STILL and a
-    pose always maps to the same spot. This exists because every earlier mode
-    was velocity-based and therefore impossible to aim.
-  - **Slash** — the SAME absolute target as Aim (`aimTarget()`), but the blade
-    chases it with a spring instead of snapping: `vx+=(target-bx)*SLASHSPRING;
-    vx*=SLASHDAMP`. Weighty and swingy, yet it always ends exactly where you
-    point and never moves on its own.
-  Pick SPRING/DAMP from a damping ratio, don't guess: zeta =
-  (1-DAMP)/(2*sqrt(SPRING)). 0.30/0.34 gives zeta ~0.6 — 90% in ~150ms, no
-  overshoot, no ringing.
-  **The accelerometer is deliberately not used, and must not come back.** It
-  measures force, not position, so movement only comes from integrating it —
-  which drifts, and turns the deceleration at the END of a swing into motion
-  in the opposite direction. That made the blade wander off on its own and was
-  reported three times as "cannot control it". Orientation against gravity is
-  an actual measurement; both modes use it.
-  The MQTT/WebRTC wire format is unchanged (`{g,b}`, g:-30..30, b:15..70).
-- Requires https (deploy) — won't work from a local file.
+**Segmented controls delegate from the container, not per button.** Listeners on
+the buttons left 33% of the mode selector's pixels dead (5px bands above/below,
+rounded ends), so mode clicks were intermittently ignored. See `segDelegate()`.
 
-## Known gotchas (do not regress these)
+**Bin It's catch mouth is exactly the bin's drawn width.** An earlier version
+caught within `binW + itemR` — 195px against a 150px drawing — so items that
+visibly missed still counted. `DCFG.binW` must stay 150; the reachability
+guarantee in `dSpawn()` is sized from it.
 
-- **Canvas `arc()` throws on negative radius** and kills the whole rAF loop.
-  This caused the infamous "game freezes after cutting one object" bug. Particle
-  sizes are clamped: `var pr = Math.max(0.1, pt.sz*pt.life)`, and dead particles
-  are removed BEFORE drawing. Keep any new canvas `arc`/radius math non-negative.
-- Don't call `material.dispose()` per cut (GPU stall) — reuse cached textures.
-- Don't call `getComputedStyle` per frame (style thrashing).
-- Spawns can burst up to 3 items at once but they must be lane-separated (no
-  center pull) — see `spawn`.
-- MediaPipe / three / mqtt / qrcode load from CDN; `js/game.js` must run AFTER
-  those `<script src>` tags (it already does).
+**Bin It fairness is generative, not rejective.** Correct items are placed
+*inside* the window the bin can reach from the previous one, calibrated to the
+slowest control (webcam ≈ one screen crossing/sec). Spacing items apart was
+tried and is *worse* — it makes them less reachable.
+
+**Quiz answers arm only after every card lands, plus a beat, and require a real
+swipe** (80px of travel in 130ms, measured from `BLADE.trail`). Before this, a
+stationary hand selected an answer, because with `x1,y1 == x2,y2` the hit test
+collapses to plain distance. Cards are drawn dimmed until armed — without that
+the gate is invisible.
+
+**The webcam has a 200ms grace window** (`CAMGRACE`). Dropping the blade on a
+single missed detection made it flash and made fast swipes silently fail to cut.
+`stopCam` must clear the interval.
+
+**The phone controller must not use the accelerometer.** It measures force, not
+position; integrating it drifts and turns end-of-swing deceleration into reverse
+motion. Both Aim and Slash use orientation. Slash builds a pointing vector from
+`alpha+beta+gamma` so arm swings register — `beta`/`gamma` alone are blind to
+yaw, which is most of a sideways swing.
+
+**Blades are cosmetic only.** The harness enforces this with a banned-field list
+*and* an allowlist. Scores go to a database the teacher reads; if a blade changed
+scoring, a high-level student would out-score a beginner with equal knowledge.
+
+**`FONT` lives in one place.** It was hardcoded 24 times in canvas font strings;
+changing the webfont alone left canvas text on a system fallback while the DOM
+used the new face.
+
+**Bin colours (`QBINS`) and the HK roster carry the teaching.** Bins follow the
+EPD GREEN@COMMUNITY list — cartons, clean plastic bags and foam **are** accepted,
+so they live in paper/plastic, not trash. Item names are bilingual `中文 English`.
+`items.js` has a `checkItems()` guard: a missing `ART` entry silently renders a
+grey square, and a duplicate `t` silently shadows an item.
+
+## Test harnesses
+
+Node scripts that load the real files via `vm` with stubbed browser globals.
+Run with `node <file>`; each exits non-zero on failure.
+
+| Harness | Guards |
+|---|---|
+| `fairness.js` | Bin It: 40 runs × 90s, expect `FORCED STRIKES: 0` |
+| `behaviour.js` | Bin It: strike accounting, drain at target switch, clamping |
+| `quiz.js` | Quiz: resting hand selects nothing, swipes do, nothing while flying |
+| `webcam.js` | Blade flicker under simulated detection loss |
+| `xp.js` | XP curve, unlock pacing, and the cosmetic-only guarantee |
+
+They are the only automated protection for the invariants above. Run `npm test`
+before pushing.
+
+When a harness fails, suspect the harness first: several "failures" during
+development were the test teleporting the blade, asserting on `Q.locked` (which
+a timeout also sets), or using swipe paths longer than the gap between cards.
 
 ## Conventions
 
-- **Single editor.** Earlier, a second tool was editing these files in parallel
-  and silently reverting work. Make sure only one thing edits at a time.
-- **Build stamping.** Bump the build number in the start-screen note (search
-  `build 21` in `index.html`) on any meaningful change, so you can confirm the
-  deployed version is the new one. When checking a live URL, verify the build
-  number matches before trusting it.
-- Vanilla ES5-ish JS (`var`, `function`) to match the existing style. No
-  transpiler.
-- Colors/theme are CSS variables in `css/styles.css` (`--amber #bf8b2e` is the
-  SDG 12 accent). Keep the SDG 12 palette.
-- Accessibility already applied: mode selectors are real `<button>`s with
-  `aria-pressed`, there's a `:focus-visible` ring, `aria-live` on status,
-  `tabular-nums` on the HUD, `theme-color` meta, `prefers-reduced-motion`
-  fallback. Preserve these.
+- Vanilla ES5-ish (`var`, `function`). No transpiler.
+- **Bump the build number** in the start-screen note in `index.html` on any
+  meaningful change, and verify it on a live URL before trusting a deploy.
+- Theme colours are CSS variables. The variable named `--amber` is now the rust
+  accent `#e2703a` — the name is the brand-accent slot, not the colour.
+- `css/styles.css` has **two** `:root` blocks (base + theme). The theme layer
+  redefines both sets, so unstyled rules do not fall back to light values.
+- Colours are hex, not `oklch()` — this runs on school machines where a silent
+  colour failure would go unnoticed.
+- `controller.html` carries its own standalone copy of the theme. Palette
+  changes must be made in both places.
+- Accessibility already applied: real `<button>`s with `aria-pressed`,
+  `:focus-visible`, `aria-live` status, `tabular-nums`, `theme-color`,
+  `prefers-reduced-motion`. Preserve these.
+- Only one tool should edit these files at a time — parallel edits have
+  silently reverted work before.
 
-## Likely next tasks
+## Known stale docs
 
-- Play-test all four modes in a browser after the css/js split (only syntax was
-  verified programmatically).
-- Optional: split `controller.html` similarly, or carry the amber theme into the
-  in-game overlays / result screen artwork.
-- Push to GitHub (repo name suggested: `slice-sort-3d`).
+- `README.md` still lists plastic bags, foam and drink cartons as wishcycling
+  traps. The game was corrected to the EPD list and now contradicts it.
+- `FIREBASE-SETUP.md` includes the `players` rules block; that block must be
+  published in the console before cross-device XP works. Until then reads fail
+  and the game silently falls back to local progress.
+
+## Open threads
+
+- **Blade abilities** — user asked to explore giving blades gameplay effects;
+  paused mid-discussion on the fairness model (symmetric trade-offs vs unranked
+  mode vs tagging scores with the blade).
+- Unverified on real hardware: the dark theme on an actual phone (controller
+  page) and a webcam pass confirming the cursor reads against the dark playfield.
