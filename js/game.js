@@ -157,7 +157,7 @@ function showOverlayFor(round){
   var R=ROUNDS[round];
   el("ovlR").textContent="Round "+(round+1)+" of "+ROUNDS.length;
   el("ovlT").textContent=R.topic; el("ovlD").innerHTML=R.desc;
-  el("topicName").textContent=R.topic; el("topicDot").style.background=R.color;
+  setTopic(R.topic, R.color);
   el("roundN").textContent=(round+1)+"/"+ROUNDS.length;
   el("ovlBtn").textContent = round===0 ? "Start round" : "Next round";
   el("ovl").classList.remove("hidden");
@@ -174,6 +174,23 @@ function clearObjs(){ G.objs.forEach(function(o){ scene.remove(o.mesh); }); G.ob
    what the number MEANS — Bin It puts lives there, and "3 round" reads as
    nonsense. */
 function setRoundLbl(t){ var e=el("roundLbl"); if(e) e.textContent=t; }
+/* Topic name, dot colour and the bottom reminder pill were being set together at
+   six call sites; now one call does all three so they cannot fall out of step.
+   The pill only makes sense where the rule is "only this material counts" —
+   Quiz shows a question and Versus is two players, so it hides there. */
+function setTopic(name, color){
+  var n=el("topicName"), d=el("topicDot");
+  if(n) n.textContent=name;
+  if(d) d.style.background=color;
+  var pill=el("targetPill"), pn=el("targetName"), pd=el("targetDot");
+  if(!pill) return;
+  var show=(GMODE==="sort"||GMODE==="tsunami");
+  pill.classList.toggle("hidden", !show);
+  if(show){
+    if(pn) pn.textContent=(GMODE==="tsunami"?"Catch only: ":"Slice only: ")+name;
+    if(pd) pd.style.background=color;
+  }
+}
 function launchGame(){ setRoundLbl("round");
   GMODE="sort"; el("quizQ").classList.add("hidden"); el("pauseBtn").style.display="";
   G.score=0; G.round=0; el("scoreN").textContent=0;
@@ -384,7 +401,7 @@ async function setupCamVS(){
 function launchVS(){ setRoundLbl("players");
   GMODE="vs"; VS.running=false; VS.s1=0; VS.s2=0; VS.t=60000; VS.spawnT=500; VS.topicIdx=0; VS.topicT=15000;
   G.pops=[]; G.parts=[]; G.flashes=[]; BLADE.trail=[]; BLADE2.trail=[]; clearObjs();
-  el("topicName").textContent="Versus"; el("topicDot").style.background="#7f77dd"; el("scoreN").textContent="0"; el("roundN").textContent="2P"; el("timeFill").style.width="100%";
+  setTopic("Versus", "#7f77dd"); el("scoreN").textContent="0"; el("roundN").textContent="2P"; el("timeFill").style.width="100%";
   el("quizQ").classList.add("hidden"); el("pauseBtn").style.display="";
   show("play"); resize(); el("ovl").classList.add("hidden"); el("pauseOvl").classList.add("hidden");
   if(controlMode==="remote"){ BLADE.active=false; BLADE2.active=false; }   /* two phones drive the blades */
@@ -456,14 +473,14 @@ function drawTrail(trail, now, rgb, inner, w){
 function vsDraw(now){
   fxc.save(); fxc.strokeStyle="rgba(120,140,130,.45)"; fxc.lineWidth=3; fxc.setLineDash([10,10]); fxc.beginPath(); fxc.moveTo(W/2,0); fxc.lineTo(W/2,H); fxc.stroke(); fxc.setLineDash([]); fxc.restore();
   fxc.textAlign="center"; fxc.textBaseline="top";
-  fxc.fillStyle="#2f7fd1"; fxc.font="700 28px 'Fredoka',system-ui,sans-serif"; fxc.fillText("P1  "+VS.s1, W*0.25, 12);
+  fxc.fillStyle="#2f7fd1"; fxc.font="700 28px "+FONT; fxc.fillText("P1  "+VS.s1, W*0.25, 12);
   fxc.fillStyle="#e24b4a"; fxc.fillText("P2  "+VS.s2, W*0.75, 12);
   var R=ROUNDS[VS.topicIdx];
   fxc.fillStyle="rgba(255,255,255,.9)"; fxc.strokeStyle=R.color; fxc.lineWidth=2;
   var bw=Math.max(180, fxc.measureText("Slice: "+R.topic).width+40);
   fxc.beginPath(); fxc.roundRect(W/2-bw/2, 8, bw, 52, 14); fxc.fill(); fxc.stroke();
-  fxc.fillStyle=R.color; fxc.font="700 22px 'Fredoka',system-ui,sans-serif"; fxc.fillText("Slice: "+R.topic, W/2, 12);
-  fxc.fillStyle="#173a2a"; fxc.font="700 15px 'Fredoka',system-ui,sans-serif"; fxc.fillText(Math.ceil(Math.max(0,VS.t)/1000)+"s", W/2, 38);
+  fxc.fillStyle=R.color; fxc.font="700 22px "+FONT; fxc.fillText("Slice: "+R.topic, W/2, 12);
+  fxc.fillStyle="#fbe9d0"; fxc.font="700 15px "+FONT; fxc.fillText(Math.ceil(Math.max(0,VS.t)/1000)+"s", W/2, 38);   /* was #173a2a */
   drawTrail(BLADE.trail, now, "47,127,209"); drawTrail(BLADE2.trail, now, "226,75,74");
   if(BLADE.active){ fxc.strokeStyle="rgba(47,127,209,.95)"; fxc.lineWidth=3; fxc.beginPath(); fxc.arc(BLADE.x,BLADE.y,20,0,7); fxc.stroke(); }
   if(BLADE2.active){ fxc.strokeStyle="rgba(226,75,74,.95)"; fxc.lineWidth=3; fxc.beginPath(); fxc.arc(BLADE2.x,BLADE2.y,20,0,7); fxc.stroke(); }
@@ -623,7 +640,7 @@ function loop(now){
   requestAnimationFrame(loop);
 }
 function roundedText(txt,x,y){
-  fxc.font="600 13px 'Fredoka',-apple-system,system-ui,sans-serif";
+  fxc.font="600 13px "+FONT;
   var w=fxc.measureText(txt).width+16, h=22;
   fxc.fillStyle="rgba(255,255,255,.92)"; fxc.strokeStyle="rgba(0,0,0,.08)"; fxc.lineWidth=1;
   var rx=x-w/2, ry=y-h/2, rr=11;
@@ -652,7 +669,7 @@ function drawFx(now){
   /* score pops */
   for(var k=G.pops.length-1;k>=0;k--){ var p=G.pops[k]; p.y-=1.1; p.a-=0.02;
     fxc.save(); fxc.globalAlpha=Math.max(0,p.a); fxc.fillStyle=p.col;
-    fxc.font="700 26px 'Fredoka',-apple-system,system-ui,sans-serif"; fxc.textAlign="center"; fxc.textBaseline="middle";
+    fxc.font="700 26px "+FONT; fxc.textAlign="center"; fxc.textBaseline="middle";
     fxc.fillText(p.txt,p.x,p.y); fxc.restore(); if(p.a<=0) G.pops.splice(k,1); }
   /* slice flashes */
   for(var fi=G.flashes.length-1;fi>=0;fi--){ var fl=G.flashes[fi]; fl.r+=6; fl.life-=0.09;

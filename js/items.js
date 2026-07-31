@@ -1,3 +1,12 @@
+/* The canvas font family, in ONE place.
+   It used to be written out 24 times across game.js, mode-quiz.js,
+   mode-defend.js and specials.js. Changing the webfont in index.html therefore
+   left every canvas label silently falling back to system-ui while the DOM used
+   the new face — a mismatch nobody would think to check. Defined here because
+   items.js loads first, so it exists before anything draws.
+   Keep in step with the font-family in css/styles.css and controller.html. */
+var FONT="'Space Grotesk',-apple-system,BlinkMacSystemFont,system-ui,sans-serif";
+
 /* ================= ITEM ROSTER + ARTWORK =================
    Split out of game.js: that file had grown past 870 lines while mixing the
    roster, the artwork, the 3D engine, Sort mode and networking. Roster and

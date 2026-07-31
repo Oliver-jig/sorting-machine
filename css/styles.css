@@ -9,7 +9,10 @@
   html,body{margin:0;height:100%}
   body{background:var(--bg); color:var(--ink); font-family:var(--font);
     -webkit-user-select:none; user-select:none; overflow:hidden; letter-spacing:-.01em}
-  #app{max-width:900px; margin:0 auto; height:100%; display:flex; flex-direction:column; padding:16px}
+  /* Widened from 900 for the mockup's two-column menu. Safe for every other
+   screen because .card is still capped at 600px, so only .menuWrap (max
+   1060) actually uses the extra room. */
+  #app{max-width:1100px; margin:0 auto; height:100%; display:flex; flex-direction:column; padding:16px}
   button{font-family:inherit; cursor:pointer; letter-spacing:-.01em}
   .btn{background:var(--accent); color:#fff; border:none; border-radius:980px; padding:13px 26px; font-size:16px; font-weight:500; transition:background .2s}
   .btn:hover{background:var(--accent-h)} .btn:active{transform:scale(.98)}
@@ -35,7 +38,8 @@
      the player on the screen. */
   #start,#result,#connect,#controller,#blades{align-items:center; text-align:center;
     overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch}
-  #start>.card,#result>.card,#connect>.card,#controller>.card,#blades>.card{margin:auto; flex:0 0 auto}
+  #start>.card,#result>.card,#connect>.card,#controller>.card,#blades>.card,
+  #start>.menuWrap{margin:auto; flex:0 0 auto}
   .card{background:var(--surface); border-radius:28px; box-shadow:var(--shadow); padding:40px 34px; max-width:600px; width:100%}
   h1{font-size:44px; line-height:1.03; margin:0; font-weight:600; letter-spacing:-.03em}
   .eyebrow{color:var(--accent); font-size:14px; font-weight:600; margin-bottom:10px}
@@ -90,59 +94,114 @@
 
 /* ===== theme layer ===== */
 
+/* Dark dojo-arcade skin.
+
+   Colours are HEX, not the oklch() the mockup was drawn in: oklch needs
+   Chrome 111+ / Safari 15.4+, and this runs on school machines and phones where
+   a silent colour failure would be invisible until someone complained. Hex costs
+   nothing and cannot fail.
+
+   Variable NAMES are unchanged from the old amber theme on purpose — the
+   component blocks further down and controller.html both reference them, so
+   keeping the names is what makes this a palette swap rather than a rewrite.
+   `--amber` is now the rust accent; it is the brand-accent slot, not literally
+   amber any more. */
 :root{
-    --ink:#3a2f1c; --muted:#8a7a5c; --line:#ecdfc4;
-    --amber:#bf8b2e; --amber-d:#9a6f22; --amber-l:#e0aa46;
-    --eco:#2e8b57; --eco-d:#1f6b41;
-    --panel:#ffffff; --panel2:#fbf5e8;
-    --good:#2e8b57; --bad:#c0392b;
-    --shadow:0 10px 28px rgba(120,90,20,.14); --shadow-sm:0 2px 8px rgba(120,90,20,.12);
-    --font:'Fredoka',-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+    --ink:#f7ede0; --muted:#a8977e; --line:rgba(255,255,255,.12);
+    --amber:#e2703a; --amber-d:#b8532a; --amber-l:#f5854d;
+    --eco:#3fa06a; --eco-d:#2e7d50;
+    --panel:#1a1410; --panel2:#241a12;
+    --ground:#14100c;
+    --good:#3fa06a; --bad:#e0483f;
+    --shadow:0 12px 30px rgba(0,0,0,.45); --shadow-sm:0 4px 10px rgba(0,0,0,.35);
+    --font:'Space Grotesk',-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+    --display:'Anton',var(--font);
+    /* The BASE layer at the top of this file has its own :root using these
+       names, and its rules still reference them. Redefining them here means
+       anything the theme layer does not explicitly restyle goes dark anyway,
+       instead of quietly keeping a white background. */
+    --bg:#14100c; --surface:#1a1410; --surface2:#241a12;
+    --accent:#e2703a; --accent-h:#f5854d;
   }
-  html{color-scheme:light}
+  html{color-scheme:dark}
   body{font-family:var(--font); color:var(--ink); letter-spacing:0;
-    background:radial-gradient(1100px 700px at 50% -14%, #fbe9bf 0%, #fdf6e6 52%, #f3ead2 100%);}
+    background:
+      radial-gradient(ellipse 900px 600px at 25% 12%, rgba(191,139,46,.16), transparent 55%),
+      radial-gradient(ellipse 700px 500px at 85% 88%, rgba(191,139,46,.10), transparent 50%),
+      var(--ground);}
   a:focus-visible, button:focus-visible, .opt:focus-visible, input:focus-visible{
     outline:3px solid var(--amber); outline-offset:2px;}
-  .btn{background:linear-gradient(180deg,var(--amber-l),var(--amber)); color:#fff; border:none;
-    border-bottom:4px solid var(--amber-d); border-radius:16px; padding:14px 28px; font-size:17px; font-weight:600;
-    box-shadow:0 4px 12px rgba(150,110,30,.24); transition:transform .06s, filter .18s;}
-  .btn:hover{filter:brightness(1.05)}
-  .btn:active{transform:translateY(3px); border-bottom-width:1px}
-  .btn.ghost{background:#fff; color:var(--ink); border:2px solid var(--line); border-bottom:4px solid var(--line); box-shadow:none}
-  .card{background:var(--panel); border-radius:26px; box-shadow:var(--shadow); border:1px solid #f0e6cf; padding:36px 30px}
-  h1{font-size:46px; font-weight:700; color:var(--ink); letter-spacing:-.5px; line-height:1.03; text-wrap:balance}
-  .eyebrow{display:inline-flex; align-items:center; gap:9px; color:var(--amber-d); background:#f8eccf; border-radius:999px; padding:5px 15px 5px 6px; font-size:13px; font-weight:600; margin-bottom:12px}
-  .eyebrow .sdg{display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:8px; background:var(--amber); color:#fff; font-weight:700; font-size:14px; line-height:1}
-  .lead{color:var(--muted); font-weight:400} .lead b{color:var(--ink); font-weight:600}
-  .label{font-size:13px; color:var(--muted); font-weight:600}
-  .opt{background:var(--panel2); border:2px solid var(--line); border-radius:18px; cursor:pointer; font-family:inherit; color:var(--ink); width:100%; transition:transform .12s, border-color .12s}
-  .opt:hover{transform:translateY(-2px)}
-  .opt.sel{border-color:var(--amber); background:#fbefd4; box-shadow:0 0 0 3px rgba(191,139,46,.2)}
-  .opt .ic{height:34px; display:flex; align-items:center; justify-content:center} .opt .ic svg{width:30px;height:30px}
-  .opt .ti{font-weight:600}
-  .seg{background:var(--panel2); border:2px solid var(--line)} .seg button.on{background:var(--amber); color:#fff}
-  .stat{background:var(--panel); border:2px solid #f0e6cf; border-radius:16px; padding:8px 16px}
-  .stat b{font-size:22px; font-weight:700; font-variant-numeric:tabular-nums} .stat span{text-transform:uppercase; letter-spacing:.5px}
-  .topicchip{background:var(--panel); border:2px solid #f0e6cf; font-size:15px; font-weight:600}
-  .topicchip .dot{width:14px;height:14px}
-  .timebar{height:12px; background:#efe3c8; border:1px solid #e7d6b2}
+
+  /* ---- mockup texture utilities ---- */
+  .wood{ background:repeating-linear-gradient(100deg,#3a2415 0px,#45301c 3px,#3a2415 6px,#4d3521 30px,#3a2415 34px);
+    box-shadow:inset 0 0 0 2px rgba(0,0,0,.4), inset 0 2px 6px rgba(0,0,0,.5), 0 6px 16px rgba(0,0,0,.4); }
+  .plank{ background:linear-gradient(180deg,#5a3a20,#422a16);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.15), inset 0 -3px 6px rgba(0,0,0,.4), 0 4px 10px rgba(0,0,0,.35);
+    border:1px solid rgba(0,0,0,.5); }
+  /* Decorative blade streaks. aria-hidden in the markup; pointer-events:none so
+     they can never sit on top of a control and eat a click. */
+  .slash{ position:absolute; height:5px; border-radius:3px; pointer-events:none;
+    background:linear-gradient(90deg,transparent,#efe6d6 30%,#efe6d6 70%,transparent);
+    box-shadow:0 0 14px rgba(226,112,58,.7); }
+
+  .btn{background:var(--amber); color:#1a0e06; border:none;
+    border-radius:10px; padding:15px 28px; font-size:16px; font-weight:700; letter-spacing:.5px;
+    box-shadow:0 6px 16px rgba(191,89,46,.35); transition:transform .06s, filter .18s;}
+  .btn:hover{filter:brightness(1.08)}
+  .btn:active{transform:translateY(2px)}
+  .btn.ghost{background:linear-gradient(180deg,#5a3a20,#422a16); color:#fbe9d0;
+    border:1px solid rgba(0,0,0,.5); box-shadow:inset 0 1px 0 rgba(255,255,255,.15), 0 4px 10px rgba(0,0,0,.35)}
+  .card{background:linear-gradient(165deg,rgba(20,13,8,.92),rgba(10,7,4,.95));
+    border-radius:18px; box-shadow:var(--shadow); border:1px solid rgba(226,112,58,.32); padding:34px 30px}
+  h1{font-family:var(--display); font-size:52px; font-weight:400; color:var(--ink);
+    letter-spacing:.5px; line-height:.95; text-wrap:balance}
+  .eyebrow{display:inline-flex; align-items:center; gap:9px; color:#e8dcc6; background:rgba(0,0,0,.35);
+    border:1px solid var(--line); border-radius:999px; padding:5px 15px 5px 6px;
+    font-size:11.5px; font-weight:600; letter-spacing:1.2px; text-transform:uppercase; margin-bottom:12px}
+  .eyebrow .sdg{display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px;
+    border-radius:6px; background:var(--eco); color:#fff; font-weight:700; font-size:13px; line-height:1}
+  .lead{color:#c9bda8; font-weight:400} .lead b{color:var(--ink); font-weight:600}
+  .label{font-size:11px; color:var(--amber); font-weight:700; letter-spacing:1.5px; text-transform:uppercase}
+  .opt{background:rgba(255,255,255,.03); border:1px solid var(--line); border-radius:10px; cursor:pointer;
+    font-family:inherit; color:var(--ink); width:100%; transition:transform .12s, border-color .12s, background .12s}
+  .opt:hover{transform:translateY(-2px); border-color:rgba(226,112,58,.5)}
+  .opt.sel{border-color:var(--amber); background:rgba(226,112,58,.16); box-shadow:0 0 0 2px rgba(226,112,58,.18)}
+  .opt .ic{height:34px; display:flex; align-items:center; justify-content:center} .opt .ic svg{width:28px;height:28px}
+  .opt .ti{font-weight:600} .opt .ds{color:var(--muted)}
+  .seg{background:rgba(0,0,0,.3); border:1px solid var(--line)}
+  .seg button{color:var(--muted)} .seg button.on{background:var(--amber); color:#1a0e06}
+  .stat{background:linear-gradient(180deg,#5a3a20,#362114); border:2px solid rgba(0,0,0,.4);
+    border-radius:14px; padding:8px 16px; box-shadow:inset 0 1px 0 rgba(255,255,255,.12), 0 4px 10px rgba(0,0,0,.4)}
+  .stat b{font-family:var(--display); font-size:22px; font-weight:400; color:#fbe9d0; font-variant-numeric:tabular-nums}
+  .stat span{text-transform:uppercase; letter-spacing:1px; font-size:9px; color:#b8a58c}
+  .topicchip{background:linear-gradient(180deg,#5a3a20,#362114); border:2px solid rgba(0,0,0,.4);
+    color:#fbe9d0; font-size:14px; font-weight:700; letter-spacing:.4px}
+  .topicchip .dot{width:12px;height:12px}
+  .timebar{height:10px; background:rgba(0,0,0,.45); border:1px solid rgba(0,0,0,.5)}
   .timefill{background:linear-gradient(90deg,var(--amber-l),var(--amber))}
-  #stage{border-radius:26px; border:2px solid #ecdfc4; background:none}
-  #bg{position:absolute; inset:0; z-index:0; background:linear-gradient(180deg,#fbe6b8 0%,#fdf1d8 44%,#f4ecd6 70%,#e8dcbf 100%)}
-  #bg .sun{position:absolute; top:22px; right:42px; width:58px; height:58px; border-radius:50%; background:#ffd873; box-shadow:0 0 44px 10px rgba(255,216,115,.55)}
-  #bg .skyline{position:absolute; bottom:0; left:0; width:100%; height:44%}
+  #stage{border-radius:18px; border:1px solid rgba(255,255,255,.08); background:none}
+  /* Playfield goes dark too. The item sprites are light fills with dark outlines,
+     so they read fine against this; only the sun and skyline needed rebuilding. */
+  #bg{position:absolute; inset:0; z-index:0;
+    background:radial-gradient(ellipse 700px 420px at 50% 0%, rgba(191,139,46,.16), transparent 62%),
+      linear-gradient(180deg,#1a1510 0%,#171209 55%,#120e08 100%)}
+  #bg .sun{position:absolute; top:26px; right:46px; width:52px; height:52px; border-radius:50%;
+    background:#c98b34; opacity:.5; box-shadow:0 0 50px 14px rgba(201,139,52,.30)}
+  #bg .skyline{position:absolute; bottom:0; left:0; width:100%; height:44%; opacity:.55}
+  #bg .ground{position:absolute; left:0; right:0; bottom:0; height:16%;
+    background:repeating-linear-gradient(90deg,#2a1c10 0 34px,#241809 34px 38px); opacity:.75}
   #gl{z-index:1} #fx{z-index:2}
-  .overlay{background:rgba(58,40,16,.5); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); color:#fff}
-  .overlay .r{color:#ffe0a3} .overlay .t{font-size:40px; font-weight:700; color:#fff} .overlay .d{color:#f6ecd6} .overlay .d b{color:#fff}
+  .overlay{background:rgba(8,5,3,.72); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); color:#fbe9d0}
+  .overlay .r{color:var(--amber)} .overlay .t{font-family:var(--display); font-size:44px; font-weight:400; color:#fbe9d0}
+  .overlay .d{color:#c9bda8} .overlay .d b{color:#fbe9d0}
   #dot{background:var(--amber)}
-  .fact{background:var(--panel2); border:1px solid var(--line)}
+  .fact{background:rgba(0,0,0,.28); border:1px solid var(--line); color:#c9bda8}
   @media (prefers-reduced-motion: reduce){ *{transition:none !important} .opt:hover,.btn:active{transform:none} }
 
   /* "Your best" bar on the start screen */
   .bestbar{ display:flex; align-items:center; justify-content:center; gap:8px; flex-wrap:wrap;
     margin:12px 0 2px; padding:8px 12px; border-radius:999px;
-    background:rgba(191,139,46,.10); border:1px solid var(--line) }
+    background:rgba(255,255,255,.05); border:1px solid var(--line) }
   .bestLbl{ font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); font-weight:600 }
   .bestItem{ font-size:14px; color:var(--ink) }
   .bestItem b{ font-variant-numeric:tabular-nums }
@@ -150,12 +209,12 @@
   /* level + XP strip, on the start screen and the blades screen */
   .lvlbar{ display:flex; align-items:center; gap:10px; margin:12px auto 2px;
     padding:8px 14px; border-radius:999px; max-width:420px;
-    background:rgba(191,139,46,.10); border:1px solid var(--line) }
+    background:rgba(255,255,255,.05); border:1px solid var(--line) }
   .lvlNum{ font-size:14px; font-weight:700; color:var(--ink); flex:none;
     font-variant-numeric:tabular-nums }
-  .lvlTrack{ flex:1; height:8px; border-radius:999px; background:#e9dfc6; overflow:hidden; min-width:60px }
+  .lvlTrack{ flex:1; height:8px; border-radius:999px; background:rgba(0,0,0,.45); overflow:hidden; min-width:60px }
   .lvlFill{ display:block; height:100%; border-radius:999px;
-    background:linear-gradient(90deg,var(--amber-l,#e0aa46),var(--amber,#bf8b2e)); transition:width .3s }
+    background:linear-gradient(90deg,var(--amber-l),var(--amber)); transition:width .3s }
   .lvlXp{ font-size:12px; color:var(--muted); flex:none; font-variant-numeric:tabular-nums }
 
   /* blade picker */
@@ -165,20 +224,20 @@
   .bladelist{ display:flex; flex-direction:column; gap:9px; margin:16px 0 4px }
   .blade{ display:flex; align-items:center; gap:14px; text-align:left; width:100%;
     font-family:inherit; cursor:pointer; padding:10px 12px; border-radius:18px;
-    background:var(--surface2,#fbf5e8); border:2px solid var(--line);
+    background:repeating-linear-gradient(100deg,#3a2415 0px,#45301c 3px,#3a2415 6px,#4d3521 30px,#3a2415 34px); border:1px solid rgba(0,0,0,.5);
     transition:border-color .15s, background .15s }
-  .blade:hover:not(:disabled){ border-color:var(--amber,#bf8b2e) }
-  .blade.on{ border-color:var(--amber,#bf8b2e); background:rgba(191,139,46,.12) }
+  .blade:hover:not(:disabled){ border-color:var(--amber) }
+  .blade.on{ border-color:var(--amber); box-shadow:0 0 0 2px rgba(226,112,58,.25) }
   /* Locked rows stay visible and readable — the point is to show what is coming,
      so they are dimmed, not hidden, and only the pointer is disabled. */
   .blade.locked{ opacity:.55; cursor:default }
   .bladePv{ width:112px; height:41px; flex:none; border-radius:10px;
     background:#2b2b33 }
   .bladeTxt{ min-width:0 }
-  .bladeN{ font-size:15px; font-weight:600; color:var(--ink) }
-  .bladeD{ font-size:12.5px; color:var(--muted); line-height:1.35; margin-top:2px }
-  .bladeTag{ font-size:10px; font-weight:700; letter-spacing:.06em; color:#1f9d55;
-    border:1.5px solid #1f9d55; border-radius:5px; padding:1px 5px; vertical-align:1px }
+  .bladeN{ font-size:15px; font-weight:600; color:#fbe9d0 }
+  .bladeD{ font-size:12.5px; color:#c9bda8; line-height:1.35; margin-top:2px }
+  .bladeTag{ font-size:10px; font-weight:700; letter-spacing:.06em; color:#5fd08a;
+    border:1.5px solid #5fd08a; border-radius:5px; padding:1px 5px; vertical-align:1px }
   @media (max-width:560px){
     .bladePv{ width:84px; height:31px }
     .bladeN{ font-size:14px } .bladeD{ font-size:12px }
@@ -186,11 +245,11 @@
   }
 
   /* leaderboard on the result screen */
-  .lb{ margin-top:14px; padding:14px; border-radius:16px; background:var(--panel2); border:1px solid var(--line); text-align:left }
+  .lb{ margin-top:14px; padding:14px; border-radius:14px; background:rgba(0,0,0,.3); border:1px solid var(--line); text-align:left }
   .lbRow{ display:flex; align-items:center; gap:8px; flex-wrap:wrap }
   .lbLbl{ font-size:13px; color:var(--muted) }
   .lbRow input{ flex:1; min-width:120px; font-family:inherit; font-size:15px; padding:9px 12px;
-    border:2px solid var(--line); border-radius:12px; background:#fff; color:var(--ink) }
+    border:1px solid var(--line); border-radius:8px; background:rgba(0,0,0,.35); color:#fbe9d0 }
   .lbRow .btn{ width:auto; flex:none; padding:9px 16px; font-size:14px; margin:0 }
   .lbNote{ font-size:12px; color:var(--muted); margin-top:8px; line-height:1.45 }
 
@@ -204,3 +263,156 @@
   }
   #stage.shake{ animation:stageShake .32s ease-in-out 1 }
   @media (prefers-reduced-motion: reduce){ #stage.shake{ animation:none } }
+
+  /* ---- dark-theme corrections to base-layer rules ---- */
+  /* The QR box stays WHITE on purpose. It is not decoration: phone cameras need
+     a light quiet-zone around the code to lock on, and a dark card would make
+     pairing unreliable. This is the one deliberately light surface. */
+  #qrbox{background:#ffffff}
+  /* The webcam caption sat on a near-white pill with --ink text; --ink is now
+     cream, so it would have been invisible. */
+  #camCap{background:rgba(10,7,4,.8); color:#fbe9d0; border:1px solid var(--line)}
+  #pad{background:rgba(0,0,0,.35); border:1px solid var(--line)}
+  #cam{border:1px solid rgba(255,255,255,.14)}
+  .status{color:var(--muted)} .status b{color:#fbe9d0}
+  .src,.fineprint{color:var(--muted)}
+  .lbLbl{color:var(--muted)}
+  .lbRow input::placeholder{color:#8a7a63}
+
+  /* ================= MENU (mockup two-column) ================= */
+  .menuWrap{ display:flex; gap:28px; align-items:stretch; width:100%; max-width:1060px;
+    text-align:left; padding:8px 0 }
+  .hero{ flex:1.05; display:flex; flex-direction:column; justify-content:center; gap:16px; min-width:0 }
+  .wordmark{ position:relative }
+  .wordmark h1{ font-family:var(--display); font-size:clamp(46px,6.4vw,78px); font-weight:400;
+    line-height:.9; color:#f7ede0; letter-spacing:.5px; transform:skewX(-3deg);
+    text-shadow:0 4px 0 rgba(0,0,0,.4), 0 0 30px rgba(226,112,58,.22) }
+  .wordmark h1 .accent{ color:var(--amber) }
+  /* the slash cutting through the wordmark */
+  .heroSlash{ top:50%; left:-18px; width:min(340px,86%); transform:rotate(-8deg);
+    background:linear-gradient(90deg,transparent,var(--amber-l),transparent);
+    box-shadow:0 0 20px rgba(226,112,58,.8); height:6px }
+  .hero .lead{ font-size:15px; line-height:1.6; max-width:400px; margin:0 }
+  .hero .bestbar,.hero .lvlbar{ margin-left:0; margin-right:0; max-width:400px }
+
+  .menuPanel{ flex:1; display:flex; flex-direction:column; gap:14px; min-width:0; max-width:none }
+  .menuPanel .label{ margin:0 }
+  .hr{ height:1px; background:rgba(255,255,255,.08) }
+
+  /* mode rows — replaces the pill segmented control on this screen only.
+     Still a plain <button> list inside #modeSeg, so game.js's container
+     delegation (and its 0% dead-zone guarantee) keeps working untouched. */
+  .modeList{ display:flex; flex-direction:column; gap:5px }
+  .modeList button{ display:flex; align-items:stretch; gap:13px; width:100%; text-align:left;
+    background:transparent; border:1px solid transparent; border-radius:9px; padding:8px 13px;
+    font-family:inherit; cursor:pointer; transition:background .12s, border-color .12s }
+  .modeList button:hover{ background:rgba(255,255,255,.04) }
+  .modeList button.on{ background:rgba(255,255,255,.06); border-color:rgba(255,255,255,.14) }
+  .modeList .bar{ width:4px; border-radius:2px; flex:none; opacity:.45; background:#8a97a0 }
+  .modeList button.on .bar{ opacity:1 }
+  .modeList button[data-g="sort"]    .bar{ background:#2f7fd1 }
+  .modeList button[data-g="quiz"]    .bar{ background:#e0a92b }
+  .modeList button[data-g="tsunami"] .bar{ background:#e0762b }
+  .modeList button[data-g="vs"]      .bar{ background:#2fae6a }
+  .modeList .mtxt{ display:block; min-width:0 }
+  .modeList .mtxt b{ display:block; font-size:14.5px; font-weight:700; color:#c9bda8 }
+  .modeList .mtxt i{ display:block; font-style:normal; font-size:11px; margin-top:2px; color:#a8977e }
+  .modeList button.on .mtxt b{ color:#fbe9d0 } .modeList button.on .mtxt i{ color:#c9bda8 }
+
+  .menuPanel .choose{ gap:8px }
+  .menuPanel .opt{ padding:12px 10px }
+  .menuPanel .opt .ti{ font-size:12.5px } .menuPanel .opt .ds{ font-size:10.5px }
+  .speedRow{ display:flex; align-items:center; justify-content:space-between; gap:12px }
+  .menuPanel .row{ margin-top:auto; padding-top:6px }
+  .menuPanel #playBtn{ flex:1 }
+  .menuPanel .fineprint{ margin-top:10px }
+
+  /* Below 900px the two columns stack. The mockup is a fixed 980x760 desktop
+     frame and simply does not describe a phone, so this fills that gap rather
+     than diverging from it — and it is what keeps the card scrollable and every
+     control reachable on a handset. */
+  @media (max-width:900px){
+    .menuWrap{ flex-direction:column; gap:18px; max-width:600px }
+    .hero{ text-align:center; align-items:center }
+    .wordmark h1{ font-size:clamp(40px,11vw,60px) }
+    /* Stacked and centred, the slash lands straight through the middle line and
+       reads as a smudge rather than an accent. Pushed below the wordmark and
+       softened so it stays decorative. */
+    .heroSlash{ left:50%; transform:translateX(-50%) rotate(-6deg); width:70%;
+      top:auto; bottom:-6px; opacity:.55 }
+    .hero .lead{ max-width:none }
+    .menuPanel .row{ margin-top:6px }
+  }
+
+  /* The old single-column card fitted inside 900px. The mockup's menu is a
+     980-wide two-column frame, so the shell needs to widen — but only where the
+     wide layout is actually used, which is why this is scoped rather than a
+     blanket change to #app. */
+  @media (min-width:940px){
+    #app:has(#start:not(.hidden)), #app:has(#blades:not(.hidden)){ max-width:1100px }
+  }
+
+  /* ================= HUD (floats over the playfield) ================= */
+  /* z-index 5 clears #gl(1) and #fx(2). #fx is pointer-events:none, so nothing
+     between the HUD and the player's click; the pause button stays reachable. */
+  .hud{ position:absolute; inset:0; z-index:5; pointer-events:none; margin:0; display:block }
+  .hud > *{ pointer-events:auto }
+
+  .scoreBadge{ position:absolute; top:18px; left:18px; width:74px; height:74px; border-radius:50%;
+    background:linear-gradient(180deg,#5a3a20,#362114); border:3px solid rgba(0,0,0,.4);
+    box-shadow:inset 0 2px 4px rgba(255,255,255,.15), 0 4px 10px rgba(0,0,0,.4);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px }
+  .scoreBadge span{ font-size:8px; font-weight:600; letter-spacing:1px; color:#c2ab8c }
+  .scoreBadge b{ font-family:var(--display); font-size:21px; font-weight:400; color:#fbe9d0;
+    font-variant-numeric:tabular-nums; line-height:1 }
+
+  .roundBanner{ position:absolute; top:0; left:50%; transform:translateX(-50%);
+    background:linear-gradient(180deg,#5a3a20,#362114); border:2px solid rgba(0,0,0,.4); border-top:none;
+    border-radius:0 0 14px 14px; padding:9px 22px 8px; box-shadow:0 4px 10px rgba(0,0,0,.4);
+    min-width:230px; max-width:min(70%,420px) }
+  .rbTop{ display:flex; align-items:center; justify-content:center; gap:8px; white-space:nowrap }
+  .rbTop .dot{ width:9px; height:9px; border-radius:50%; flex:none }
+  .rbTop #topicName{ font-size:12.5px; font-weight:700; color:#fbe9d0; letter-spacing:.4px;
+    text-transform:uppercase; overflow:hidden; text-overflow:ellipsis }
+  .rbSep{ color:#a8977e }
+  .rbTop b{ font-size:12.5px; font-weight:700; color:#fbe9d0; font-variant-numeric:tabular-nums }
+  .rbTop #roundLbl{ font-size:9.5px; letter-spacing:1px; text-transform:uppercase; color:#c2ab8c }
+  .roundBanner .timebar{ margin-top:7px; width:100%; min-width:0; flex:none; height:6px }
+
+  .pauseBtn{ position:absolute; top:18px; right:18px; width:46px; height:46px; border-radius:50%;
+    background:linear-gradient(180deg,#5a3a20,#422a16); border:1px solid rgba(0,0,0,.5);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.15), 0 4px 10px rgba(0,0,0,.35);
+    display:flex; align-items:center; justify-content:center; gap:4px; cursor:pointer }
+  .pauseBtn span{ width:4px; height:17px; background:#fbe9d0; border-radius:1px; display:block }
+
+  .targetPill{ position:absolute; bottom:18px; left:50%; transform:translateX(-50%);
+    display:flex; align-items:center; gap:9px; border-radius:100px; padding:9px 22px;
+    background:repeating-linear-gradient(100deg,#3a2415 0px,#45301c 3px,#3a2415 6px,#4d3521 30px,#3a2415 34px);
+    box-shadow:inset 0 0 0 2px rgba(0,0,0,.4), 0 6px 16px rgba(0,0,0,.4);
+    font-size:12.5px; font-weight:700; color:#fbe9d0; white-space:nowrap }
+  .targetPill .dot{ width:10px; height:10px; border-radius:50%; flex:none }
+
+  @media (max-width:640px){
+    .scoreBadge{ width:58px; height:58px; top:12px; left:12px }
+    .scoreBadge b{ font-size:17px }
+    .pauseBtn{ width:40px; height:40px; top:12px; right:12px }
+    .roundBanner{ padding:7px 14px 6px; min-width:0; max-width:52% }
+    .rbTop #topicName,.rbTop b{ font-size:11px }
+    .targetPill{ bottom:12px; padding:7px 16px; font-size:11px }
+  }
+
+  /* ================= BLADES (mockup grid) ================= */
+  #blades>.card{ max-width:1000px }
+  .bladelist{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin:16px 0 4px }
+  .blade{ flex-direction:column; align-items:center; text-align:center; gap:10px; padding:16px 12px;
+    border-radius:12px }
+  .bladePv{ width:100%; height:52px; border-radius:8px; background:rgba(0,0,0,.4) }
+  .bladeTxt{ width:100% }
+  @media (max-width:900px){ .bladelist{ grid-template-columns:repeat(2,1fr) } }
+  @media (max-width:520px){ .bladelist{ grid-template-columns:1fr }
+    .blade{ flex-direction:row; text-align:left } .bladePv{ width:100px; height:38px; flex:none } }
+
+  /* No sun in the dojo skin. It also sat at top:26px right:46px, directly under
+     the pause button at top:18px right:18px — a bright disc behind a control. */
+  #bg .sun{ display:none }
+  #bg .ground{ opacity:.5; filter:brightness(.62) }
