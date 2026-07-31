@@ -2,7 +2,8 @@
    A run is 12 questions or 3 lives, whichever comes first.
    Every answer teaches immediately; nothing is saved for the result screen.
    Depends on game.js for: G, GMODE, W, H, fxc, el, show, resize, shuffle,
-   fxRR, segDist, wrapFx, drawHeart, spawnBurst, ITEMBYT, QBINS, ART, hx, FACTS. */
+   fxRR, segDist, wrapFx, drawHeart, spawnBurst, ITEMBYT, QBINS, ART, hx, FACTS,
+   BLADE, setRoundLbl. */
 var QUIZ=[
   /* The bag/foam/carton answers here used to contradict the roster: all three
      are accepted recyclables on the HK list and are binned as such, so the
@@ -47,7 +48,8 @@ var QUIZ=[
 var QCFG={lives:3, total:12, qTime:8000, teachMs:2100, base:100, speedMax:100, comboEvery:3, comboCap:3};
 
 var Q={running:false, score:0, opts:[], cur:null, locked:false, answer:"", why:"",
-       lives:3, asked:0, streak:0, mult:1, qLeft:0, teach:0, teachOK:false, missed:[], lastIdx:-1};
+       lives:3, asked:0, streak:0, mult:1, qLeft:0, teach:0, teachOK:false, missed:[], lastIdx:-1,
+       live:false, armT:0};   /* live = landed AND armed; armT counts that beat down */
 var Qseq=[];
 
 /* The handwritten questions above teach nuance — traps, contamination, the
@@ -109,7 +111,7 @@ function launchQuiz(){ setRoundLbl("question");
 
 function quizNext(){
   if(Q.lives<=0 || Q.asked>=QCFG.total){ quizGameOver(); return; }
-  Q.asked++; Q.locked=false; Q.teach=0; Q.qLeft=QCFG.qTime;
+  Q.asked++; Q.locked=false; Q.teach=0; Q.qLeft=QCFG.qTime; Q.live=false; Q.armT=QARM;
   el("roundN").textContent=Q.asked+"/"+QCFG.total;
   var qq=qpick(); Q.cur=qq; Q.why=qq.why;
   el("quizQ").textContent=qq.q;
@@ -127,6 +129,10 @@ function quizNext(){
    back off-screen — the 8s timer supplies the pressure, so a re-throw only ever
    made you wait for your own answer to come back. */
 var QRISE=0.00042;
+/* Beat between the last card landing and answers becoming selectable. 150ms is
+   ~2% of the 8s question budget, small enough not to feel like a delay, long
+   enough that a card cannot land onto a hand that is already moving. */
+var QARM=150;
 function quizLaunch(o){
   var pad=70, lw=Math.max(170,W-pad*2)/o.laneN;
   o.state="fly"; o.x=pad+o.lane*lw+lw/2;
@@ -145,18 +151,75 @@ function quizUpdate(dt){
     if(o.state==="wait"){ o.delay-=dt; if(o.delay<=0) quizLaunch(o); ready=false; continue; }
     if(o.state==="fly"){
       o.vy+=QRISE*dt; o.y+=o.vy*dt;
-      if(o.vy>=0 || o.y<=o.hy){ o.state="hover"; o.y=o.hy; } else ready=false;
-      o.sliceable=(o.y<H-70);
+      /* A flying card is NEVER answerable. It used to become sliceable the
+         moment it cleared the bottom edge (o.y<H-70), which meant every card was
+         live while travelling ~46% of the screen height for over a second. Four
+         of them swept up past wherever the player's hand was and the first one
+         to touch it locked in an answer nobody chose.
+         Note sliceable is set true ON the landing frame, not the one after:
+         Q.live flips as soon as the last card lands, so a card that waited a
+         frame to arm would leave a gap where the question was answerable but one
+         of its answers was not. */
+      if(o.vy>=0 || o.y<=o.hy){ o.state="hover"; o.y=o.hy; o.sliceable=true; }
+      else { ready=false; o.sliceable=false; }
     } else { o.bob+=dt*0.0026; o.y=o.hy+Math.sin(o.bob)*7; o.sliceable=true; }
   }
-  if(!ready) return;                        /* clock starts only once every answer is up and readable */
+  /* A short beat AFTER the last card lands before anything can be chosen.
+     Without it there is still a one-frame hole: on the very frame the last card
+     arrives everything arms at once, so a hand that happens to be moving right
+     then has a card land straight onto it and picks it. That is the same
+     "it chose for me" complaint, just narrowed from 1.2s to one frame.
+     The clock is held for the same beat, so the player is never charged for time
+     they cannot use — answerable and timed always start together. */
+  if(!ready){ Q.armT=QARM; Q.live=false; return; }
+  if(Q.armT>0){ Q.armT-=dt; Q.live=false; return; }
+  Q.live=true;
   Q.qLeft-=dt;
   el("timeFill").style.width=(Math.max(0,Q.qLeft)/QCFG.qTime*100)+"%";
   if(Q.qLeft<=0 && !Q.locked){ quizTimeout(); }
 }
 
+/* How much the blade must actually travel, and over what window, before a swipe
+   counts as choosing an answer.
+   A window rather than per-frame speed: webcam detection runs ~25fps against a
+   60fps render loop, so movement arrives in spikes like 0,0,120,0,0 and any
+   per-frame threshold would either miss real swipes or fire on a single jitter
+   sample. Summing over ~130ms smooths that out.
+   Without this a COMPLETELY STILL hand selects an answer, because with x1,y1
+   equal to x2,y2 the segDist test below collapses to plain distance from the
+   hand to the card centre — no movement required at all. Standing in front of
+   the camera, that meant whichever card landed nearest your resting hand was
+   chosen for you. */
+/* 80px chosen from measurement. Worst travel in a 130ms window over 60s:
+     resting hand, +/-6px tracker jitter ... 48px
+     resting hand, +/-8px jitter .......... 64px
+     slow drift, 3px per frame ............ 24px
+     moderate deliberate swipe ............ 96px
+     real slash ........................... 320px
+   80 sits above every resting case with margin and below the slowest motion
+   worth calling a swipe. The window is what makes that separation possible;
+   note the two DO overlap for a badly jittering tracker (+/-12px reaches 95px),
+   so this trades a rare missed swipe on bad tracking for never choosing an
+   answer the player did not mean. That is the right way round here, because a
+   wrong pick locks the question and costs a life. */
+var QSWIPEMS=130, QSWIPE=80;
+function bladeTravel(ms, x2, y2){
+  var t=BLADE.trail, n=t.length, now=(t.length?t[n-1].t:0), d=0;
+  /* the current point is not in the trail yet — game.js pushes it AFTER this
+     check runs — so it is added on here explicitly */
+  var px=x2, py=y2;
+  for(var i=n-1;i>=0;i--){
+    if(now-t[i].t>ms) break;
+    d+=Math.hypot(px-t[i].x, py-t[i].y);
+    px=t[i].x; py=t[i].y;
+  }
+  return d;
+}
+
 function quizSliceCheck(x1,y1,x2,y2){
   if(Q.locked || Q.teach>0) return;
+  if(!Q.live) return;                       /* still landing — nothing is answerable yet */
+  if(bladeTravel(QSWIPEMS,x2,y2)<QSWIPE) return;   /* resting hand must never choose */
   var best=null, bestD=1e9;
   for(var i=0;i<Q.opts.length;i++){ var o=Q.opts[i]; if(o.sliced || o.state==="wait" || !o.sliceable) continue;
     var d=segDist(o.x,o.y,x1,y1,x2,y2); if(d<o.r+6 && d<bestD){ bestD=d; best=o; } }   /* nearest answer only */
@@ -225,8 +288,14 @@ function quizDraw(now){
   for(var i=0;i<Q.opts.length;i++){ var o=Q.opts[i]; if(o.sliced || o.state==="wait") continue;
     var w=148,h=148;
     fxc.save(); fxc.translate(o.x,o.y);
+    /* A card that has not landed yet cannot be answered, so it must not LOOK
+       answerable. Without this the new gate is invisible and a swipe at a rising
+       card just silently does nothing, which reads as the game being broken. */
+    var armed=Q.live && o.sliceable;
+    fxc.globalAlpha=armed?1:0.55;
     fxRR(-w/2,-h/2,w,h,20); fxc.fillStyle="#ffffff"; fxc.fill();
-    fxc.lineWidth=o.showCorrect?6:2.5; fxc.strokeStyle=o.showCorrect?"#20a45a":"#dfeee4"; fxc.stroke();
+    fxc.lineWidth=o.showCorrect?6:2.5;
+    fxc.strokeStyle=o.showCorrect?"#20a45a":(armed?"#cfe6d8":"#e8eeea"); fxc.stroke();
     if(o.kind==="item"){ fxc.save(); fxRR(-w/2,-h/2,w,h,20); fxc.clip(); fxc.translate(0,-14); fxc.scale(0.5,0.5); fxc.translate(-110,-110); (ART[o.t]||ART._def)(fxc, hx(o.col)); fxc.restore();
       fxc.fillStyle="#173a2a"; fxc.font="600 15px 'Fredoka',system-ui,sans-serif"; fxc.textAlign="center"; fxc.textBaseline="middle"; fxc.fillText((o.name+"").replace(/^[^ ]+\s/,""), 0, 58); }
     else if(o.kind==="bin"){ var b=QBINS[o.bin]; fxc.beginPath(); fxc.arc(0,-20,34,0,7); fxc.fillStyle=b.c; fxc.fill(); fxc.fillStyle="#173a2a"; fxc.font="700 20px 'Fredoka',system-ui,sans-serif"; fxc.textAlign="center"; fxc.textBaseline="middle"; fxc.fillText(b.n, 0, 40); }
