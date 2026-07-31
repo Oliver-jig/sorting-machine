@@ -77,7 +77,7 @@
     <div class="col">
       <div class="eyebrow"><span class="sdg">12</span> Phone controller</div>
       <h1>Point to slice</h1>
-      <p>Type the code, hold the phone however is comfortable and tap <b>Re-centre</b> — that pose becomes the middle of the screen. Now point the phone: the blade goes where you point. <b>Aim</b> tracks your tilt exactly and holds still; <b>Slash</b> follows where the tip points, so <b>swinging your arm</b> swings the blade.</p>
+      <p>Type the code, hold the phone however is comfortable and tap <b>Re-centre</b> — that pose becomes the middle of the screen. Now point the phone: the blade goes where you point. <b>Aim</b> puts the blade exactly where you point and holds it there; <b>Slash</b> follows the same point with weight, so <b>swinging your arm</b> swings the blade.</p>
       <div class="setup"><input id="code" inputmode="numeric" maxlength="4" placeholder="0000" /></div>
       <button class="btn setup" id="go">Connect &amp; enable motion</button>
       <button class="btn sub" id="recenter">Re-centre blade</button>
@@ -100,7 +100,7 @@
           <button type="button" class="chip" id="axSw">Swap</button>
         </span>
       </div>
-      <div class="fine">build 43 · direct</div>
+      <div class="fine">build 44 · direct</div>
     </div>
   </div>
 
@@ -152,8 +152,8 @@
   var SLASHSPRING=0.78;
   var SLASHDAMP=0.34;
   var bx=0.5, by=0.5, vx=0, vy=0;          /* blade position + velocity, 0..1 of the screen */
-  var hx=0, hy=0, haveOrient=false;
-  var ra=0, rb=0;                          /* raw alpha/beta, used only by Slash */
+  var haveOrient=false;
+  var ra=0, rb=0;                          /* raw alpha/beta — the pointing vector for BOTH modes */
 
   /* The accelerometer used to steer Slash and is deliberately gone. It
      measures FORCE, not position, so movement can only be recovered by
@@ -181,10 +181,6 @@
   if(GRIP!=="aim" && GRIP!=="slash") GRIP="aim";     /* retire older mode names */
   function saveGrip(){ try{ localStorage.setItem("ss3d.grip", GRIP); }catch(e){} }
 
-  /* Aim mode: how far you must tilt to reach a screen edge, in degrees. */
-  var AIMRANGE=28;
-  var aim0x=null, aim0y=null;        /* the "centre" pose, set by Re-centre */
-
   /* One place for the user's corrections, so the flip buttons fix both modes. */
   function applyAxis(x,y){
     if(AX.sw){ var t=x; x=y; y=t; }
@@ -192,45 +188,55 @@
     if(AX.fy) y=-y;
     return {x:x, y:y};
   }
+  /* Only alpha and beta are kept. Aim used to derive its own hx/hy from
+     beta/gamma, picked by screen.orientation.angle — see the AIM note below for
+     why that was measurably dead in the grip this game asks for. gamma is not
+     read at all now: roll about the blade's own length is spinning the knife,
+     not aiming it. */
   function onOrient(e){
-    var beta=e.beta||0, gamma=e.gamma||0;
-    ra=e.alpha||0; rb=beta;                   /* raw, for Slash's pointing vector */
-    /* held sideways like a knife: pick axes by screen rotation so left/right + up/down stay natural */
-    var ang=(screen.orientation&&typeof screen.orientation.angle==="number")?screen.orientation.angle:(window.orientation||0);
-    if(ang===90){ hx=beta;  hy=-gamma; }                  /* landscape, rotated one way */
-    else if(ang===270||ang===-90){ hx=-beta; hy=gamma; }  /* landscape, rotated the other way */
-    else { hx=gamma; hy=beta; }                           /* portrait fallback */
+    /* A browser can fire deviceorientation with NOTHING in it — sensor absent,
+       blocked by permissions policy, or an iframe. `e.beta||0` turns that into a
+       confident 0, and the old code then set haveOrient and published a
+       dead-centre blade forever: the phone looks connected and the game never
+       responds. Require a real number before believing the sensor exists. */
+    if(typeof e.alpha!=="number" && typeof e.beta!=="number") return;
+    ra=e.alpha||0; rb=e.beta||0;
     haveOrient=true;
   }
   function wrapDeg(d){ while(d>180)d-=360; while(d<-180)d+=360; return d; }
 
-  /* one steady loop so damping doesn't depend on the sensor's event rate */
-  /* Where the phone is pointing, as a screen position. Absolute: derived from
-     orientation against gravity, so it is a real measurement rather than
-     something accumulated. Both modes steer from this. */
-  function aimTarget(){
-    var a=applyAxis(wrapDeg(hx-aim0x)/AIMRANGE, wrapDeg(hy-aim0y)/AIMRANGE);
-    return { x:Math.max(0, Math.min(1, 0.5+a.x*0.5)),
-             y:Math.max(0, Math.min(1, 0.5+a.y*0.5)) };
-  }
+  /* ---- WHERE THE PHONE IS POINTING — the target for BOTH modes ----
+     Tilt against gravity (beta/gamma) is BLIND TO YAW, and sweeping your arm
+     sideways is almost pure yaw. Build 43 fixed that for Slash and left Aim on
+     the old beta/gamma path — while Aim stayed the DEFAULT mode, so out of the
+     box the controller could not see the motion the QR screen asks for.
 
-  /* ---- SLASH: where the phone is POINTING ----
-     Aim reads tilt against gravity (beta/gamma) and nothing else, which is
-     BLIND TO YAW — and sweeping your arm sideways is almost pure yaw. That is
-     why only twisting the wrist ever moved the blade: an arm swing barely
-     changes beta or gamma, so there was no signal to respond to.
+     Measured, in the grip the QR screen instructs ("hold your phone sideways
+     like a knife handle"), sweeping the arm 80 degrees:
 
-     So Slash builds the full device->world rotation from alpha+beta+gamma and
-     takes the direction the phone's tip points (device +y — the blade). A real
-     swing carries the phone through an arc, which turns that direction, so the
-     blade tracks the swing. Free direction works: a horizontal sweep moves it
-     across, a chop moves it up and down.
+       old Aim  (beta/gamma)      hx moves  0.00 deg  ->   0% of the screen
+       pointing (alpha+beta)      yaw moves 80.00 deg  ->  80% of the screen
 
-     Roll about the blade's own length cancels out of this on purpose (gamma
-     drops out of the +y column) — that is spinning the knife, not aiming it.
+     Zero, not "a bit weak". In that grip gamma sits at a CONSTANT -90 through
+     the entire sweep while alpha carries all 80 degrees of it. Old Aim steered
+     x from gamma, so left/right was pinned dead centre no matter how hard you
+     swung — while up/down, which it took from beta, kept working. That
+     half-working behaviour is exactly what "the game can hardly sense my phone"
+     feels like from the player's side.
+     (Nothing exotic is going on — beta is 0, so this is a well-conditioned
+     pose, not a gimbal-lock singularity. The axis simply was not being read.)
 
-     Still orientation, NOT integrated acceleration, so this does not bring
-     back the drift and the reverse-on-deceleration that made Slash unusable. */
+     So both modes now steer from here: the full device->world rotation from
+     alpha+beta, taking the direction the phone's tip points (device +y — the
+     blade). A real swing carries the phone through an arc, which turns that
+     direction. A horizontal sweep moves the blade across, a chop moves it up
+     and down.
+
+     Roll about the blade's own length cancels out on purpose (gamma drops out
+     of the +y column) — that is spinning the knife, not aiming it.
+
+     Still orientation, NOT integrated acceleration, so this does not bring back
+     the drift and the reverse-on-deceleration that made Slash unusable. */
   var SLASHYAW=50;                   /* degrees of arm sweep to cross the screen */
   var SLASHPITCH=35;                 /* degrees of chop to cross top-to-bottom */
   var yaw0=null, elev0=null;         /* the "centre" pose, set by Re-centre */
@@ -244,43 +250,45 @@
   /* Signs: yaw here is measured east-of-north, so swinging right raises it and
      it maps straight through. Elevation is negated because raising the tip
      should send the blade UP the screen, where y grows downward. If a phone
-     maps either the other way the Flip buttons still fix it. */
-  function slashTarget(){
+     maps either the other way the Flip buttons still fix it.
+
+     wrapDeg on the yaw difference matters: yaw is an angle, so a swing across
+     the +/-180 seam must read as a small move, not a full-screen jump. */
+  function pointTarget(){
     var p=pointing();
     var a=applyAxis(wrapDeg(p.yaw-yaw0)/SLASHYAW, -(p.elev-elev0)/SLASHPITCH);
     return { x:Math.max(0, Math.min(1, 0.5+a.x*0.5)),
              y:Math.max(0, Math.min(1, 0.5+a.y*0.5)) };
   }
+  /* Learn the centre pose from the CURRENT reading. Both modes share it, so
+     switching mode or tapping Re-centre behaves identically in each. */
+  function centreIfNeeded(){
+    if(yaw0===null){ var p0=pointing(); yaw0=p0.yaw; elev0=p0.elev; }
+  }
 
+  /* One target, two feels. The modes differ ONLY in whether the blade snaps to
+     where you point or springs to it — which is what the mode descriptions have
+     always claimed, and now what the code actually does. */
   function tick(){
     requestAnimationFrame(tick);
-    /* either sensor alone is enough to play — motion still works if orientation
-       permission was refused, and vice versa */
     if(!haveOrient) return;
+    centreIfNeeded();
+    var t=pointTarget();
 
-    /* AIM: position IS the tilt. No velocity, no friction, no drift — so the
-       blade holds still when the phone does, and the same pose always maps to
-       the same spot. Nothing else in tick() applies in this mode. */
+    /* AIM: position IS the pointing direction. No velocity, no friction, no
+       drift — the blade holds still when the phone does, and the same pose
+       always maps to the same spot. */
     if(GRIP==="aim"){
-      if(!haveOrient) return;
-      if(aim0x===null){ aim0x=hx; aim0y=hy; }        /* first reading defines centre */
-      var a=aimTarget();
-      bx=a.x; by=a.y;
+      bx=t.x; by=t.y;
       vx=0; vy=0;
-      moveDot(bx,by);
-      sendBlade();
-      return;
+    } else {
+      /* SLASH: same target, but the blade has weight and swings to it rather
+         than snapping. */
+      vx+=(t.x-bx)*SLASHSPRING; vy+=(t.y-by)*SLASHSPRING;
+      vx*=SLASHDAMP; vy*=SLASHDAMP;
+      bx=Math.max(0, Math.min(1, bx+vx));
+      by=Math.max(0, Math.min(1, by+vy));
     }
-
-    /* SLASH: steers from where the phone POINTS, so arm swings register, and
-       the blade has weight so it swings to that point rather than snapping. */
-    if(GRIP!=="slash" || !haveOrient) return;
-    if(yaw0===null){ var p0=pointing(); yaw0=p0.yaw; elev0=p0.elev; }
-    var t=slashTarget();
-    vx+=(t.x-bx)*SLASHSPRING; vy+=(t.y-by)*SLASHSPRING;
-    vx*=SLASHDAMP; vy*=SLASHDAMP;
-    bx=Math.max(0, Math.min(1, bx+vx));
-    by=Math.max(0, Math.min(1, by+vy));
     moveDot(bx,by);
     sendBlade();
   }
@@ -299,9 +307,8 @@
    comfortable, tap, and THAT pose becomes the centre of the screen. */
 document.getElementById("recenter").addEventListener("click", function(){
   bx=0.5; by=0.5; vx=0; vy=0;
-  aim0x=(GRIP==="aim"&&haveOrient)?hx:null; aim0y=(GRIP==="aim"&&haveOrient)?hy:null;
   yaw0=null; elev0=null;                     /* re-learn from the next reading */
-  setStatus(GRIP==="aim" ? "Centred on how you're holding it now — <b>tilt to move</b>"
+  setStatus(GRIP==="aim" ? "Centred on how you're holding it now — <b>point to move</b>"
                          : "Centred on how you're holding it now — <b>swing to move</b>");
 });
 
@@ -328,9 +335,8 @@ document.getElementById("recenter").addEventListener("click", function(){
     if(document.body.className.indexOf("playing")>=0)
       document.body.className="playing";
     vx=0; vy=0; bx=0.5; by=0.5;
-    aim0x=null; aim0y=null;                              /* re-learn centre from the current pose */
-    yaw0=null; elev0=null;
-    setStatus(g==="aim" ? "Aim mode — <b>tilt and the blade follows</b>, hold still and it stays"
+    yaw0=null; elev0=null;                               /* re-learn centre from the current pose */
+    setStatus(g==="aim" ? "Aim mode — <b>point and the blade follows</b>, hold still and it stays"
                         : "Slash mode — <b>swing your arm</b> and the blade swings with it");
   }
   (function(){

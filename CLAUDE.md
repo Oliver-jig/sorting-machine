@@ -8,7 +8,7 @@ A single-page browser arcade game for **SDG 12** — a Fruit-Ninja-style slicer
 teaching Hong Kong recycling. No build step, no framework, no bundler. Plain
 HTML + CSS + ES5-ish JS with CDN libraries, deployed static to Vercel.
 
-Current state: **build 59**. Dark "dojo-arcade" theme, 50 items, four modes,
+Current state: **build 60**. Dark "dojo-arcade" theme, 50 items, four modes,
 blade skins with an XP/level system.
 
 Repo: `Oliver-jig/sorting-machine`. Two branches, **kept in sync after every
@@ -30,7 +30,7 @@ for f in js/*.js; do node --check $f || echo "FAIL $f"; done
 ```
 
 ```bash
-npm test                  # all five invariant harnesses
+npm test                  # all six invariant harnesses
 node tests/fairness.js    # or run one on its own
 npm run check             # syntax-check every js file
 ```
@@ -120,9 +120,20 @@ single missed detection made it flash and made fast swipes silently fail to cut.
 
 **The phone controller must not use the accelerometer.** It measures force, not
 position; integrating it drifts and turns end-of-swing deceleration into reverse
-motion. Both Aim and Slash use orientation. Slash builds a pointing vector from
-`alpha+beta+gamma` so arm swings register — `beta`/`gamma` alone are blind to
-yaw, which is most of a sideways swing.
+motion. Both Aim and Slash use orientation.
+
+**Both phone modes steer from the same `pointing()` vector, built from
+`alpha`+`beta`.** Tilt against gravity (`beta`/`gamma`) is blind to yaw, and an
+arm sweep is almost pure yaw. Build 43 fixed this for Slash and left Aim on the
+old `beta`/`gamma` path *while Aim was the default* — so out of the box the
+controller could not see the motion the QR screen instructs. Measured in that
+grip ("sideways like a knife handle"), an 80 degree sweep held `gamma` constant
+at -90 and moved old-Aim's x by **0%**, while `alpha` carried the whole 80
+degrees. Left/right was pinned dead centre; up/down still worked, which is why
+it read as "the game can hardly sense my phone" rather than as fully broken.
+Aim and Slash now differ ONLY in whether the blade snaps to the target or
+springs to it. `tests/controller.js` guards this. Roll is deliberately dropped
+(spinning the knife, not aiming), so twisting the wrist no longer steers.
 
 **Blades are cosmetic only.** The harness enforces this with a banned-field list
 *and* an allowlist. Scores go to a database the teacher reads; if a blade changed
@@ -150,6 +161,7 @@ Run with `node <file>`; each exits non-zero on failure.
 | `quiz.js` | Quiz: resting hand selects nothing, swipes do, nothing while flying |
 | `webcam.js` | Blade flicker under simulated detection loss |
 | `xp.js` | XP curve, unlock pacing, and the cosmetic-only guarantee |
+| `controller.js` | Phone: a real arm swing moves the blade, in both modes |
 
 They are the only automated protection for the invariants above. Run `npm test`
 before pushing.
@@ -187,8 +199,19 @@ a timeout also sets), or using swipe paths longer than the gap between cards.
 
 ## Open threads
 
-- **Blade abilities** — user asked to explore giving blades gameplay effects;
-  paused mid-discussion on the fairness model (symmetric trade-offs vs unranked
-  mode vs tagging scores with the blade).
-- Unverified on real hardware: the dark theme on an actual phone (controller
-  page) and a webcam pass confirming the cursor reads against the dark playfield.
+- **Blade abilities — decided against, 2026-07-31.** Blades stay cosmetic.
+  Powers were built (practice-only, unranked runs) and then reverted at the
+  user's request: keeping the fairness guarantee simple and absolute beat having
+  the feature. Do not re-open without a new reason.
+- `controller.html` carries its own build number (now **44**), separate from the
+  game's. Phones cache it hard — check that number on the phone before believing
+  a controller fix shipped.
+- Unverified on real hardware: the build 60 controller fix on an actual phone,
+  the dark theme on that page, and a webcam pass confirming the cursor reads
+  against the dark playfield.
+- Known, not fixed (spotted while fixing the controller, each its own change):
+  - `applyRemote()` sets `BLADE.active=true` and nothing ever clears it. Mouse
+    idles out after 90ms and webcam after `CAMGRACE`; the phone has no timeout,
+    so a resting phone keeps slicing whatever it sits on.
+  - `sendBlade()` throttles to ~60 msg/s. That is fine over the WebRTC data
+    channel but heavy for the free public MQTT broker used as fallback.
