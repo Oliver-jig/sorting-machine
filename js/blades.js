@@ -324,7 +324,25 @@ function bladeDrawTrail(trail, now){
   /* Per-blade lifetime, not a fixed 140. drawTrail in game.js keeps its own
      literal because Versus must not follow a skin. */
   var life=b.life||140;
-  while(trail.length && now-trail[0].t>=life) trail.shift();
+  /* Expire by age, but NEVER below MINPTS points.
+     Age alone assumes points arrive at the render rate. They do not: webcam hand
+     tracking feeds roughly 25fps, so points land ~40ms apart and a 100ms blade
+     (Ice, Leaf) holds only 2-3 of them — one dropped detection then leaves fewer
+     than the 2 bladeStroke needs and the blade vanishes for a frame. That was
+     half of the webcam flicker.
+     A point floor fixes it structurally, for any input rate on any machine.
+     Re-tuning the life values instead would only have moved the threshold and
+     broken again on a slower laptop. At 60fps mouse input the floor is never
+     reached, so each blade keeps its distinct feel. */
+  var MINPTS=3;
+  if(trail.length && now-trail[trail.length-1].t>=life){
+    /* Even the NEWEST point is stale, so input has stopped and the swipe is
+       over — drop everything. Without this the floor would hold the last three
+       points on screen forever as a stuck smear once the hand left frame. */
+    trail.length=0;
+  } else {
+    while(trail.length>MINPTS && now-trail[0].t>=life) trail.shift();
+  }
   var live=trail.length>1;
   if(live && !BLState.drawing) BLState.swipes++;
   BLState.drawing=live;
