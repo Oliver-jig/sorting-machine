@@ -416,3 +416,21 @@
      the pause button at top:18px right:18px — a bright disc behind a control. */
   #bg .sun{ display:none }
   #bg .ground{ opacity:.5; filter:brightness(.62) }
+
+  /* Error bar for a failing render frame. Fixed and above everything, because
+     the whole point is that it is visible whatever screen you are on — a loop
+     error can happen on the menu, mid-round, or during a mode transition.
+     It deliberately owns its own buttons rather than borrowing the round-start
+     button, which already has a listener. */
+  #errBar{ position:fixed; left:12px; right:12px; bottom:12px; z-index:999;
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+    background:#2a1410; border:1.5px solid #d9534f; border-radius:16px;
+    padding:14px 16px; box-shadow:0 8px 30px rgba(0,0,0,.5);
+    font-size:14px; line-height:1.4; color:#ffd9d4; text-align:left }
+  #errBar.hidden{ display:none !important }
+  #errMsg{ flex:1; min-width:200px; word-break:break-word }
+  #errMsg b{ color:#fff }
+  #errBar button{ flex:none; border:none; border-radius:980px; padding:9px 18px;
+    font-size:14px; font-weight:600; font-family:inherit; cursor:pointer }
+  #errReload{ background:#d9534f; color:#fff }
+  #errHide{ background:rgba(255,255,255,.14); color:#ffd9d4 }
