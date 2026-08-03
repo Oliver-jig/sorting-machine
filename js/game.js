@@ -650,7 +650,7 @@ function hostAnswer(offer){
     hostPC.onicecandidate=function(e){ if(e.candidate) hostPub({from:"host", type:"ice", cand:e.candidate}); };
     hostPC.ondatachannel=function(e){ var ch=e.channel;
       ch.onopen=function(){ roomLine("Direct link to the phone — lowest delay."); };
-      ch.onmessage=function(m){ try{ var o=JSON.parse(m.data); applyRemote(o.g,o.b,0,false); }catch(_){} }; };
+      ch.onmessage=function(m){ try{ var o=JSON.parse(m.data); applyRemote(o.g,o.b,0,false,o.seq); }catch(_){} }; };
     /* Flush the moment the remote description lands, not when the answer is
        published — candidates queued in between are still valid and waiting
        longer than necessary only lengthens the handshake. */
@@ -672,7 +672,7 @@ function connectHostMqtt(){
     }
     else if(d.type==="orient"){
       var s = d.cid ? REM[d.cid] : 0;               /* no cid = older controller, treat as Player 1 */
-      if(s!==undefined) applyRemote(d.g,d.b,s,true); /* unknown cid = room was full; ignore it */
+      if(s!==undefined) applyRemote(d.g,d.b,s,true,d.seq); /* unknown cid = room was full; ignore it */
     }
     /* Two phones can't share one RTCPeerConnection, so Versus stays on the
        relay. The controller falls back on its own when no answer arrives. */
@@ -719,8 +719,8 @@ function remCount(){ return remOrder.length; }
 
      lead    felt lag   tracking error   worst excursion
        0ms     200ms        23.7%             41%
-      90ms     150ms        20.6%             40%
-     180ms     115ms        18.4%             43%
+      120ms     155ms        21.8%             40%
+      180ms     115ms        18.4%             43%
 
    Every metric improves and the worst excursion barely moves, because during a
    fast swing the blade is already far from the hand — the lead is not what puts
@@ -734,29 +734,42 @@ function remCount(){ return remOrder.length; }
    `cap` bounds total extrapolation, `maxJump` bounds how far a bad velocity
    estimate can throw the blade, and `vmin` stops a resting hand from jittering
    once the lead multiplies its noise. */
-var RCFG={ lead:180, cap:320, maxJump:0.35, vlp:0.6, vmin:0.02, stale:500 };
+var RCFG={ lead:120, cap:220, maxJump:0.20, vlp:0.45, vmin:0.03, stale:350, vmax:1.6 };
 var RSAMP={};
 function remoteReset(){ RSAMP={}; }
-function remoteSample(slot, x, y, viaRelay){
+function remoteSample(slot, x, y, viaRelay, seq){
   var now=performance.now(), r=RSAMP[slot];
   var lead=viaRelay ? RCFG.lead : 0;
-  if(!r){ RSAMP[slot]={x:x, y:y, t:now, vx:0, vy:0, lead:lead}; return; }
+  if(!r){ RSAMP[slot]={x:x, y:y, t:now, vx:0, vy:0, lead:lead, relay:!!viaRelay, seq:(typeof seq==="number"?seq:null)}; return true; }
+  if(typeof seq==="number" && typeof r.seq==="number" && seq<=r.seq) return false;
+  if(typeof seq==="number") r.seq=seq;
+  var transportChanged=r.relay!==!!viaRelay;
+  if(transportChanged){
+    /* A direct/relay transition changes both cadence and latency. Never carry
+       the old path's velocity into the new one; it can reverse the blade when
+       the first packet from the new path arrives. */
+    r.vx=0; r.vy=0; r.relay=!!viaRelay;
+  }
   r.lead=lead;
   var dt=now-r.t;
   if(dt>=RCFG.stale){ r.vx=0; r.vy=0; }        /* long gap: stop guessing */
-  else if(dt>4){
+  else if(dt>4 && !transportChanged){
     /* Low-passed, so one noisy sample cannot fling the blade across the screen */
     r.vx += ((x-r.x)/dt - r.vx)*RCFG.vlp;
     r.vy += ((y-r.y)/dt - r.vy)*RCFG.vlp;
+    r.vx=Math.max(-RCFG.vmax,Math.min(RCFG.vmax,r.vx));
+    r.vy=Math.max(-RCFG.vmax,Math.min(RCFG.vmax,r.vy));
     /* px per ms. Below this the hand is holding still and any "velocity" is
        sensor noise, which the lead would otherwise magnify into a shake. */
     if(Math.abs(r.vx)<RCFG.vmin) r.vx=0;
     if(Math.abs(r.vy)<RCFG.vmin) r.vy=0;
   }
   r.x=x; r.y=y; r.t=now;
+  return true;
 }
 function remotePos(slot, now){
   var r=RSAMP[slot]; if(!r) return null;
+  if(now-r.t>RCFG.stale) return null;
   var age=Math.min(now-r.t+r.lead, RCFG.cap);
   var px=r.x+r.vx*age, py=r.y+r.vy*age;
   var mx=W*RCFG.maxJump, my=H*RCFG.maxJump;
@@ -769,21 +782,32 @@ function remotePos(slot, now){
 function remoteDrive(now){
   var p0=remotePos(0, now);
   if(p0){ BLADE.x=p0.x; BLADE.y=p0.y; BLADE.active=true; }
+  else BLADE.active=false;
+  var states=[];
+  if(RSAMP[0]) states.push(RSAMP[0].relay?"RELAY / delayed":"DIRECT");
   if(GMODE==="vs"){
     var p1=remotePos(1, now);
     if(p1){ BLADE2.x=p1.x; BLADE2.y=p1.y; BLADE2.active=true; }
+    else BLADE2.active=false;
+    if(RSAMP[1]) states.push("P2 "+(RSAMP[1].relay?"RELAY / delayed":"DIRECT"));
+  }
+  var st=el("phoneState");
+  if(st){
+    var lost=(RSAMP[0]&&!BLADE.active)||(GMODE==="vs"&&RSAMP[1]&&!BLADE2.active);
+    st.textContent=lost?"INPUT LOST":(states.length?states.join(" · "):"WAITING FOR INPUT");
+    st.classList.toggle("lost",lost); st.classList.remove("hidden");
   }
 }
 /* Versus gives each player half the screen, matching the webcam split. */
 /* viaRelay decides how far ahead we aim — see RCFG.lead. The two callers know
    which transport they are: the data channel is direct, MQTT is the relay. */
-function applyRemote(g,b,slot,viaRelay){
+function applyRemote(g,b,slot,viaRelay,seq){
   var fx=Math.max(0,Math.min(1, 0.5+(g||0)/60));
   var y=Math.max(0,Math.min(H, H*(((b||45)-15)/55)));
   var x;
   if(GMODE==="vs") x = (slot===1) ? W/2+6+fx*(W/2-6) : fx*(W/2-6);
   else             x = fx*W;
-  remoteSample(slot||0, x, y, !!viaRelay);
+  remoteSample(slot||0, x, y, !!viaRelay, seq);
 }
 function stopPeer(){ if(mqttClient){ try{ mqttClient.end(true); }catch(e){} } }
 
@@ -1163,4 +1187,3 @@ if(IS_CONTROLLER){
     if(typeof console!=="undefined" && console.error) console.error("initThree failed:", e);
   }
 }
-

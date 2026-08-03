@@ -100,7 +100,7 @@
           <button type="button" class="chip" id="axSw">Swap</button>
         </span>
       </div>
-      <div class="fine">build 45</div>
+      <div class="fine">build 46</div>
     </div>
   </div>
 
@@ -111,7 +111,7 @@
   var codeEl=document.getElementById("code");
   codeEl.value=((qs.get("room")||qs.get("peer")||"").replace(/[^0-9]/g,"")).slice(0,4);
   var s=document.getElementById("status"), dot=document.getElementById("dot");
-  var client=null, room=null, sending=false, lastPub=0;
+  var client=null, room=null, sending=false, lastPub=0, motionSeq=0;
   /* Two phones share one MQTT topic, so every message carries this id — it is
      the only thing that lets the laptop tell Player 1 from Player 2. */
   var CID=Math.random().toString(16).slice(2,10);
@@ -135,7 +135,19 @@
   var CICE={iceServers:[{urls:["stun:stun.l.google.com:19302","stun:stun1.l.google.com:19302","stun:stun.cloudflare.com:3478"]}]};
   function pub(o){ if(client&&client.connected) client.publish("slicesort/"+room, JSON.stringify(o), {qos:0}); }
 
+  var linkPath="relay", inputLost=false, lastOrientAt=0;
+  function statusText(){
+    if(inputLost) return "<b>INPUT LOST</b> — motion sensor stopped; move the phone or reload.";
+    return linkPath==="direct"
+      ? "Connected — <b>DIRECT</b> link, lowest delay"
+      : "Connected on the <b>RELAY / delayed</b> path";
+  }
   function setStatus(t){ s.innerHTML=t; }
+  function setInputLost(lost){
+    if(inputLost===lost) return;
+    inputLost=lost;
+    if(document.body.className.indexOf("playing")>=0) setStatus(statusText());
+  }
   function moveDot(px,py){ dot.style.left=Math.max(0,Math.min(100,px*100))+"%"; dot.style.top=Math.max(0,Math.min(100,py*100))+"%"; }
 
   /* Slash tuning. Driven ONLY by physically moving the phone — rotation is
@@ -217,6 +229,8 @@
     if(typeof e.alpha!=="number" && typeof e.beta!=="number") return;
     ra=e.alpha||0; rb=e.beta||0;
     haveOrient=true;
+    lastOrientAt=Date.now();
+    setInputLost(false);
   }
   function wrapDeg(d){ while(d>180)d-=360; while(d<-180)d+=360; return d; }
 
@@ -287,6 +301,7 @@
   function tick(){
     requestAnimationFrame(tick);
     if(!haveOrient) return;
+    setInputLost(Date.now()-lastOrientAt>500);
     centreIfNeeded();
     var t=pointTarget();
 
@@ -326,13 +341,13 @@
      The data channel has no such limit and is on the LAN, so it stays at 60 Hz.
      RELAYMS is 90 rather than 100 to leave a little headroom under the cap. */
   var DCMS=16, RELAYMS=90;
-  /* wire format is unchanged: the host's applyRemote() maps g:-30..30 -> x, b:15..70 -> y */
+  /* g/b keep the existing coordinate mapping; seq orders packets at the host. */
   function sendBlade(){
     var direct=!!(dc && dc.readyState==="open");
     var now=Date.now(); if(now-lastPub<(direct?DCMS:RELAYMS)) return; lastPub=now;
-    var gg=(bx-0.5)*60, bb=15+by*55;
-    if(direct){ try{ dc.send(JSON.stringify({g:gg,b:bb})); }catch(e){} }        /* direct link — low latency */
-    else if(sending && client && client.connected){ client.publish("slicesort/"+room, JSON.stringify({from:"ctrl",type:"orient", cid:CID, g:gg, b:bb}), {qos:0}); }  /* relay fallback */
+    var gg=(bx-0.5)*60, bb=15+by*55, packet={g:gg,b:bb,seq:++motionSeq};
+    if(direct){ try{ dc.send(JSON.stringify(packet)); }catch(e){} }        /* direct link — low latency */
+    else if(sending && client && client.connected){ client.publish("slicesort/"+room, JSON.stringify({from:"ctrl",type:"orient", cid:CID, g:gg, b:bb, seq:packet.seq}), {qos:0}); }  /* relay fallback */
   }
   function startMotion(){
     window.addEventListener("deviceorientation", onOrient);
@@ -382,22 +397,20 @@ document.getElementById("recenter").addEventListener("click", function(){
   })();
 
   function connect(){
-    setStatus("Reaching the game…");
+      setStatus("Reaching the game…");
     if(typeof mqtt==="undefined"){ setStatus("Couldn't load the relay — check internet and reload."); return; }
     client=mqtt.connect(BROKER,{clientId:"ctrl_"+room+"_"+Math.random().toString(16).slice(2,8), reconnectPeriod:2500, connectTimeout:9000});
-    client.on("connect", function(){ sending=true; client.subscribe("slicesort/"+room); pub({from:"ctrl",type:"hello",cid:CID}); document.body.className="playing"; setStatus("Connected on the <b>relay</b> — trying for a direct link…"); startWebRTC();
+    client.on("connect", function(){ sending=true; linkPath="relay"; setInputLost(false); client.subscribe("slicesort/"+room); pub({from:"ctrl",type:"hello",cid:CID}); document.body.className="playing"; setStatus("Connected on the <b>RELAY / delayed</b> path — trying DIRECT…"); startWebRTC();
       /* If the handshake has not produced a channel by now it is not going to.
          Say so plainly rather than leaving "trying…" up for the whole game. */
       setTimeout(function(){ if(!(dc&&dc.readyState==="open"))
-        setStatus("On the <b>relay</b> (about 0.2s delay). Put the phone and laptop on the same WiFi for a direct link."); }, 6000);
+        setStatus("<b>RELAY / delayed</b> (about 0.2s). Put the phone and laptop on the same WiFi for DIRECT."); }, 6000);
     });
     client.on("message", function(t, payload){ var d; try{ d=JSON.parse(payload.toString()); }catch(e){ return; }
       if(d.from==="ctrl") return;                                   /* ignore our own echoed messages */
       /* signalling and slot messages are addressed by cid — ignore the other phone's */
       if(d.cid && d.cid!==CID) return;
-      if(d.type==="slot"){ myTeam=d.slot;
-        setStatus(myTeam===1 ? "You are <b>Player 2</b> (right side) — slash to slice"
-                             : "You are <b>Player 1</b> (left side) — slash to slice"); }
+      if(d.type==="slot"){ myTeam=d.slot; setStatus(statusText()); }
       /* The host attaches onicecandidate as soon as it builds its peer
          connection and only publishes the answer at the end of the
          setRemoteDescription chain, so its candidates can reach us before the
@@ -412,7 +425,7 @@ document.getElementById("recenter").addEventListener("click", function(){
       }
       else if(d.type==="ice"){ addIce(d.cand); }
     });
-    client.on("reconnect", function(){ setStatus("Reconnecting…"); });
+    client.on("reconnect", function(){ linkPath="relay"; setStatus("Reconnecting…"); });
     client.on("error", function(){ document.body.className=""; setStatus("Relay error — check your internet, then reload."); });
   }
   function startWebRTC(){
@@ -424,8 +437,8 @@ document.getElementById("recenter").addEventListener("click", function(){
          relay is ~205ms and capped at ~11 updates/sec, the direct link is the
          LAN. If this never says DIRECT, that is the lag, and it is a network
          problem (AP isolation, guest WiFi) rather than a sensor one. */
-      dc.onopen=function(){ dcReady=true; setStatus("Connected — <b>DIRECT link</b>, lowest delay"); };
-      dc.onclose=function(){ dcReady=false; setStatus("Direct link dropped — <b>back on the slow relay</b>"); };
+      dc.onopen=function(){ dcReady=true; linkPath="direct"; setInputLost(false); setStatus(statusText()); };
+      dc.onclose=function(){ dcReady=false; linkPath="relay"; setStatus("DIRECT dropped — <b>RELAY / delayed</b> fallback"); };
       pc.onicecandidate=function(e){ if(e.candidate) pub({from:"ctrl", type:"ice", cand:e.candidate}); };
       pc.createOffer().then(function(o){ return pc.setLocalDescription(o); }).then(function(){ pub({from:"ctrl", type:"offer", sdp:pc.localDescription}); }).catch(function(){});
     }catch(e){}

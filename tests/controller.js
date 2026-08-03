@@ -163,5 +163,10 @@ console.log(`    swing 175° -> x=${seamA.toFixed(3)}    swing -175° (10° furt
 ck('crossing +/-180 moves the blade by a small amount, not a jump',
    Math.abs(seamB-seamA)<0.25, `moved ${(Math.abs(seamB-seamA)*100).toFixed(1)}% for a 10° swing`);
 
+console.log('\n--- 9. motion packets are sequenced and input loss is visible ---');
+const ctrlCode=src.replace(/\/\*[\s\S]*?\*\//g,'').replace(/^\s*\/\/.*$/gm,'');
+ck('phone motion packets carry a monotonic sequence', /\+\+motionSeq/.test(ctrlCode) && /seq:packet\.seq/.test(ctrlCode));
+ck('phone exposes an INPUT LOST state', /INPUT LOST/.test(ctrlCode) && /lastOrientAt/.test(ctrlCode));
+
 console.log('\n'+(pass?'ALL PASS':'FAILURES PRESENT'));
 process.exit(pass?0:1);

@@ -8,7 +8,7 @@ A single-page browser arcade game for **SDG 12** — a Fruit-Ninja-style slicer
 teaching Hong Kong recycling. No build step, no framework, no bundler. Plain
 HTML + CSS + ES5-ish JS with CDN libraries, deployed static to Vercel.
 
-Current state: **build 65**. Dark "dojo-arcade" theme, 50 items, four modes,
+Current state: **build 66**. Dark "dojo-arcade" theme, 50 items, four modes,
 blade skins with an XP/level system.
 
 Repo: `Oliver-jig/sorting-machine`. Two branches, **kept in sync after every
@@ -205,12 +205,32 @@ direct link.
 last packet made an 11Hz relay feed *look* like 11Hz — the blade froze for 90ms
 then jumped, which reads as lag on top of the transport delay. `remoteSample`
 estimates velocity, `remotePos` carries the blade along it every frame, and
-`RCFG.lead` (180ms) additionally aims ahead to cover the transport — **only for
-relay samples**. Measured by `tests/latency.js`: felt lag on the relay
-**230ms -> 115ms**, tracking error 25.7% -> 18.2% of the screen. On the direct
-link the lead is 0 and tracking stays exact (0.00%); applying it there costs
-5.2% error for nothing. Do not add smoothing back — it lagged behind its own
-prediction and made every metric worse.
+`RCFG.lead` additionally aims ahead to cover the transport — **only for relay
+samples**. On the direct link the lead is 0 and tracking stays exact (0.00%);
+applying it there costs 5.2% error for nothing. Do not add smoothing back — it
+lagged behind its own prediction and made every metric worse.
+
+`lead` is **120ms**, not the 180 first shipped. 180 minimised felt lag (115ms vs
+155ms) but overshoots more on direction changes, and in a slicing game an
+overshoot cuts the wrong item — being late is cheaper than being wrong. `cap`
+220, `maxJump` 0.20, `vlp` 0.45, `vmax` 1.6 px/ms all bound how far a bad
+velocity estimate can throw the blade.
+
+**Phone packets are sequenced, and a transport switch resets velocity.** The
+WebRTC data channel is `ordered:false, maxRetransmits:0` — deliberately, for
+latency — so packets genuinely arrive out of order, and an older sample landing
+after a newer one dragged the blade backwards. Every packet carries a monotonic
+`seq`; `remoteSample` drops anything not newer and returns false. Separately, a
+direct/relay transition changes both cadence AND latency, so the old path's
+velocity is zeroed rather than carried across — otherwise the first packet from
+the new path could reverse the blade.
+
+**A resting phone must stop slicing.** `remotePos` returns null past
+`RCFG.stale` (350ms) and the loop clears `BLADE.active`, so a phone put down no
+longer keeps cutting whatever it sits on. Mouse idles out after 90ms and webcam
+after `CAMGRACE`; the phone had no timeout at all until now. The `#phoneState`
+HUD chip shows `DIRECT` / `RELAY / delayed` / `INPUT LOST` — the fastest way to
+tell a network problem from a sensor problem without a console.
 
 **There is no TURN server, deliberately.** `openrelay.metered.ca` was in
 `HICE`/`CICE` for years and is dead: gathering with `iceTransportPolicy:"relay"`
@@ -218,7 +238,8 @@ returns zero candidates and ICE error 701. So the direct link only forms when
 STUN can find a path — **same WiFi**. A phone on mobile data behind carrier NAT,
 or school WiFi with client isolation, falls back to the relay and there is
 nothing in the code that can fix that. The controller now says which path it is
-on; if it does not say DIRECT, the lag is the network, not the sensor.
+on; if it does not say DIRECT, the lag is the network, not the sensor — and the
+`#phoneState` chip now says the same thing on the laptop screen.
 
 **The phone controller must not use the accelerometer.** It measures force, not
 position; integrating it drifts and turns end-of-swing deceleration into reverse
@@ -309,14 +330,16 @@ a timeout also sets), or using swipe paths longer than the gap between cards.
   Powers were built (practice-only, unranked runs) and then reverted at the
   user's request: keeping the fairness guarantee simple and absolute beat having
   the feature. Do not re-open without a new reason.
-- `controller.html` carries its own build number (now **44**), separate from the
+- `controller.html` carries its own build number (now **46**), separate from the
   game's. Phones cache it hard — check that number on the phone before believing
   a controller fix shipped.
 - Unverified on real hardware: the build 60 controller fix on an actual phone,
   the dark theme on that page, and a webcam pass confirming the cursor reads
   against the dark playfield.
-- Known, not fixed (spotted while fixing the controller, each its own change):
-  - `applyRemote()` sets `BLADE.active=true` and nothing ever clears it. Mouse
-    idles out after 90ms and webcam after `CAMGRACE`; the phone has no timeout,
-    so a resting phone keeps slicing whatever it sits on.
-  - `applyRemote()` still has no idle timeout (see above); unchanged.
+- **Branch topology is a trap.** `main` is an ORPHAN root commit with **no
+  common ancestor** with `master`, and `agent/phone-controller-stability` points
+  at that same commit — so "merge the agent branch into main" is a no-op. Vercel
+  deploys **`master`** (`origin/HEAD -> master`), which carries the real 90+
+  commit history. Work from those branches must be brought over as a content
+  copy (`git checkout origin/main -- <files>`), never an unrelated-history
+  merge. Build 66 did exactly that for the phone-stability work.
