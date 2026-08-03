@@ -8,7 +8,7 @@ A single-page browser arcade game for **SDG 12** — a Fruit-Ninja-style slicer
 teaching Hong Kong recycling. No build step, no framework, no bundler. Plain
 HTML + CSS + ES5-ish JS with CDN libraries, deployed static to Vercel.
 
-Current state: **build 62**. Dark "dojo-arcade" theme, 50 items, four modes,
+Current state: **build 63**. Dark "dojo-arcade" theme, 50 items, four modes,
 blade skins with an XP/level system.
 
 Repo: `Oliver-jig/sorting-machine`. Two branches, **kept in sync after every
@@ -30,7 +30,7 @@ for f in js/*.js; do node --check $f || echo "FAIL $f"; done
 ```
 
 ```bash
-npm test                  # all eight invariant harnesses
+npm test                  # all nine invariant harnesses
 node tests/fairness.js    # or run one on its own
 npm run check             # syntax-check every js file
 ```
@@ -85,8 +85,33 @@ maxed out.
 
 ## Invariants — these were each a shipped bug, do not regress
 
-**Canvas `arc()` throws on a negative radius** and kills the rAF loop entirely.
-Particle sizes are clamped (`Math.max(0.1, …)`). Keep all radius math positive.
+**Canvas `arc()` throws on a negative radius.** Particle sizes are clamped
+(`Math.max(0.1, …)`). Keep all radius math positive.
+
+**The render loop must never die, and a dead board must never be silent.**
+`loop()` is a thin wrapper: it calls `loopBody()` in a `try`, reports the first
+failure on the overlay via `loopFail()`, and reschedules in a `finally` so one
+bad frame degrades instead of bricking the game. Two long diagnoses were spent
+on frozen boards that said nothing — an exception in a rAF callback stops the
+chain permanently and leaves only a console line nobody has open. **`loopBody`
+must NOT call `requestAnimationFrame` itself** — a stray reschedule there
+doubles the chain every frame until the tab dies. `tests/loop.js` guards both.
+
+**`startRound()` is all-or-nothing.** It used to hide the round overlay FIRST
+and set `G.running` LAST, so anything throwing in between (`specialsReset`,
+`resize`, `clearObjs`) left the overlay gone and the game stopped: HUD up, timer
+bar stuck full, zero items, no explanation. Arm the round first, dismiss the
+overlay only once the throwing part has succeeded, and put the overlay back with
+the reason on failure.
+
+**Item launch height scales with the stage, it is not a constant.** `spawn()`
+fires from `y=H+55`, so the old flat `Math.min(H, DIFF.h)` (380px) meant that on
+a tall screen items rose 380px from BELOW the bottom edge and never reached the
+playfield — measured on a 1180px stage they peaked at 73% down, among the
+skyline, reading as "no items are coming out". `riseFor(base)` returns
+`Math.max(base, H*0.62)`: the tuned preset stays the FLOOR so short screens are
+unchanged, and tall ones get a real arc. Both Sort and Versus use it; Bin It and
+Quiz have their own spawners and are untouched.
 
 **Screens must scroll and centre with `margin:auto`, never
 `justify-content:center`.** A centred flex child that overflows has its top
@@ -201,6 +226,7 @@ Run with `node <file>`; each exits non-zero on failure.
 | `controller.js` | Phone: a real arm swing moves the blade, in both modes |
 | `signalling.js` | Phone: no ICE candidate is lost; the relay is not flooded |
 | `latency.js` | Phone: dead reckoning cuts felt lag and never overshoots off-screen |
+| `loop.js` | Spawn height scales with the screen; no silent freeze can return |
 
 They are the only automated protection for the invariants above. Run `npm test`
 before pushing.
