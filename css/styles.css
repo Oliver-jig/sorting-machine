@@ -177,6 +177,8 @@
   .topicchip{background:linear-gradient(180deg,#5a3a20,#362114); border:2px solid rgba(0,0,0,.4);
     color:#fbe9d0; font-size:14px; font-weight:700; letter-spacing:.4px}
   .topicchip .dot{width:12px;height:12px}
+  .phoneState{position:absolute;right:12px;top:72px;background:rgba(20,16,12,.82);color:#8fe3a0;border:1px solid rgba(143,227,160,.35);border-radius:999px;padding:6px 11px;font:700 11px ui-monospace,Menlo,monospace;letter-spacing:.4px;box-shadow:0 4px 12px rgba(0,0,0,.25)}
+  .phoneState.lost{color:#ff9f9f;border-color:rgba(255,100,100,.55)}
   .timebar{height:10px; background:rgba(0,0,0,.45); border:1px solid rgba(0,0,0,.5)}
   .timefill{background:linear-gradient(90deg,var(--amber-l),var(--amber))}
   #stage{border-radius:18px; border:1px solid rgba(255,255,255,.08); background:none}

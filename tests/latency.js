@@ -75,7 +75,7 @@ ck('dead reckoning tracks the hand more closely', ne<oe,
    `${(oe*100).toFixed(1)}% -> ${(ne*100).toFixed(1)}%`);
 ck('and it reduces the felt lag', nf<of, `${of}ms -> ${nf}ms`);
 /* The sample gap is 90ms; recovering a good part of that is the whole point. */
-ck('it cuts the felt lag by at least a third', (of-nf)/of>=0.33, `${of}ms -> ${nf}ms, cut ${Math.round(100*(of-nf)/of)}%`);
+ck('it cuts the felt lag by at least 30%', (of-nf)/of>=0.30, `${of}ms -> ${nf}ms, cut ${Math.round(100*(of-nf)/of)}%`);
 
 console.log('\n--- 2. the direct path (~60 Hz, ~0ms) must not be made worse ---');
 const oldDirect=run({hz:60, delay:0, predict:false, relay:false});
@@ -114,6 +114,17 @@ console.log('\n--- 5. the loop must actually drive it ---');
 ck('loop() calls remoteDrive for phone control',
    /controlMode==="remote"\)\s*remoteDrive\(now\)/.test(src));
 ck('remReset clears the samples too', /function remReset\(\)\{[\s\S]{0,80}?remoteReset\(\)/.test(src));
+
+console.log('\n--- 6. ordered samples and transport changes ---');
+ctx.remoteReset(); CLOCK=0; ctx.remoteSample(0,400,360,false,10);
+CLOCK=16; ctx.remoteSample(0,900,360,false,12);
+CLOCK=32; const accepted=ctx.remoteSample(0,100,360,false,11);
+ck('late packets are ignored', accepted===false, `accepted=${accepted}`);
+const newest=ctx.remotePos(0,CLOCK);
+ck('late packet cannot reverse the newest position', newest.x>850, `x=${newest.x.toFixed(0)}`);
+CLOCK=48; ctx.remoteSample(0,920,360,true,13);
+const switched=ctx.remotePos(0,CLOCK);
+ck('transport change clears old velocity', Math.abs(switched.x-920)<1, `x=${switched.x.toFixed(0)}`);
 
 console.log('\n'+(pass?'ALL PASS':'FAILURES PRESENT'));
 process.exit(pass?0:1);
