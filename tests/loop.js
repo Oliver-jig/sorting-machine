@@ -86,6 +86,9 @@ function runLoop(framesThatThrow){
               errMsg:{set innerHTML(v){reported.push(v);}, get innerHTML(){return '';}},
               errReload:{addEventListener(){}}, errHide:{addEventListener(){}} };
   const c={ console, Math, location:{reload(){}},
+    /* the sliced block now also carries the opt-in fps meter */
+    qs:{ get:()=>null }, performance:{ now:()=>0 }, G:{objs:[]}, DPR:1, W:0, H:0,
+    document:{ createElement:()=>({style:{},textContent:''}), body:{appendChild(){}} },
     requestAnimationFrame(){ scheduled++; },
     el:id=>els[id]||{textContent:'',innerHTML:'',classList:{add(){},remove(){}}} };
   vm.createContext(c); vm.runInContext(loopSrc, c);
