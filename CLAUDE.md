@@ -8,7 +8,7 @@ A single-page browser arcade game for **SDG 12** — a Fruit-Ninja-style slicer
 teaching Hong Kong recycling. No build step, no framework, no bundler. Plain
 HTML + CSS + ES5-ish JS with CDN libraries, deployed static to Vercel.
 
-Current state: **build 63**. Dark "dojo-arcade" theme, 50 items, four modes,
+Current state: **build 64**. Dark "dojo-arcade" theme, 50 items, four modes,
 blade skins with an XP/level system.
 
 Repo: `Oliver-jig/sorting-machine`. Two branches, **kept in sync after every
@@ -87,6 +87,16 @@ maxed out.
 
 **Canvas `arc()` throws on a negative radius.** Particle sizes are clamped
 (`Math.max(0.1, …)`). Keep all radius math positive.
+
+**A global error report must never borrow game UI.** `loopFail()` reports into
+`#errBar`, a fixed banner outside `#app` with its **own** Reload and Dismiss
+buttons. The first version wrote `el("ovlBtn").onclick = location.reload` — but
+that button already had a click listener calling `startRound()`, and assigning
+`onclick` does not replace a listener, it adds a second handler. So once a loop
+fault had fired even once, pressing "Start round" both started the round and
+reloaded the page: the game bounced to the main menu and could not be started at
+all, in every mode. The error path made things worse than the fault it reported.
+`tests/loop.js` section 4 asserts `loopFail` never touches `ovlBtn`.
 
 **The render loop must never die, and a dead board must never be silent.**
 `loop()` is a thin wrapper: it calls `loopBody()` in a `try`, reports the first
@@ -226,7 +236,7 @@ Run with `node <file>`; each exits non-zero on failure.
 | `controller.js` | Phone: a real arm swing moves the blade, in both modes |
 | `signalling.js` | Phone: no ICE candidate is lost; the relay is not flooded |
 | `latency.js` | Phone: dead reckoning cuts felt lag and never overshoots off-screen |
-| `loop.js` | Spawn height scales with the screen; no silent freeze can return |
+| `loop.js` | Spawn height scales; no silent freeze; errors never touch game UI |
 
 They are the only automated protection for the invariants above. Run `npm test`
 before pushing.

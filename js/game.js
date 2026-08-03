@@ -770,19 +770,35 @@ var last=performance.now(), tnow=0;
    repeats every frame must not spam, and re-rendering the message would itself
    be work in a loop that is already failing. */
 var loopErr=null;
+/* Reports into #errBar, which exists only for this and has its own buttons.
+
+   It must NOT write onto any game control. The first version set
+   `el("ovlBtn").onclick = location.reload` — but that button already had a
+   click listener calling startRound(), and setting onclick does not replace a
+   listener, it adds a second handler. So once this had fired even once, the
+   next press of "Start round" ran startRound() AND reloaded the page: the game
+   bounced to the main menu and became impossible to start, in every mode. A
+   global error report borrowing game UI turned a recoverable fault into a
+   worse bug than the one it was reporting. */
 function loopFail(e){
-  if(loopErr) return;                       /* first one only */
+  if(loopErr) return;                       /* first one only — never spam */
   loopErr=(e&&e.message)||"unknown error";
   try{
-    el("ovl").classList.remove("hidden");
-    el("ovlR").textContent="Something went wrong";
-    el("ovlT").textContent="The game hit an error";
-    el("ovlD").innerHTML="<b>"+loopErr+"</b><br>The screen may stop responding. "+
-      "Reload the page — and please report this message.";
-    el("ovlBtn").textContent="Reload";
-    el("ovlBtn").onclick=function(){ location.reload(); };
+    var bar=el("errBar"); if(!bar) return;
+    el("errMsg").innerHTML="<b>The game hit an error:</b> "+loopErr+
+      "<br>Play may not work correctly. Please report this message.";
+    bar.classList.remove("hidden");
   }catch(_){}                               /* reporting must not throw either */
 }
+/* Wired once at load; `errBar` is inert until loopFail() reveals it. */
+(function(){
+  var r=el("errReload"), h=el("errHide");
+  if(r) r.addEventListener("click", function(){ location.reload(); });
+  /* Dismiss clears the latch too, so a LATER, different fault can still report
+     instead of being swallowed by the once-only guard. */
+  if(h) h.addEventListener("click", function(){
+    el("errBar").classList.add("hidden"); loopErr=null; });
+})();
 function loop(now){
   try{ loopBody(now); }
   catch(e){ loopFail(e); }

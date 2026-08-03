@@ -75,17 +75,24 @@ ck('the player is shown the reason', /specials exploded/.test(bad.msg), bad.msg.
 console.log('\n--- 3. the render loop survives a throwing frame ---');
 const loopSrc=slice('var loopErr=null;', 'function loopBody(now){', 'loop/loopFail');
 function runLoop(framesThatThrow){
-  let scheduled=0, frame=0, reported=[];
+  let scheduled=0, frame=0, reported=[], barShown=false;
+  /* The round-start button is watched, not driven: nothing in the error path
+     may write to it. It already has a listener calling startRound(). */
+  const ovlBtn={ textContent:'', _onclick:null,
+                 set onclick(v){ this._onclick=v; }, get onclick(){ return this._onclick; } };
   const els={ ovl:{classList:{add(){},remove(){}}}, ovlR:{textContent:''},
-              ovlT:{textContent:''}, ovlD:{set innerHTML(v){reported.push(v);}, get innerHTML(){return '';}},
-              ovlBtn:{textContent:'', onclick:null} };
+              ovlT:{textContent:''}, ovlD:{innerHTML:''}, ovlBtn,
+              errBar:{classList:{add(){barShown=false;},remove(){barShown=true;}}},
+              errMsg:{set innerHTML(v){reported.push(v);}, get innerHTML(){return '';}},
+              errReload:{addEventListener(){}}, errHide:{addEventListener(){}} };
   const c={ console, Math, location:{reload(){}},
     requestAnimationFrame(){ scheduled++; },
     el:id=>els[id]||{textContent:'',innerHTML:'',classList:{add(){},remove(){}}} };
   vm.createContext(c); vm.runInContext(loopSrc, c);
   c.loopBody=function(){ frame++; if(framesThatThrow) throw new Error('bad frame '+frame); };
   for(let i=0;i<5;i++) c.loop(i*16.7);
-  return {scheduled, frame, reports:reported.length};
+  return {scheduled, frame, reports:reported.length, barShown,
+          ovlBtnOnclick:ovlBtn.onclick, ovlBtnText:ovlBtn.textContent};
 }
 const ok=runLoop(false);
 ck('a healthy loop reschedules every frame', ok.scheduled===5, `${ok.scheduled}/5`);
@@ -101,6 +108,24 @@ console.log(`    5 throwing frames -> ${dead.scheduled} reschedules, ${dead.repo
 ck('a throwing frame still reschedules, so the loop lives', dead.scheduled===5, `${dead.scheduled}/5`);
 ck('the failure is reported to the player', dead.reports>=1);
 ck('a fault that repeats every frame reports only once', dead.reports===1, `${dead.reports} reports`);
+ck('the report goes to the dedicated error bar', dead.barShown===true);
+
+/* THE REGRESSION. Writing onclick onto the round-start button did not replace
+   its existing listener, it added a second handler — so the next "Start round"
+   both started the round and reloaded the page, bouncing to the main menu and
+   making the game impossible to start in every mode. */
+console.log('\n--- 4. the error report must not touch game controls ---');
+ck('loopFail never sets onclick on the round-start button',
+   dead.ovlBtnOnclick===null, 'onclick was '+dead.ovlBtnOnclick);
+ck('loopFail never relabels the round-start button',
+   dead.ovlBtnText==='', `text was "${dead.ovlBtnText}"`);
+/* Scan CODE only — this block explains the old mistake in prose, and matching
+   the pattern inside its own comment is a false positive. */
+const loopCode=loopSrc.replace(/\/\*[\s\S]*?\*\//g,'').replace(/^\s*\/\/.*$/gm,'');
+ck('no ovlBtn handler is assigned anywhere in the error path',
+   !/ovlBtn"\)\.onclick|ovlBtn"\)\.addEventListener/.test(loopCode));
+ck('the reload button is the error bar\'s own',
+   /errReload/.test(src) && /errBar/.test(src));
 
 console.log('\n'+(pass?'ALL PASS':'FAILURES PRESENT'));
 process.exit(pass?0:1);
