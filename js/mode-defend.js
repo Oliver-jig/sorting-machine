@@ -270,7 +270,7 @@ function tsunamiUpdate(dt, now){
       else if(o.correct && inBin)  dCatch(o);
       else if(o.correct && !inBin) dStrike(o, "missed "+QBINS[o.it.bin].n+"!");
       else if(!o.correct && inBin) dStrike(o, "that's "+QBINS[o.it.bin].n+"!");
-      scene.remove(o.mesh); G.objs.splice(i,1);
+      releaseObj(o); G.objs.splice(i,1);
       if(!TS.running) return;                 /* game over mid-loop */
     }
   }

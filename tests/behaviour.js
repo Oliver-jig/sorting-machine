@@ -10,7 +10,7 @@ function ctxFor(W,H){
     toWorld:(x,y)=>({x,y}),
     el:()=>({textContent:"",innerHTML:"",style:{},classList:{add(){},remove(){}}}),
     show(){}, resize(){}, clearObjs(){ ctx.G.objs=[]; },
-    spawnBurst(){}, drawHeart(){}, fxRR(){}, stopCam(){}, scoresRecord(){},
+    spawnBurst(){}, releaseObj(o){ ctx.scene.remove(o.mesh); }, drawHeart(){}, fxRR(){}, stopCam(){}, scoresRecord(){},
     setupCam(){}, setupMouse(){}, hx:n=>"#"+n.toString(16), setRoundLbl(){}, setTopic(){},
     fxc:new Proxy({},{get:()=>()=>{},set:()=>true}),
     rr(){}, fillIt(){}, outline(){}, cjk(){}, OL:"#000", OLW:5, ART:{},

@@ -40,8 +40,24 @@ function initThree(){
   var key=new THREE.DirectionalLight(0xffffff,0.9); key.position.set(-0.4,1,0.8); scene.add(key);
   var rim=new THREE.DirectionalLight(0xbfd3ff,0.4); rim.position.set(0.6,-0.3,0.6); scene.add(rim);
 }
+/* Every frame clears and repaints the whole #fx canvas AND re-renders the WebGL
+   scene, so cost scales with the pixel COUNT, not the CSS size. A flat
+   min(1.5, dpr) ignored how big the stage is: on a large display at dpr 2 that
+   is 1750x1180 CSS -> 2625x1770 = 4.6 MEGAPIXELS repainted 60 times a second,
+   while a laptop-sized window pays a third of that for the same game.
+
+   So budget the pixels instead of the ratio. Small windows still get the full
+   1.5 and look identical; only stages big enough to hurt are scaled back, and
+   never below 1.0 (below that text and the blade go visibly soft). 2.6MP is
+   ~44% less fill than the old behaviour at the size above. */
+var PIXBUDGET=2.6e6;
+function dprFor(w,h){
+  var want=Math.min(1.5, window.devicePixelRatio||1);
+  var area=Math.max(1, w*h);
+  return Math.max(1, Math.min(want, Math.sqrt(PIXBUDGET/area)));
+}
 function resize(){
-  var r=stage.getBoundingClientRect(); W=r.width; H=r.height; DPR=Math.min(1.5,window.devicePixelRatio||1);
+  var r=stage.getBoundingClientRect(); W=r.width; H=r.height; DPR=dprFor(W,H);
   renderer.setPixelRatio(DPR); renderer.setSize(W,H,false);
   camera.left=-W/2; camera.right=W/2; camera.top=H/2; camera.bottom=-H/2; camera.updateProjectionMatrix();
   fx.width=W*DPR; fx.height=H*DPR; fxc.setTransform(DPR,0,0,DPR,0,0);
@@ -190,7 +206,23 @@ function startRound(){
 }
 function endRound(){ G.running=false; G.round++;
   if(G.round>=ROUNDS.length) endGame(); else showOverlayFor(G.round); }
-function clearObjs(){ G.objs.forEach(function(o){ scene.remove(o.mesh); }); G.objs=[]; }
+/* Retiring an item must RELEASE it, not just unparent it.
+
+   makeSprite() allocates a MeshBasicMaterial per spawn — it has to, because each
+   item fades independently through material.opacity when sliced. But three.js
+   keeps GPU-side program and uniform state for every material it has ever seen
+   until dispose() is called, and nothing here ever called it. A Sort game spawns
+   a few hundred items across four rounds and they accumulated for the life of
+   the page, across replays, getting progressively less smooth.
+
+   The shared SPRITE_GEO and the TEXCACHE textures are deliberately NOT disposed:
+   they are reused by every item and outlive individual objects. material.dispose()
+   does not touch the texture it maps, so the cache stays valid. */
+function releaseObj(o){
+  scene.remove(o.mesh);
+  if(o.mesh && o.mesh.material && o.mesh.material.dispose) o.mesh.material.dispose();
+}
+function clearObjs(){ G.objs.forEach(releaseObj); G.objs=[]; }
 
 /* The roundN stat is shared by every mode, so whoever launches must also say
    what the number MEANS — Bin It puts lives there, and "3 round" reads as
@@ -314,7 +346,7 @@ function updatePhysics(dt){
     o.mesh.rotation.set(0.25*Math.sin(tnow*0.002+o.phase), 0, o.spin);
     o.mesh.scale.setScalar(o.scale);
     o.mesh.material.opacity=o.a;
-    if(o.y>H+100 || o.a<=0 || o.x<-120 || o.x>W+120){ scene.remove(o.mesh); G.objs.splice(i,1); }
+    if(o.y>H+100 || o.a<=0 || o.x<-120 || o.x>W+120){ releaseObj(o); G.objs.splice(i,1); }
   }
 }
 
@@ -475,7 +507,7 @@ function vsUpdate(dt, now){
     if(o.sliced){ o.a-=0.05; o.scale+=0.03; }
     if(o.side===0 && o.x>W/2-24) o.x=W/2-24; if(o.side===1 && o.x<W/2+24) o.x=W/2+24;
     var w=toWorld(o.x,o.y); o.mesh.position.set(w.x,w.y,0); o.mesh.rotation.set(0.25*Math.sin(now*0.002+o.phase),0,o.spin); o.mesh.scale.setScalar(o.scale); o.mesh.material.opacity=o.a;
-    if(o.y>H+110||o.a<=0){ scene.remove(o.mesh); G.objs.splice(i,1); }
+    if(o.y>H+110||o.a<=0){ releaseObj(o); G.objs.splice(i,1); }
   }
   if(BLADE.active){ vsSliceFor(0,BLADE.px,BLADE.py,BLADE.x,BLADE.y); BLADE.trail.push({x:BLADE.x,y:BLADE.y,t:now}); } BLADE.px=BLADE.x; BLADE.py=BLADE.y;
   if(BLADE2.active){ vsSliceFor(1,BLADE2.px,BLADE2.py,BLADE2.x,BLADE2.y); BLADE2.trail.push({x:BLADE2.x,y:BLADE2.y,t:now}); } BLADE2.px=BLADE2.x; BLADE2.py=BLADE2.y;
@@ -799,10 +831,35 @@ function loopFail(e){
   if(h) h.addEventListener("click", function(){
     el("errBar").classList.add("hidden"); loopErr=null; });
 })();
+/* Opt-in FPS meter: add ?fps=1 to the URL. Off by default and costing nothing
+   when off, because the only way to tell a slow MACHINE from slow CODE is a
+   number measured on the machine that feels slow. Shows the running frame rate
+   and the worst frame in the last second — a steady 60 with a 40ms spike is a
+   very different problem from a flat 30. */
+var SHOWFPS=qs.get("fps")==="1", fpsN=0, fpsT=0, fpsWorst=0, fpsBox=null;
+function fpsTick(now, cost){
+  if(!fpsBox){
+    fpsBox=document.createElement("div");
+    fpsBox.style.cssText="position:fixed;left:10px;top:10px;z-index:999;background:rgba(0,0,0,.72);"+
+      "color:#7fe08a;font:600 12px ui-monospace,Menlo,monospace;padding:6px 10px;border-radius:8px;"+
+      "pointer-events:none;white-space:pre";
+    document.body.appendChild(fpsBox);
+  }
+  fpsN++; if(cost>fpsWorst) fpsWorst=cost;
+  if(now-fpsT>=1000){
+    fpsBox.textContent=Math.round(fpsN*1000/(now-fpsT))+" fps   worst frame "+fpsWorst.toFixed(1)+"ms"+
+      "\nitems "+G.objs.length+"   dpr "+DPR.toFixed(2)+"   "+Math.round(W)+"x"+Math.round(H);
+    fpsN=0; fpsT=now; fpsWorst=0;
+  }
+}
 function loop(now){
+  var t0=SHOWFPS?performance.now():0;
   try{ loopBody(now); }
   catch(e){ loopFail(e); }
-  finally{ requestAnimationFrame(loop); }   /* the chain survives a bad frame */
+  finally{
+    if(SHOWFPS){ try{ fpsTick(now, performance.now()-t0); }catch(_){} }
+    requestAnimationFrame(loop);            /* the chain survives a bad frame */
+  }
 }
 function loopBody(now){
   var dt=Math.min(48,now-last); last=now; tnow=now;
@@ -846,9 +903,23 @@ function loopBody(now){
      Leaving one here would schedule a second chain on every frame, doubling the
      frame rate each time until the tab dies. */
 }
+/* Item labels are drawn for every item, every frame — up to 16 a frame. The two
+   costly calls here were setting `font` (re-resolves the font stack) and
+   measureText (lays out the string) for text that NEVER changes: the label is
+   the item's name. Both are now cached by string, so a steady board does one
+   layout per item type for the whole session instead of 16 per frame.
+
+   The font assignment stays UNCONDITIONAL on purpose. Caching it was tried and
+   is wrong: quiz cards, score pops and the bin labels all set fxc.font too, so a
+   cached "we already set it" flag goes stale mid-frame and labels render in
+   whichever font drew last. Only the width is cached — that is the measureText
+   layout, which is the expensive half and depends only on the string. */
+var LBLW={};
 function roundedText(txt,x,y){
   fxc.font="600 13px "+FONT;
-  var w=fxc.measureText(txt).width+16, h=22;
+  var w=LBLW[txt];
+  if(w===undefined){ w=fxc.measureText(txt).width+16; LBLW[txt]=w; }
+  var h=22;
   fxc.fillStyle="rgba(255,255,255,.92)"; fxc.strokeStyle="rgba(0,0,0,.08)"; fxc.lineWidth=1;
   var rx=x-w/2, ry=y-h/2, rr=11;
   fxc.beginPath();

@@ -8,7 +8,7 @@ A single-page browser arcade game for **SDG 12** — a Fruit-Ninja-style slicer
 teaching Hong Kong recycling. No build step, no framework, no bundler. Plain
 HTML + CSS + ES5-ish JS with CDN libraries, deployed static to Vercel.
 
-Current state: **build 64**. Dark "dojo-arcade" theme, 50 items, four modes,
+Current state: **build 65**. Dark "dojo-arcade" theme, 50 items, four modes,
 blade skins with an XP/level system.
 
 Repo: `Oliver-jig/sorting-machine`. Two branches, **kept in sync after every
@@ -23,6 +23,11 @@ npm start                 # python3 -m http.server 8137 — then open localhost:
 Serve it; do not open `index.html` from disk. Camera and device-motion APIs
 need a served origin, and the phone controller needs https (i.e. a deploy).
 
+**`npm test` now runs `npm run check` first.** A parse error in `js/game.js`
+used to pass the whole suite — the harnesses read the file as TEXT (regex and
+source slices), so a `game.js` that could not load at all still scored every
+assertion. That shipped once. Syntax check is the first thing the suite does.
+
 **Syntax-check after every JS edit** — a parse error kills the game silently:
 
 ```bash
@@ -30,7 +35,7 @@ for f in js/*.js; do node --check $f || echo "FAIL $f"; done
 ```
 
 ```bash
-npm test                  # all nine invariant harnesses
+npm test                  # syntax check + all ten invariant harnesses
 node tests/fairness.js    # or run one on its own
 npm run check             # syntax-check every js file
 ```
@@ -84,6 +89,31 @@ maxed out.
 - `#bg` is DOM/SVG (gradient + skyline), so it is restylable with CSS.
 
 ## Invariants — these were each a shipped bug, do not regress
+
+**Every retired item must be RELEASED, not just unparented.** `makeSprite()`
+allocates a `MeshBasicMaterial` per spawn — it has to, since each item fades
+independently through `material.opacity` — and three.js holds GPU program state
+for every material until `dispose()` is called. Nothing disposed them, so a few
+hundred accumulated per game and kept accumulating across replays for the life
+of the page. Use `releaseObj(o)` at **every** removal site; a bare
+`scene.remove(o.mesh)` is the leak. `SPRITE_GEO` and the `TEXCACHE` textures are
+shared and must NOT be disposed (`material.dispose()` does not touch its map, so
+the cache stays valid). `tests/perf.js` fails on a bare removal.
+
+**Resolution is budgeted by pixel COUNT, not a flat ratio.** Cost scales with
+pixels, and the old flat `min(1.5, dpr)` made a large display pay 4.65MP a frame
+against a laptop's 2.07MP for the same game. `dprFor(w,h)` caps total pixels at
+`PIXBUDGET` (2.6MP): laptop windows are unchanged at 1.5, big stages scale back
+(1750x1180 -> 1.12), and it never drops below 1.0 because text and the blade go
+visibly soft there — a huge stage is allowed to exceed the budget rather than
+look broken.
+
+**Item labels cache their measured width, not their font.** `roundedText` runs
+per item per frame; `measureText` is the expensive half and the label never
+changes, so widths are cached by string. Caching the `font` assignment was tried
+and is WRONG — quiz cards, score pops and bin labels all set `fxc.font` too, so
+a "already set it" flag goes stale mid-frame and labels render in whichever font
+drew last. Keep the font assignment unconditional.
 
 **Canvas `arc()` throws on a negative radius.** Particle sizes are clamped
 (`Math.max(0.1, …)`). Keep all radius math positive.
@@ -237,6 +267,7 @@ Run with `node <file>`; each exits non-zero on failure.
 | `signalling.js` | Phone: no ICE candidate is lost; the relay is not flooded |
 | `latency.js` | Phone: dead reckoning cuts felt lag and never overshoots off-screen |
 | `loop.js` | Spawn height scales; no silent freeze; errors never touch game UI |
+| `perf.js` | Materials are released, resolution is budgeted, labels are cached |
 
 They are the only automated protection for the invariants above. Run `npm test`
 before pushing.
