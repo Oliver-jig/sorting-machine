@@ -162,10 +162,32 @@ function showOverlayFor(round){
   el("ovlBtn").textContent = round===0 ? "Start round" : "Next round";
   el("ovl").classList.remove("hidden");
 }
-function startRound(){ resize(); el("ovl").classList.add("hidden");
-  clearObjs(); G.pops=[]; G.parts=[]; G.flashes=[]; BLADE.trail=[]; G.spawnT=0;
-  specialsReset();
-  G.roundEndAt=performance.now()+DIFF.round; G.running=true; }
+/* Order matters. This used to hide the overlay FIRST and set G.running LAST, so
+   anything throwing in between (specialsReset, resize, clearObjs) left the
+   overlay gone and the game stopped: HUD up, timer bar stuck full, zero items,
+   and nothing on screen saying why. That is indistinguishable from a hang, and
+   it cost a long diagnosis.
+
+   Now the round is armed first, the overlay is dismissed only once the setup
+   that can throw has succeeded, and a failure puts the overlay BACK with the
+   reason on it rather than dumping the player on a dead board. */
+function startRound(){
+  try{
+    resize();
+    clearObjs(); G.pops=[]; G.parts=[]; G.flashes=[]; BLADE.trail=[]; G.spawnT=0;
+    specialsReset();
+    G.roundEndAt=performance.now()+DIFF.round;
+    G.running=true;
+    el("ovl").classList.add("hidden");
+  }catch(e){
+    G.running=false;
+    el("ovl").classList.remove("hidden");
+    el("ovlT").textContent="Could not start the round";
+    el("ovlD").innerHTML="<b>"+((e&&e.message)||"unknown error")+
+      "</b><br>Try again, or reload the page.";
+    el("ovlBtn").textContent="Try again";
+  }
+}
 function endRound(){ G.running=false; G.round++;
   if(G.round>=ROUNDS.length) endGame(); else showOverlayFor(G.round); }
 function clearObjs(){ G.objs.forEach(function(o){ scene.remove(o.mesh); }); G.objs=[]; }
@@ -249,6 +271,20 @@ function wrapFx(txt,cx,cy,maxw){
 function drawHeart(cx,cy,s,col){ fxc.save(); fxc.fillStyle=col; fxc.beginPath(); fxc.moveTo(cx,cy+s*0.35); fxc.bezierCurveTo(cx-s*1.1,cy-s*0.4,cx-s*0.5,cy-s*1.1,cx,cy-s*0.45); fxc.bezierCurveTo(cx+s*0.5,cy-s*1.1,cx+s*1.1,cy-s*0.4,cx,cy+s*0.35); fxc.closePath(); fxc.fill(); fxc.restore(); }
 
 /* ================= spawn / physics ================= */
+/* How high an item should fly, in px.
+
+   This used to be a flat `Math.min(H, DIFF.h)` — a fixed 380px however tall the
+   stage was. Items launch from y=H+55, so on a big screen they rose 380px from
+   BELOW the bottom edge and never reached the playfield: measured on a 1180px
+   stage they peaked at y=738, staying in the bottom 37% of the screen, which is
+   exactly where the skyline sits. They skimmed the rooftops instead of arcing
+   into view, and read as "no items are coming out".
+
+   Scaling with H fixes that. DIFF.h stays the FLOOR so short screens and the
+   difficulty presets keep their tuned feel; only tall stages get more. 0.62
+   puts the apex a bit above mid-screen, leaving room for the label drawn under
+   each item without pushing items off the top. */
+function riseFor(base){ return Math.max(base, H*0.62); }
 function spawn(fx){
   if(G.objs.length>=16) return;   /* cap on-screen items so weaker machines don't choke */
   var R=ROUNDS[G.round]; var wantCorrect=Math.random()<0.55;
@@ -256,7 +292,7 @@ function spawn(fx){
   if(!pool.length) pool=ITEMS;
   var it=pool[Math.floor(Math.random()*pool.length)];
   var x=(fx!==undefined)? fx : 60+Math.random()*(W-120);
-  var vy=-(Math.sqrt(2*DIFF.g*Math.min(H,DIFF.h)))-Math.random()*0.1;
+  var vy=-(Math.sqrt(2*DIFF.g*riseFor(DIFF.h)))-Math.random()*0.1;
   var vx=(fx!==undefined)? (Math.random()-0.5)*0.03 : (W/2-x)/1600+(Math.random()-0.5)*0.1;   /* burst items rise straight in their own lane; solo items drift only gently */
   var mesh=makeSprite(it); scene.add(mesh);
   G.objs.push({it:it,x:x,y:H+55,vx:vx,vy:vy,r:50,sliced:false,a:1,scale:1,
@@ -415,7 +451,7 @@ function vsSpawn(side){
   if(!pool.length) pool=ITEMS;
   var it=pool[Math.floor(Math.random()*pool.length)];
   var lo=side===0?60:(W/2+30), hi=side===0?(W/2-30):(W-60), x=lo+Math.random()*Math.max(20,hi-lo);
-  var vy=-(Math.sqrt(2*0.0006*Math.min(H,380)))-Math.random()*0.03;
+  var vy=-(Math.sqrt(2*0.0006*riseFor(380)))-Math.random()*0.03;
   var mesh=makeSprite(it); scene.add(mesh);
   G.objs.push({it:it,x:x,y:H+55,vx:(Math.random()-0.5)*0.03,vy:vy,r:50,sliced:false,a:1,scale:1,spin:(Math.random()-.5)*2,dspin:(Math.random()-.5)*0.05,phase:Math.random()*6,side:side,mesh:mesh});
 }
@@ -721,7 +757,38 @@ function stopPeer(){ if(mqttClient){ try{ mqttClient.end(true); }catch(e){} } }
 
 /* ================= main loop ================= */
 var last=performance.now(), tnow=0;
+/* THE RENDER LOOP MUST NEVER DIE.
+
+   A single throw inside a rAF callback stops the chain permanently: the board
+   freezes, items stop arriving, and the only trace is one line in a console
+   nobody has open. `CLAUDE.md` records this class already (canvas arc() throws
+   on a negative radius), and it has now cost two long diagnoses.
+
+   So the body is wrapped. A throwing frame is reported ON SCREEN and the chain
+   is rescheduled, which turns "the game is frozen and I don't know why" into a
+   message naming the failure. Only the FIRST error is reported — a fault that
+   repeats every frame must not spam, and re-rendering the message would itself
+   be work in a loop that is already failing. */
+var loopErr=null;
+function loopFail(e){
+  if(loopErr) return;                       /* first one only */
+  loopErr=(e&&e.message)||"unknown error";
+  try{
+    el("ovl").classList.remove("hidden");
+    el("ovlR").textContent="Something went wrong";
+    el("ovlT").textContent="The game hit an error";
+    el("ovlD").innerHTML="<b>"+loopErr+"</b><br>The screen may stop responding. "+
+      "Reload the page — and please report this message.";
+    el("ovlBtn").textContent="Reload";
+    el("ovlBtn").onclick=function(){ location.reload(); };
+  }catch(_){}                               /* reporting must not throw either */
+}
 function loop(now){
+  try{ loopBody(now); }
+  catch(e){ loopFail(e); }
+  finally{ requestAnimationFrame(loop); }   /* the chain survives a bad frame */
+}
+function loopBody(now){
   var dt=Math.min(48,now-last); last=now; tnow=now;
   /* Advance the phone blade BEFORE any mode reads it, so every mode sees a
      position for this frame rather than whatever the last packet left behind.
@@ -759,7 +826,9 @@ function loop(now){
   }
   if(renderer) renderer.render(scene,camera);
   drawFx(now);
-  requestAnimationFrame(loop);
+  /* NO requestAnimationFrame here — loop() owns rescheduling in its `finally`.
+     Leaving one here would schedule a second chain on every frame, doubling the
+     frame rate each time until the tab dies. */
 }
 function roundedText(txt,x,y){
   fxc.font="600 13px "+FONT;
