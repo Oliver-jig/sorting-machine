@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#14100c">
+<title>Slice &amp; Sort — Phone controller</title>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* Dark dojo theme — kept in step with css/styles.css "theme layer".
+     If the palette changes there, change it here too; this file is standalone
+     by design (the phone loads it without the site's stylesheet). */
+  :root{ --ink:#f7ede0; --muted:#a8977e; --line:rgba(255,255,255,.12);
+    --amber:#e2703a; --amber-d:#b8532a; --amber-l:#f5854d;
+    --panel:#1a1410; --panel2:#241a12;
+    --shadow:0 12px 30px rgba(0,0,0,.45);
+    --font:'Space Grotesk',-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+    --display:'Anton',var(--font); }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  html{color-scheme:dark}
+  body{background:radial-gradient(ellipse 900px 600px at 50% -10%, rgba(191,139,46,.16), transparent 55%), #14100c;
+    color:var(--ink); font-family:var(--font);
+    -webkit-user-select:none; user-select:none; display:flex; align-items:center; justify-content:center; padding:16px}
+  button:focus-visible, input:focus-visible{ outline:3px solid var(--amber); outline-offset:2px }
+  .card{background:linear-gradient(165deg,rgba(20,13,8,.92),rgba(10,7,4,.95)); border-radius:18px; box-shadow:var(--shadow);
+    border:1px solid rgba(226,112,58,.32); padding:28px 22px; max-width:420px; width:100%; text-align:center}
+  .eyebrow{display:inline-flex; align-items:center; gap:9px; color:#e8dcc6; background:rgba(0,0,0,.35); border:1px solid var(--line);
+    border-radius:999px; padding:5px 15px 5px 6px; font-size:11.5px; font-weight:600; letter-spacing:1.2px; text-transform:uppercase}
+  .eyebrow .sdg{display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:6px; background:#3fa06a; color:#fff; font-weight:700; font-size:13px; line-height:1}
+  h1{font-family:var(--display); font-size:34px; font-weight:400; margin:10px 0 0; letter-spacing:.5px; color:#f7ede0}
+  p{color:var(--muted); font-size:15px; line-height:1.5; margin:10px 0 0}
+  p b{color:var(--ink); font-weight:600}
+  input{font-family:inherit; font-size:30px; text-align:center; letter-spacing:8px; width:180px; padding:12px; margin:14px 0 4px;
+    border:1px solid var(--line); border-radius:12px; background:rgba(0,0,0,.35); color:#fbe9d0}
+  .btn{font-family:inherit; background:var(--amber); color:#1a0e06; border:none;
+    border-radius:10px; padding:15px 26px; font-size:16px; font-weight:700; letter-spacing:.5px; width:100%; margin-top:10px;
+    box-shadow:0 6px 16px rgba(191,89,46,.35); transition:transform .06s, filter .18s}
+  .btn:active{transform:translateY(2px)}
+  .btn.sub{background:linear-gradient(180deg,#5a3a20,#422a16); color:#fbe9d0; border:1px solid rgba(0,0,0,.5); font-size:14px; padding:11px;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.15), 0 4px 10px rgba(0,0,0,.35)}
+  #pad{width:min(70vw,280px); height:min(70vw,280px); background:rgba(0,0,0,.4); border:1px solid var(--line); border-radius:18px; position:relative; margin:16px auto 4px; overflow:hidden}
+  #pad .cross{position:absolute; background:rgba(255,255,255,.10)} #pad .cx{left:0;right:0;top:50%;height:2px} #pad .cy{top:0;bottom:0;left:50%;width:2px}
+  #dot{position:absolute; width:46px; height:46px; border-radius:50%; background:var(--amber); box-shadow:0 0 18px rgba(226,112,58,.6); transform:translate(-50%,-50%); left:50%; top:50%}
+  #status{font-size:15px; color:var(--muted); margin-top:12px; min-height:20px} #status b{color:#fbe9d0}
+  .fine{font-size:12px; color:var(--muted); margin-top:12px}
+  .axisrow{margin-top:10px}
+  .axisLbl{display:block; font-size:11px; color:var(--muted); margin-bottom:5px}
+  .chips{display:flex; gap:6px; justify-content:center; flex-wrap:wrap}
+  .chip{font-family:inherit; font-size:12px; font-weight:600; padding:6px 10px; border-radius:999px;
+    border:1px solid var(--line); background:rgba(255,255,255,.04); color:var(--muted)}
+  .chip.on{background:var(--amber); border-color:var(--amber); color:#1a0e06}
+  @media (prefers-reduced-motion: reduce){ *{transition:none !important} .btn:active{transform:none} }
+
+  /* held sideways like a knife: two columns so the whole card fits a landscape phone */
+  @media (orientation:landscape){
+    body{padding:8px}
+    .card{max-width:none; padding:16px 20px; display:flex; gap:22px; align-items:center; text-align:left}
+    .col{flex:1 1 0; min-width:0}
+    h1{font-size:23px; margin:6px 0 0} p{font-size:13px; margin:6px 0 0}
+    input{font-size:24px; width:150px; padding:8px; margin:8px 0 2px; letter-spacing:6px}
+    .btn{padding:11px 18px; font-size:15px; margin-top:8px}
+    .btn.sub{padding:9px; font-size:13px}
+    #pad{width:min(46vh,190px); height:min(46vh,190px); margin:0 auto}
+    #dot{width:36px;height:36px}
+    #status{font-size:13px; margin-top:8px; text-align:center}
+    .fine{margin-top:8px; text-align:center}
+  }
+  /* While playing, hide the setup fields but KEEP the pad — it is the only
+     feedback showing where the blade currently is, which matters most in aim
+     mode. Both modes work in any orientation, so there is no rotate nag. */
+  body.playing .setup{display:none}
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="col">
+      <div class="eyebrow"><span class="sdg">12</span> Phone controller</div>
+      <h1>Point to slice</h1>
+      <p>Type the code, hold the phone however is comfortable and tap <b>Re-centre</b> — that pose becomes the middle of the screen. Now point the phone: the blade goes where you point. <b>Aim</b> puts the blade exactly where you point and holds it there; <b>Slash</b> follows the same point with weight, so <b>swinging your arm</b> swings the blade.</p>
+      <div class="setup"><input id="code" inputmode="numeric" maxlength="4" placeholder="0000" /></div>
+      <button class="btn setup" id="go">Connect &amp; enable motion</button>
+      <button class="btn sub" id="recenter">Re-centre blade</button>
+    </div>
+    <div class="col">
+      <div id="pad"><div class="cross cx"></div><div class="cross cy"></div><div id="dot"></div></div>
+      <div id="status">Not connected</div>
+      <div class="axisrow">
+        <span class="axisLbl">Control style</span>
+        <span class="chips">
+          <button type="button" class="chip" id="gripAim">🎯 Aim (steady)</button>
+          <button type="button" class="chip" id="gripSlash">🗡 Slash (with weight)</button>
+        </span>
+      </div>
+      <div class="axisrow">
+        <span class="axisLbl">If the blade moves the wrong way</span>
+        <span class="chips">
+          <button type="button" class="chip" id="axFx">Flip ←→</button>
+          <button type="button" class="chip" id="axFy">Flip ↑↓</button>
+          <button type="button" class="chip" id="axSw">Swap</button>
+        </span>
+      </div>
+      <div class="fine">build 45</div>
+    </div>
+  </div>
+
+<script src="https://cdn.jsdelivr.net/npm/mqtt@5/dist/mqtt.min.js"></script>
+<script>
+  var BROKER="wss://broker.emqx.io:8084/mqtt";
+  var qs=new URLSearchParams(location.search);
+  var codeEl=document.getElementById("code");
+  codeEl.value=((qs.get("room")||qs.get("peer")||"").replace(/[^0-9]/g,"")).slice(0,4);
+  var s=document.getElementById("status"), dot=document.getElementById("dot");
+  var client=null, room=null, sending=false, lastPub=0, motionSeq=0;
+  /* Two phones share one MQTT topic, so every message carries this id — it is
+     the only thing that lets the laptop tell Player 1 from Player 2. */
+  var CID=Math.random().toString(16).slice(2,10);
+  var myTeam=-1;
+  var pc=null, dc=null, dcReady=false;
+  var iceQ=[], remoteSet=false;
+  function addIce(c){
+    if(!pc || !remoteSet){ iceQ.push(c); return; }
+    try{ var p=pc.addIceCandidate(c); if(p&&p.catch) p.catch(function(){}); }catch(e){}
+  }
+  function flushIce(){
+    remoteSet=true;
+    /* Drain into a copy and clear FIRST — replaying in place would let addIce
+       push back into the array being iterated and the loop would never end. */
+    var q=iceQ.slice(); iceQ.length=0;
+    for(var i=0;i<q.length;i++) addIce(q[i]);
+  }
+  /* Must match HICE in js/game.js. No TURN: openrelay.metered.ca's free tier is
+     dead and gathers zero relay candidates (ICE error 701), so it only slowed
+     the handshake. Same WiFi is what makes the direct link work. */
+  var CICE={iceServers:[{urls:["stun:stun.l.google.com:19302","stun:stun1.l.google.com:19302","stun:stun.cloudflare.com:3478"]}]};
+  function pub(o){ if(client&&client.connected) client.publish("slicesort/"+room, JSON.stringify(o), {qos:0}); }
+
+  var linkPath="relay", inputLost=false, lastOrientAt=0;
+  function statusText(){
+    if(inputLost) return "<b>INPUT LOST</b> — motion sensor stopped; move the phone or reload.";
+    return linkPath==="direct"
+      ? "Connected — <b>DIRECT</b> link, lowest delay"
+      : "Connected on the <b>RELAY / delayed</b> path";
+  }
+  function setStatus(t){ s.innerHTML=t; }
+  function setInputLost(lost){
+    if(inputLost===lost) return;
+    inputLost=lost;
+    if(document.body.className.indexOf("playing")>=0) setStatus(statusText());
+  }
+  function moveDot(px,py){ dot.style.left=Math.max(0,Math.min(100,px*100))+"%"; dot.style.top=Math.max(0,Math.min(100,py*100))+"%"; }
+
+  /* Slash tuning. Driven ONLY by physically moving the phone — rotation is
+     ignored — so there is exactly one steering source in one reference frame,
+     which is what stops the blade fighting itself.
+     A firm swing crosses the whole screen in well under 0.1s at these values;
+     the previous settings felt slow mainly because friction and the pull to
+     centre killed the motion the moment you stopped accelerating. */
+  /* Slash now reads the SAME accurate signal as Aim — where the phone is
+     pointing — and differs only in FEEL: the blade chases that point with
+     weight instead of snapping to it.
+
+     It used to integrate the accelerometer, which is why it never matched
+     real movement. An accelerometer measures force, not position; recovering
+     movement from it means integrating, and integration invents motion you
+     never made. Worse, halting a swing reads as force the OTHER way, so the
+     blade set off backwards on its own.
+
+     SPRING and DAMP are measured, not guessed. Note the response rate is set
+     by their PRODUCT, because v is scaled by DAMP every frame — raising SPRING
+     alone does almost nothing, and past ~0.5 it actually gets slower.
+
+     The old 0.30/0.34 took 217ms to cover 90% of a move, which is what read as
+     lag. 0.78/0.34 does it in 67ms with only 1.5% overshoot. Stiffer also
+     passes more sensor noise through: held still the blade drifts about 1.15%
+     of the screen instead of 0.70% — smaller than the blade marker, so it is
+     not visible, and that is the trade being made. Do not push SPRING much
+     past this without re-checking the shake. */
+  var SLASHSPRING=0.78;
+  var SLASHDAMP=0.34;
+  var bx=0.5, by=0.5, vx=0, vy=0;          /* blade position + velocity, 0..1 of the screen */
+  var haveOrient=false;
+  var ra=0, rb=0;                          /* raw alpha/beta — the pointing vector for BOTH modes */
+
+  /* The accelerometer used to steer Slash and is deliberately gone. It
+     measures FORCE, not position, so movement can only be recovered by
+     integrating it — which drifts, and turns the deceleration at the end of a
+     swing into motion the other way. Orientation against gravity is a real
+     measurement, so both modes read that instead. */
+
+  /* Which way round the phone's axes map to the screen differs by device and
+     by OS, and can't be verified without the hardware — so instead of guessing
+     once in code, the mapping is adjustable from the phone itself. */
+  var AX={fx:false, fy:false, sw:false};
+  try{ var _ax=localStorage.getItem("ss3d.axis"); if(_ax) AX=JSON.parse(_ax); }catch(e){}
+  function saveAxis(){ try{ localStorage.setItem("ss3d.axis", JSON.stringify(AX)); }catch(e){} }
+
+  /* ---- CONTROL MODE ----
+     "aim":   the blade sits where you point. Tilt right and it goes right and
+       STAYS there; level the phone and it returns to the middle. ABSOLUTE, so
+       there is a fixed relationship between how you hold the phone and where
+       the blade is — the one thing velocity-based control can never give you,
+       and the reason it was impossible to aim.
+     "slash": the same target as aim, but the blade has weight and swings to
+       it rather than snapping. Livelier, still always ends where you point. */
+  var GRIP="aim";
+  try{ var _g=localStorage.getItem("ss3d.grip"); if(_g) GRIP=_g; }catch(e){}
+  if(GRIP!=="aim" && GRIP!=="slash") GRIP="aim";     /* retire older mode names */
+  function saveGrip(){ try{ localStorage.setItem("ss3d.grip", GRIP); }catch(e){} }
+
+  /* One place for the user's corrections, so the flip buttons fix both modes. */
+  function applyAxis(x,y){
+    if(AX.sw){ var t=x; x=y; y=t; }
+    if(AX.fx) x=-x;
+    if(AX.fy) y=-y;
+    return {x:x, y:y};
+  }
+  /* Only alpha and beta are kept. Aim used to derive its own hx/hy from
+     beta/gamma, picked by screen.orientation.angle — see the AIM note below for
+     why that was measurably dead in the grip this game asks for. gamma is not
+     read at all now: roll about the blade's own length is spinning the knife,
+     not aiming it. */
+  function onOrient(e){
+    /* A browser can fire deviceorientation with NOTHING in it — sensor absent,
+       blocked by permissions policy, or an iframe. `e.beta||0` turns that into a
+       confident 0, and the old code then set haveOrient and published a
+       dead-centre blade forever: the phone looks connected and the game never
+       responds. Require a real number before believing the sensor exists. */
+    if(typeof e.alpha!=="number" && typeof e.beta!=="number") return;
+    ra=e.alpha||0; rb=e.beta||0;
+    haveOrient=true;
+    lastOrientAt=Date.now();
+    setInputLost(false);
+  }
+  function wrapDeg(d){ while(d>180)d-=360; while(d<-180)d+=360; return d; }
+
+  /* ---- WHERE THE PHONE IS POINTING — the target for BOTH modes ----
+     Tilt against gravity (beta/gamma) is BLIND TO YAW, and sweeping your arm
+     sideways is almost pure yaw. Build 43 fixed that for Slash and left Aim on
+     the old beta/gamma path — while Aim stayed the DEFAULT mode, so out of the
+     box the controller could not see the motion the QR screen asks for.
+
+     Measured, in the grip the QR screen instructs ("hold your phone sideways
+     like a knife handle"), sweeping the arm 80 degrees:
+
+       old Aim  (beta/gamma)      hx moves  0.00 deg  ->   0% of the screen
+       pointing (alpha+beta)      yaw moves 80.00 deg  ->  80% of the screen
+
+     Zero, not "a bit weak". In that grip gamma sits at a CONSTANT -90 through
+     the entire sweep while alpha carries all 80 degrees of it. Old Aim steered
+     x from gamma, so left/right was pinned dead centre no matter how hard you
+     swung — while up/down, which it took from beta, kept working. That
+     half-working behaviour is exactly what "the game can hardly sense my phone"
+     feels like from the player's side.
+     (Nothing exotic is going on — beta is 0, so this is a well-conditioned
+     pose, not a gimbal-lock singularity. The axis simply was not being read.)
+
+     So both modes now steer from here: the full device->world rotation from
+     alpha+beta, taking the direction the phone's tip points (device +y — the
+     blade). A real swing carries the phone through an arc, which turns that
+     direction. A horizontal sweep moves the blade across, a chop moves it up
+     and down.
+
+     Roll about the blade's own length cancels out on purpose (gamma drops out
+     of the +y column) — that is spinning the knife, not aiming it.
+
+     Still orientation, NOT integrated acceleration, so this does not bring back
+     the drift and the reverse-on-deceleration that made Slash unusable. */
+  var SLASHYAW=50;                   /* degrees of arm sweep to cross the screen */
+  var SLASHPITCH=35;                 /* degrees of chop to cross top-to-bottom */
+  var yaw0=null, elev0=null;         /* the "centre" pose, set by Re-centre */
+  function pointing(){
+    var a=ra*Math.PI/180, b=rb*Math.PI/180;
+    var cA=Math.cos(a), sA=Math.sin(a), cB=Math.cos(b), sB=Math.sin(b);
+    /* device +y expressed in world coords = (-cB*sA, cA*cB, sB) */
+    return { yaw: Math.atan2(-cB*sA, cA*cB)*180/Math.PI,
+             elev: Math.asin(Math.max(-1,Math.min(1,sB)))*180/Math.PI };
+  }
+  /* Signs: yaw here is measured east-of-north, so swinging right raises it and
+     it maps straight through. Elevation is negated because raising the tip
+     should send the blade UP the screen, where y grows downward. If a phone
+     maps either the other way the Flip buttons still fix it.
+
+     wrapDeg on the yaw difference matters: yaw is an angle, so a swing across
+     the +/-180 seam must read as a small move, not a full-screen jump. */
+  function pointTarget(){
+    var p=pointing();
+    var a=applyAxis(wrapDeg(p.yaw-yaw0)/SLASHYAW, -(p.elev-elev0)/SLASHPITCH);
+    return { x:Math.max(0, Math.min(1, 0.5+a.x*0.5)),
+             y:Math.max(0, Math.min(1, 0.5+a.y*0.5)) };
+  }
+  /* Learn the centre pose from the CURRENT reading. Both modes share it, so
+     switching mode or tapping Re-centre behaves identically in each. */
+  function centreIfNeeded(){
+    if(yaw0===null){ var p0=pointing(); yaw0=p0.yaw; elev0=p0.elev; }
+  }
+
+  /* One target, two feels. The modes differ ONLY in whether the blade snaps to
+     where you point or springs to it — which is what the mode descriptions have
+     always claimed, and now what the code actually does. */
+  function tick(){
+    requestAnimationFrame(tick);
+    if(!haveOrient) return;
+    setInputLost(Date.now()-lastOrientAt>500);
+    centreIfNeeded();
+    var t=pointTarget();
+
+    /* AIM: position IS the pointing direction. No velocity, no friction, no
+       drift — the blade holds still when the phone does, and the same pose
+       always maps to the same spot. */
+    if(GRIP==="aim"){
+      bx=t.x; by=t.y;
+      vx=0; vy=0;
+    } else {
+      /* SLASH: same target, but the blade has weight and swings to it rather
+         than snapping. */
+      vx+=(t.x-bx)*SLASHSPRING; vy+=(t.y-by)*SLASHSPRING;
+      vx*=SLASHDAMP; vy*=SLASHDAMP;
+      bx=Math.max(0, Math.min(1, bx+vx));
+      by=Math.max(0, Math.min(1, by+vy));
+    }
+    moveDot(bx,by);
+    sendBlade();
+  }
+  /* The two paths have VERY different budgets, so they get different rates.
+
+     Measured against the public broker this game relays through, publishing a
+     position every frame:
+
+       rate     delivered   median latency
+       60 Hz      19.5%        207 ms
+       30 Hz      37.4%        210 ms
+       20 Hz      55.4%        215 ms
+       10 Hz      98.0%        220 ms
+
+     The broker caps at roughly 11 messages/second whatever you send, so 60 Hz
+     did not buy a single extra update — it threw away 80% of the player's input
+     and turned the survivors into a random stutter. Sending at the cap delivers
+     the SAME number of updates, evenly spaced, which is strictly better.
+
+     The data channel has no such limit and is on the LAN, so it stays at 60 Hz.
+     RELAYMS is 90 rather than 100 to leave a little headroom under the cap. */
+  var DCMS=16, RELAYMS=90;
+  /* g/b keep the existing coordinate mapping; seq orders packets at the host. */
+  function sendBlade(){
+    var direct=!!(dc && dc.readyState==="open");
+    var now=Date.now(); if(now-lastPub<(direct?DCMS:RELAYMS)) return; lastPub=now;
+    var gg=(bx-0.5)*60, bb=15+by*55, packet={g:gg,b:bb,seq:++motionSeq};
+    if(direct){ try{ dc.send(JSON.stringify(packet)); }catch(e){} }        /* direct link — low latency */
+    else if(sending && client && client.connected){ client.publish("slicesort/"+room, JSON.stringify({from:"ctrl",type:"orient", cid:CID, g:gg, b:bb, seq:packet.seq}), {qos:0}); }  /* relay fallback */
+  }
+  function startMotion(){
+    window.addEventListener("deviceorientation", onOrient);
+    requestAnimationFrame(tick);
+  }
+  /* In aim mode this is the important control: hold the phone however is
+   comfortable, tap, and THAT pose becomes the centre of the screen. */
+document.getElementById("recenter").addEventListener("click", function(){
+  bx=0.5; by=0.5; vx=0; vy=0;
+  yaw0=null; elev0=null;                     /* re-learn from the next reading */
+  setStatus(GRIP==="aim" ? "Centred on how you're holding it now — <b>point to move</b>"
+                         : "Centred on how you're holding it now — <b>swing to move</b>");
+});
+
+  /* Axis corrections live on the phone because that is the only place the
+     mapping can actually be observed. Saved, so it is a one-time fix. */
+  function paintAxis(){
+    var m={axFx:"fx", axFy:"fy", axSw:"sw"};
+    for(var id in m){ if(!m.hasOwnProperty(id)) continue;
+      var b=document.getElementById(id); if(b) b.className="chip"+(AX[m[id]]?" on":""); }
+  }
+  function bindAxis(id,key){
+    var b=document.getElementById(id); if(!b) return;
+    b.addEventListener("click", function(){ AX[key]=!AX[key]; saveAxis(); paintAxis(); });
+  }
+  bindAxis("axFx","fx"); bindAxis("axFy","fy"); bindAxis("axSw","sw"); paintAxis();
+
+  function paintGrip(){
+    var a=document.getElementById("gripAim"), b=document.getElementById("gripSlash");
+    if(a) a.className="chip"+(GRIP==="aim"?" on":"");
+    if(b) b.className="chip"+(GRIP==="slash"?" on":"");
+  }
+  function setGrip(g){
+    GRIP=g; saveGrip(); paintGrip();
+    if(document.body.className.indexOf("playing")>=0)
+      document.body.className="playing";
+    vx=0; vy=0; bx=0.5; by=0.5;
+    yaw0=null; elev0=null;                               /* re-learn centre from the current pose */
+    setStatus(g==="aim" ? "Aim mode — <b>point and the blade follows</b>, hold still and it stays"
+                        : "Slash mode — <b>swing your arm</b> and the blade swings with it");
+  }
+  (function(){
+    var a=document.getElementById("gripAim"), b=document.getElementById("gripSlash");
+    if(a) a.addEventListener("click", function(){ setGrip("aim"); });
+    if(b) b.addEventListener("click", function(){ setGrip("slash"); });
+    paintGrip();
+  })();
+
+  function connect(){
+      setStatus("Reaching the game…");
+    if(typeof mqtt==="undefined"){ setStatus("Couldn't load the relay — check internet and reload."); return; }
+    client=mqtt.connect(BROKER,{clientId:"ctrl_"+room+"_"+Math.random().toString(16).slice(2,8), reconnectPeriod:2500, connectTimeout:9000});
+    client.on("connect", function(){ sending=true; linkPath="relay"; setInputLost(false); client.subscribe("slicesort/"+room); pub({from:"ctrl",type:"hello",cid:CID}); document.body.className="playing"; setStatus("Connected on the <b>RELAY / delayed</b> path — trying DIRECT…"); startWebRTC();
+      /* If the handshake has not produced a channel by now it is not going to.
+         Say so plainly rather than leaving "trying…" up for the whole game. */
+      setTimeout(function(){ if(!(dc&&dc.readyState==="open"))
+        setStatus("<b>RELAY / delayed</b> (about 0.2s). Put the phone and laptop on the same WiFi for DIRECT."); }, 6000);
+    });
+    client.on("message", function(t, payload){ var d; try{ d=JSON.parse(payload.toString()); }catch(e){ return; }
+      if(d.from==="ctrl") return;                                   /* ignore our own echoed messages */
+      /* signalling and slot messages are addressed by cid — ignore the other phone's */
+      if(d.cid && d.cid!==CID) return;
+      if(d.type==="slot"){ myTeam=d.slot; setStatus(statusText()); }
+      /* The host attaches onicecandidate as soon as it builds its peer
+         connection and only publishes the answer at the end of the
+         setRemoteDescription chain, so its candidates can reach us before the
+         answer does — and the old `&& pc` test dropped them outright whenever
+         pc did not exist yet. Queue instead. (Browsers do queue addIceCandidate
+         behind a pending setRemoteDescription, so this is belt-and-braces
+         rather than the proven cause of the lag; the measured cause is the
+         relay itself, see RELAYMS.) */
+      else if(d.type==="answer" && pc){
+        try{ var p=pc.setRemoteDescription(d.sdp);
+             if(p&&p.then) p.then(flushIce, function(){}); else flushIce(); }catch(e){}
+      }
+      else if(d.type==="ice"){ addIce(d.cand); }
+    });
+    client.on("reconnect", function(){ linkPath="relay"; setStatus("Reconnecting…"); });
+    client.on("error", function(){ document.body.className=""; setStatus("Relay error — check your internet, then reload."); });
+  }
+  function startWebRTC(){
+    if(typeof RTCPeerConnection==="undefined") return;             /* stays on relay if WebRTC unsupported */
+    try{
+      pc=new RTCPeerConnection(CICE);
+      dc=pc.createDataChannel("m",{ordered:false, maxRetransmits:0});   /* unreliable = lowest latency */
+      /* Which path you are on is the single most useful thing to see here: the
+         relay is ~205ms and capped at ~11 updates/sec, the direct link is the
+         LAN. If this never says DIRECT, that is the lag, and it is a network
+         problem (AP isolation, guest WiFi) rather than a sensor one. */
+      dc.onopen=function(){ dcReady=true; linkPath="direct"; setInputLost(false); setStatus(statusText()); };
+      dc.onclose=function(){ dcReady=false; linkPath="relay"; setStatus("DIRECT dropped — <b>RELAY / delayed</b> fallback"); };
+      pc.onicecandidate=function(e){ if(e.candidate) pub({from:"ctrl", type:"ice", cand:e.candidate}); };
+      pc.createOffer().then(function(o){ return pc.setLocalDescription(o); }).then(function(){ pub({from:"ctrl", type:"offer", sdp:pc.localDescription}); }).catch(function(){});
+    }catch(e){}
+  }
+  document.getElementById("go").addEventListener("click", function(){
+    room=(codeEl.value||"").replace(/[^0-9]/g,"");
+    if(!/^[0-9]{4}$/.test(room)){ setStatus("Enter the 4-digit code from the laptop."); codeEl.focus(); return; }
+    setStatus("Enabling motion…");
+    /* iOS 13+ gates orientation and motion SEPARATELY. Both requests must be
+       fired from inside this click — awaiting one and then asking for the
+       other loses the user-gesture context and the second prompt never shows,
+       so they are started together and resolved with Promise.all. */
+    /* Only orientation is needed now, so there is a single prompt again. */
+    if(typeof DeviceOrientationEvent!=="undefined" && typeof DeviceOrientationEvent.requestPermission==="function"){
+      DeviceOrientationEvent.requestPermission().then(function(p){
+        if(p==="granted"){ startMotion(); connect(); }
+        else setStatus("Motion was blocked. Reload the page and tap Allow when asked.");
+      }).catch(function(){ setStatus("Motion needs an https page. Make sure you opened the vercel.app link."); });
+    } else { startMotion(); connect(); }                       /* Android: no prompt needed */
+  });
+</script>
+</body>
+</html>

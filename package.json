@@ -1,0 +1,21 @@
+{
+  "name": "slice-sort-3d",
+  "version": "1.0.0",
+  "description": "Slice & Sort 3D \u2014 a Hong Kong recycling arcade slicer for SDG 12 (Responsible Consumption & Production). Webcam-hand, phone-motion, and mouse control, with Sort, Quiz, Bin It, and Versus modes.",
+  "keywords": [
+    "sdg12",
+    "sustainability",
+    "recycling",
+    "game",
+    "threejs",
+    "mediapipe",
+    "hong-kong"
+  ],
+  "license": "MIT",
+  "scripts": {
+    "start": "python3 -m http.server 8137",
+    "dev": "npx serve .",
+    "test": "npm run check && node tests/xp.js && node tests/behaviour.js && node tests/fairness.js && node tests/webcam.js && node tests/quiz.js && node tests/controller.js && node tests/signalling.js && node tests/latency.js && node tests/loop.js && node tests/perf.js",
+    "check": "for f in js/*.js; do node --check $f || exit 1; done"
+  }
+}

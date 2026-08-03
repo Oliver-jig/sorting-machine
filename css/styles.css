@@ -1,0 +1,438 @@
+:root{
+    --bg:#f5f5f7; --surface:#ffffff; --surface2:#fbfbfd; --line:#e3e3e8;
+    --ink:#1d1d1f; --muted:#6e6e73; --accent:#0071e3; --accent-h:#0077ed;
+    --good:#248a3d; --bad:#d70015;
+    --shadow:0 4px 24px rgba(0,0,0,.06); --shadow-sm:0 1px 3px rgba(0,0,0,.06);
+    --font:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","Helvetica Neue",Helvetica,Arial,system-ui,sans-serif;
+  }
+  *{box-sizing:border-box; -webkit-font-smoothing:antialiased}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg); color:var(--ink); font-family:var(--font);
+    -webkit-user-select:none; user-select:none; overflow:hidden; letter-spacing:-.01em}
+  /* Widened from 900 for the mockup's two-column menu. Safe for every other
+   screen because .card is still capped at 600px, so only .menuWrap (max
+   1060) actually uses the extra room. */
+  #app{max-width:1100px; margin:0 auto; height:100%; display:flex; flex-direction:column; padding:16px}
+  button{font-family:inherit; cursor:pointer; letter-spacing:-.01em}
+  .btn{background:var(--accent); color:#fff; border:none; border-radius:980px; padding:13px 26px; font-size:16px; font-weight:500; transition:background .2s}
+  .btn:hover{background:var(--accent-h)} .btn:active{transform:scale(.98)}
+  .btn.ghost{background:rgba(0,0,0,.05); color:var(--ink)} .btn.ghost:hover{background:rgba(0,0,0,.08)}
+  .btn[disabled]{opacity:.4; pointer-events:none}
+  .screen{flex:1; display:flex; flex-direction:column; min-height:0}
+  .hidden{display:none !important}
+
+  /* Every CONTENT screen scrolls and centres. body keeps overflow:hidden so the
+     play screen can never scroll or rubber-band while you are slicing or moving
+     the bin.
+
+     `margin:auto` on the card, NOT justify-content:center. A centred flex child
+     that overflows its container has its top clipped and unreachable — no
+     scrolling can bring it back. That is exactly how the result screen's
+     "Play again" button became impossible to reach once the card grew taller
+     than a phone. With auto margins the card centres when it fits and the
+     margins collapse to 0 when it does not, so nothing is ever cut off.
+
+     ADD ANY NEW SCREEN TO BOTH SELECTORS BELOW. The blades screen was added
+     later and left out of them, which cost it centring AND scrolling in one go —
+     its Back button ended up below the fold with no way to reach it, trapping
+     the player on the screen. */
+  #start,#result,#connect,#controller,#blades{align-items:center; text-align:center;
+    overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch}
+  #start>.card,#result>.card,#connect>.card,#controller>.card,#blades>.card,
+  #start>.menuWrap{margin:auto; flex:0 0 auto}
+  .card{background:var(--surface); border-radius:28px; box-shadow:var(--shadow); padding:40px 34px; max-width:600px; width:100%}
+  h1{font-size:44px; line-height:1.03; margin:0; font-weight:600; letter-spacing:-.03em}
+  .eyebrow{color:var(--accent); font-size:14px; font-weight:600; margin-bottom:10px}
+  .lead{color:var(--muted); font-size:17px; line-height:1.5; margin:16px auto 0; max-width:470px}
+  .lead b{color:var(--ink); font-weight:600}
+  .row{display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:22px}
+  .fineprint{color:var(--muted); font-size:13px; margin-top:14px}
+
+  .label{font-size:12px; color:var(--muted); font-weight:600; text-align:left; margin:18px 0 8px}
+  .choose{display:grid; grid-template-columns:repeat(3,1fr); gap:10px}
+  .opt{background:var(--surface2); border:1.5px solid var(--line); border-radius:18px; padding:16px 10px; text-align:center; transition:border-color .15s, transform .15s}
+  .opt:hover{transform:translateY(-2px)} .opt.sel{border-color:var(--accent); box-shadow:0 0 0 3px rgba(0,113,227,.12)}
+  .opt .ic{font-size:28px} .opt .ti{font-size:14px; font-weight:600; margin-top:6px} .opt .ds{font-size:11px; color:var(--muted); margin-top:3px; line-height:1.3}
+  .seg{display:inline-flex; background:var(--surface2); border:1.5px solid var(--line); border-radius:980px; padding:3px}
+  .seg button{border:none; background:transparent; padding:8px 18px; border-radius:980px; font-size:14px; font-weight:600; color:var(--muted)}
+  .seg button.on{background:var(--accent); color:#fff}
+  @media (max-width:560px){ .choose{grid-template-columns:1fr} h1{font-size:32px} }
+
+  .hud{display:flex; align-items:center; gap:10px; margin-bottom:12px; flex-wrap:wrap}
+  .stat{background:var(--surface); border-radius:16px; box-shadow:var(--shadow-sm); padding:9px 15px; line-height:1.1}
+  .stat b{font-size:21px; font-weight:600; letter-spacing:-.02em} .stat span{display:block; font-size:11px; color:var(--muted); font-weight:500}
+  .topicchip{background:var(--surface); border-radius:980px; box-shadow:var(--shadow-sm); padding:9px 18px; font-size:14px; font-weight:600; display:flex; align-items:center; gap:8px}
+  .topicchip .dot{width:12px; height:12px; border-radius:50%}
+  .timebar{flex:1; min-width:110px; height:8px; background:#e6e6eb; border-radius:980px; overflow:hidden}
+  .timefill{height:100%; background:var(--accent); width:100%; transition:width .12s linear; border-radius:980px}
+
+  #stage{position:relative; flex:1; min-height:0; background:linear-gradient(180deg,#ffffff 0%,#eef1f6 100%);
+    border-radius:28px; box-shadow:var(--shadow); overflow:hidden; touch-action:none}
+  #gl,#fx{position:absolute; inset:0; width:100%; height:100%; display:block}
+  #fx{pointer-events:none}
+  #cam{position:absolute; right:10px; bottom:10px; width:130px; height:98px; border-radius:12px; object-fit:cover; transform:scaleX(-1); opacity:.92; z-index:4; background:#000; box-shadow:var(--shadow-sm)}
+  #camCap{position:absolute; right:10px; bottom:112px; z-index:4; background:rgba(255,255,255,.85); border-radius:980px; padding:4px 10px; font-size:11px; font-weight:600; color:var(--ink)}
+
+  .overlay{position:absolute; inset:0; z-index:6; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:rgba(255,255,255,.72); -webkit-backdrop-filter:saturate(180%) blur(20px); backdrop-filter:saturate(180%) blur(20px);
+    text-align:center; padding:24px}
+  .overlay.hidden{display:none}
+  .overlay .r{font-size:14px; color:var(--accent); font-weight:600}
+  .overlay .t{font-size:34px; font-weight:600; letter-spacing:-.02em; margin-top:6px}
+  .overlay .d{font-size:17px; color:var(--muted); margin-top:10px; max-width:430px; line-height:1.45}
+  .overlay .d b{color:var(--ink); font-weight:600}
+
+  #qrbox{background:#fff; padding:14px; border-radius:20px; box-shadow:var(--shadow); display:inline-block; margin:8px 0}
+  #qrbox canvas,#qrbox img{display:block}
+  .status{font-size:14px; color:var(--muted); margin-top:8px} .status b{color:var(--ink)}
+  #pad{width:min(80vw,360px); height:min(80vw,360px); background:var(--surface2); border:1.5px solid var(--line); border-radius:24px; position:relative; margin:16px auto}
+  #dot{position:absolute; width:40px; height:40px; border-radius:50%; background:var(--accent); transform:translate(-50%,-50%); left:50%; top:50%}
+
+  .facts{text-align:left; margin:20px 0; display:flex; flex-direction:column; gap:10px}
+  .fact{background:var(--surface2); border:1px solid var(--line); border-radius:16px; padding:12px 16px; font-size:14px; line-height:1.5}
+  .src{font-size:12px; color:var(--muted); margin-top:8px}
+
+/* ===== theme layer ===== */
+
+/* Dark dojo-arcade skin.
+
+   Colours are HEX, not the oklch() the mockup was drawn in: oklch needs
+   Chrome 111+ / Safari 15.4+, and this runs on school machines and phones where
+   a silent colour failure would be invisible until someone complained. Hex costs
+   nothing and cannot fail.
+
+   Variable NAMES are unchanged from the old amber theme on purpose — the
+   component blocks further down and controller.html both reference them, so
+   keeping the names is what makes this a palette swap rather than a rewrite.
+   `--amber` is now the rust accent; it is the brand-accent slot, not literally
+   amber any more. */
+:root{
+    --ink:#f7ede0; --muted:#a8977e; --line:rgba(255,255,255,.12);
+    --amber:#e2703a; --amber-d:#b8532a; --amber-l:#f5854d;
+    --eco:#3fa06a; --eco-d:#2e7d50;
+    --panel:#1a1410; --panel2:#241a12;
+    --ground:#14100c;
+    --good:#3fa06a; --bad:#e0483f;
+    --shadow:0 12px 30px rgba(0,0,0,.45); --shadow-sm:0 4px 10px rgba(0,0,0,.35);
+    --font:'Space Grotesk',-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+    --display:'Anton',var(--font);
+    /* The BASE layer at the top of this file has its own :root using these
+       names, and its rules still reference them. Redefining them here means
+       anything the theme layer does not explicitly restyle goes dark anyway,
+       instead of quietly keeping a white background. */
+    --bg:#14100c; --surface:#1a1410; --surface2:#241a12;
+    --accent:#e2703a; --accent-h:#f5854d;
+  }
+  html{color-scheme:dark}
+  body{font-family:var(--font); color:var(--ink); letter-spacing:0;
+    background:
+      radial-gradient(ellipse 900px 600px at 25% 12%, rgba(191,139,46,.16), transparent 55%),
+      radial-gradient(ellipse 700px 500px at 85% 88%, rgba(191,139,46,.10), transparent 50%),
+      var(--ground);}
+  a:focus-visible, button:focus-visible, .opt:focus-visible, input:focus-visible{
+    outline:3px solid var(--amber); outline-offset:2px;}
+
+  /* ---- mockup texture utilities ---- */
+  .wood{ background:repeating-linear-gradient(100deg,#3a2415 0px,#45301c 3px,#3a2415 6px,#4d3521 30px,#3a2415 34px);
+    box-shadow:inset 0 0 0 2px rgba(0,0,0,.4), inset 0 2px 6px rgba(0,0,0,.5), 0 6px 16px rgba(0,0,0,.4); }
+  .plank{ background:linear-gradient(180deg,#5a3a20,#422a16);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.15), inset 0 -3px 6px rgba(0,0,0,.4), 0 4px 10px rgba(0,0,0,.35);
+    border:1px solid rgba(0,0,0,.5); }
+  /* Decorative blade streaks. aria-hidden in the markup; pointer-events:none so
+     they can never sit on top of a control and eat a click. */
+  .slash{ position:absolute; height:5px; border-radius:3px; pointer-events:none;
+    background:linear-gradient(90deg,transparent,#efe6d6 30%,#efe6d6 70%,transparent);
+    box-shadow:0 0 14px rgba(226,112,58,.7); }
+
+  .btn{background:var(--amber); color:#1a0e06; border:none;
+    border-radius:10px; padding:15px 28px; font-size:16px; font-weight:700; letter-spacing:.5px;
+    box-shadow:0 6px 16px rgba(191,89,46,.35); transition:transform .06s, filter .18s;}
+  .btn:hover{filter:brightness(1.08)}
+  .btn:active{transform:translateY(2px)}
+  .btn.ghost{background:linear-gradient(180deg,#5a3a20,#422a16); color:#fbe9d0;
+    border:1px solid rgba(0,0,0,.5); box-shadow:inset 0 1px 0 rgba(255,255,255,.15), 0 4px 10px rgba(0,0,0,.35)}
+  .card{background:linear-gradient(165deg,rgba(20,13,8,.92),rgba(10,7,4,.95));
+    border-radius:18px; box-shadow:var(--shadow); border:1px solid rgba(226,112,58,.32); padding:34px 30px}
+  h1{font-family:var(--display); font-size:52px; font-weight:400; color:var(--ink);
+    letter-spacing:.5px; line-height:.95; text-wrap:balance}
+  .eyebrow{display:inline-flex; align-items:center; gap:9px; color:#e8dcc6; background:rgba(0,0,0,.35);
+    border:1px solid var(--line); border-radius:999px; padding:5px 15px 5px 6px;
+    font-size:11.5px; font-weight:600; letter-spacing:1.2px; text-transform:uppercase; margin-bottom:12px}
+  .eyebrow .sdg{display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px;
+    border-radius:6px; background:var(--eco); color:#fff; font-weight:700; font-size:13px; line-height:1}
+  .lead{color:#c9bda8; font-weight:400} .lead b{color:var(--ink); font-weight:600}
+  .label{font-size:11px; color:var(--amber); font-weight:700; letter-spacing:1.5px; text-transform:uppercase}
+  .opt{background:rgba(255,255,255,.03); border:1px solid var(--line); border-radius:10px; cursor:pointer;
+    font-family:inherit; color:var(--ink); width:100%; transition:transform .12s, border-color .12s, background .12s}
+  .opt:hover{transform:translateY(-2px); border-color:rgba(226,112,58,.5)}
+  .opt.sel{border-color:var(--amber); background:rgba(226,112,58,.16); box-shadow:0 0 0 2px rgba(226,112,58,.18)}
+  .opt .ic{height:34px; display:flex; align-items:center; justify-content:center} .opt .ic svg{width:28px;height:28px}
+  .opt .ti{font-weight:600} .opt .ds{color:var(--muted)}
+  .seg{background:rgba(0,0,0,.3); border:1px solid var(--line)}
+  .seg button{color:var(--muted)} .seg button.on{background:var(--amber); color:#1a0e06}
+  .stat{background:linear-gradient(180deg,#5a3a20,#362114); border:2px solid rgba(0,0,0,.4);
+    border-radius:14px; padding:8px 16px; box-shadow:inset 0 1px 0 rgba(255,255,255,.12), 0 4px 10px rgba(0,0,0,.4)}
+  .stat b{font-family:var(--display); font-size:22px; font-weight:400; color:#fbe9d0; font-variant-numeric:tabular-nums}
+  .stat span{text-transform:uppercase; letter-spacing:1px; font-size:9px; color:#b8a58c}
+  .topicchip{background:linear-gradient(180deg,#5a3a20,#362114); border:2px solid rgba(0,0,0,.4);
+    color:#fbe9d0; font-size:14px; font-weight:700; letter-spacing:.4px}
+  .topicchip .dot{width:12px;height:12px}
+  .phoneState{position:absolute;right:12px;top:72px;background:rgba(20,16,12,.82);color:#8fe3a0;border:1px solid rgba(143,227,160,.35);border-radius:999px;padding:6px 11px;font:700 11px ui-monospace,Menlo,monospace;letter-spacing:.4px;box-shadow:0 4px 12px rgba(0,0,0,.25)}
+  .phoneState.lost{color:#ff9f9f;border-color:rgba(255,100,100,.55)}
+  .timebar{height:10px; background:rgba(0,0,0,.45); border:1px solid rgba(0,0,0,.5)}
+  .timefill{background:linear-gradient(90deg,var(--amber-l),var(--amber))}
+  #stage{border-radius:18px; border:1px solid rgba(255,255,255,.08); background:none}
+  /* Playfield goes dark too. The item sprites are light fills with dark outlines,
+     so they read fine against this; only the sun and skyline needed rebuilding. */
+  #bg{position:absolute; inset:0; z-index:0;
+    background:radial-gradient(ellipse 700px 420px at 50% 0%, rgba(191,139,46,.16), transparent 62%),
+      linear-gradient(180deg,#1a1510 0%,#171209 55%,#120e08 100%)}
+  #bg .sun{position:absolute; top:26px; right:46px; width:52px; height:52px; border-radius:50%;
+    background:#c98b34; opacity:.5; box-shadow:0 0 50px 14px rgba(201,139,52,.30)}
+  #bg .skyline{position:absolute; bottom:0; left:0; width:100%; height:44%; opacity:.55}
+  #bg .ground{position:absolute; left:0; right:0; bottom:0; height:16%;
+    background:repeating-linear-gradient(90deg,#2a1c10 0 34px,#241809 34px 38px); opacity:.75}
+  #gl{z-index:1} #fx{z-index:2}
+  .overlay{background:rgba(8,5,3,.72); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); color:#fbe9d0}
+  .overlay .r{color:var(--amber)} .overlay .t{font-family:var(--display); font-size:44px; font-weight:400; color:#fbe9d0}
+  .overlay .d{color:#c9bda8} .overlay .d b{color:#fbe9d0}
+  #dot{background:var(--amber)}
+  .fact{background:rgba(0,0,0,.28); border:1px solid var(--line); color:#c9bda8}
+  @media (prefers-reduced-motion: reduce){ *{transition:none !important} .opt:hover,.btn:active{transform:none} }
+
+  /* "Your best" bar on the start screen */
+  .bestbar{ display:flex; align-items:center; justify-content:center; gap:8px; flex-wrap:wrap;
+    margin:12px 0 2px; padding:8px 12px; border-radius:999px;
+    background:rgba(255,255,255,.05); border:1px solid var(--line) }
+  .bestLbl{ font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); font-weight:600 }
+  .bestItem{ font-size:14px; color:var(--ink) }
+  .bestItem b{ font-variant-numeric:tabular-nums }
+
+  /* level + XP strip, on the start screen and the blades screen */
+  .lvlbar{ display:flex; align-items:center; gap:10px; margin:12px auto 2px;
+    padding:8px 14px; border-radius:999px; max-width:420px;
+    background:rgba(255,255,255,.05); border:1px solid var(--line) }
+  .lvlNum{ font-size:14px; font-weight:700; color:var(--ink); flex:none;
+    font-variant-numeric:tabular-nums }
+  .lvlTrack{ flex:1; height:8px; border-radius:999px; background:rgba(0,0,0,.45); overflow:hidden; min-width:60px }
+  .lvlFill{ display:block; height:100%; border-radius:999px;
+    background:linear-gradient(90deg,var(--amber-l),var(--amber)); transition:width .3s }
+  .lvlXp{ font-size:12px; color:var(--muted); flex:none; font-variant-numeric:tabular-nums }
+
+  /* blade picker */
+  #blades>.card{ position:relative }
+  .bladeClose{ position:absolute; top:16px; left:16px; padding:8px 14px; font-size:14px;
+    width:auto; margin:0; z-index:2 }
+  .bladelist{ display:flex; flex-direction:column; gap:9px; margin:16px 0 4px }
+  .blade{ display:flex; align-items:center; gap:14px; text-align:left; width:100%;
+    font-family:inherit; cursor:pointer; padding:10px 12px; border-radius:18px;
+    background:repeating-linear-gradient(100deg,#3a2415 0px,#45301c 3px,#3a2415 6px,#4d3521 30px,#3a2415 34px); border:1px solid rgba(0,0,0,.5);
+    transition:border-color .15s, background .15s }
+  .blade:hover:not(:disabled){ border-color:var(--amber) }
+  .blade.on{ border-color:var(--amber); box-shadow:0 0 0 2px rgba(226,112,58,.25) }
+  /* Locked rows stay visible and readable — the point is to show what is coming,
+     so they are dimmed, not hidden, and only the pointer is disabled. */
+  .blade.locked{ opacity:.55; cursor:default }
+  .bladePv{ width:112px; height:41px; flex:none; border-radius:10px;
+    background:#2b2b33 }
+  .bladeTxt{ min-width:0 }
+  .bladeN{ font-size:15px; font-weight:600; color:#fbe9d0 }
+  .bladeD{ font-size:12.5px; color:#c9bda8; line-height:1.35; margin-top:2px }
+  .bladeTag{ font-size:10px; font-weight:700; letter-spacing:.06em; color:#5fd08a;
+    border:1.5px solid #5fd08a; border-radius:5px; padding:1px 5px; vertical-align:1px }
+  @media (max-width:560px){
+    .bladePv{ width:84px; height:31px }
+    .bladeN{ font-size:14px } .bladeD{ font-size:12px }
+    .lvlXp{ font-size:11px }
+  }
+
+  /* leaderboard on the result screen */
+  .lb{ margin-top:14px; padding:14px; border-radius:14px; background:rgba(0,0,0,.3); border:1px solid var(--line); text-align:left }
+  .lbRow{ display:flex; align-items:center; gap:8px; flex-wrap:wrap }
+  .lbLbl{ font-size:13px; color:var(--muted) }
+  .lbRow input{ flex:1; min-width:120px; font-family:inherit; font-size:15px; padding:9px 12px;
+    border:1px solid var(--line); border-radius:8px; background:rgba(0,0,0,.35); color:#fbe9d0 }
+  .lbRow .btn{ width:auto; flex:none; padding:9px 16px; font-size:14px; margin:0 }
+  .lbNote{ font-size:12px; color:var(--muted); margin-top:8px; line-height:1.45 }
+
+  /* battery hit — a short jolt, never a loop. Kept out of the reduced-motion
+     path below, where it collapses to a no-op. */
+  @keyframes stageShake{
+    0%,100%{transform:translate(0,0)}
+    15%{transform:translate(-7px,3px)} 30%{transform:translate(6px,-4px)}
+    45%{transform:translate(-5px,-2px)} 60%{transform:translate(4px,3px)}
+    80%{transform:translate(-2px,1px)}
+  }
+  #stage.shake{ animation:stageShake .32s ease-in-out 1 }
+  @media (prefers-reduced-motion: reduce){ #stage.shake{ animation:none } }
+
+  /* ---- dark-theme corrections to base-layer rules ---- */
+  /* The QR box stays WHITE on purpose. It is not decoration: phone cameras need
+     a light quiet-zone around the code to lock on, and a dark card would make
+     pairing unreliable. This is the one deliberately light surface. */
+  #qrbox{background:#ffffff}
+  /* The webcam caption sat on a near-white pill with --ink text; --ink is now
+     cream, so it would have been invisible. */
+  #camCap{background:rgba(10,7,4,.8); color:#fbe9d0; border:1px solid var(--line)}
+  #pad{background:rgba(0,0,0,.35); border:1px solid var(--line)}
+  #cam{border:1px solid rgba(255,255,255,.14)}
+  .status{color:var(--muted)} .status b{color:#fbe9d0}
+  .src,.fineprint{color:var(--muted)}
+  .lbLbl{color:var(--muted)}
+  .lbRow input::placeholder{color:#8a7a63}
+
+  /* ================= MENU (mockup two-column) ================= */
+  .menuWrap{ display:flex; gap:28px; align-items:stretch; width:100%; max-width:1060px;
+    text-align:left; padding:8px 0 }
+  .hero{ flex:1.05; display:flex; flex-direction:column; justify-content:center; gap:16px; min-width:0 }
+  .wordmark{ position:relative }
+  .wordmark h1{ font-family:var(--display); font-size:clamp(46px,6.4vw,78px); font-weight:400;
+    line-height:.9; color:#f7ede0; letter-spacing:.5px; transform:skewX(-3deg);
+    text-shadow:0 4px 0 rgba(0,0,0,.4), 0 0 30px rgba(226,112,58,.22) }
+  .wordmark h1 .accent{ color:var(--amber) }
+  /* the slash cutting through the wordmark */
+  .heroSlash{ top:50%; left:-18px; width:min(340px,86%); transform:rotate(-8deg);
+    background:linear-gradient(90deg,transparent,var(--amber-l),transparent);
+    box-shadow:0 0 20px rgba(226,112,58,.8); height:6px }
+  .hero .lead{ font-size:15px; line-height:1.6; max-width:400px; margin:0 }
+  .hero .bestbar,.hero .lvlbar{ margin-left:0; margin-right:0; max-width:400px }
+
+  .menuPanel{ flex:1; display:flex; flex-direction:column; gap:14px; min-width:0; max-width:none }
+  .menuPanel .label{ margin:0 }
+  .hr{ height:1px; background:rgba(255,255,255,.08) }
+
+  /* mode rows — replaces the pill segmented control on this screen only.
+     Still a plain <button> list inside #modeSeg, so game.js's container
+     delegation (and its 0% dead-zone guarantee) keeps working untouched. */
+  .modeList{ display:flex; flex-direction:column; gap:5px }
+  .modeList button{ display:flex; align-items:stretch; gap:13px; width:100%; text-align:left;
+    background:transparent; border:1px solid transparent; border-radius:9px; padding:8px 13px;
+    font-family:inherit; cursor:pointer; transition:background .12s, border-color .12s }
+  .modeList button:hover{ background:rgba(255,255,255,.04) }
+  .modeList button.on{ background:rgba(255,255,255,.06); border-color:rgba(255,255,255,.14) }
+  .modeList .bar{ width:4px; border-radius:2px; flex:none; opacity:.45; background:#8a97a0 }
+  .modeList button.on .bar{ opacity:1 }
+  .modeList button[data-g="sort"]    .bar{ background:#2f7fd1 }
+  .modeList button[data-g="quiz"]    .bar{ background:#e0a92b }
+  .modeList button[data-g="tsunami"] .bar{ background:#e0762b }
+  .modeList button[data-g="vs"]      .bar{ background:#2fae6a }
+  .modeList .mtxt{ display:block; min-width:0 }
+  .modeList .mtxt b{ display:block; font-size:14.5px; font-weight:700; color:#c9bda8 }
+  .modeList .mtxt i{ display:block; font-style:normal; font-size:11px; margin-top:2px; color:#a8977e }
+  .modeList button.on .mtxt b{ color:#fbe9d0 } .modeList button.on .mtxt i{ color:#c9bda8 }
+
+  .menuPanel .choose{ gap:8px }
+  .menuPanel .opt{ padding:12px 10px }
+  .menuPanel .opt .ti{ font-size:12.5px } .menuPanel .opt .ds{ font-size:10.5px }
+  .speedRow{ display:flex; align-items:center; justify-content:space-between; gap:12px }
+  .menuPanel .row{ margin-top:auto; padding-top:6px }
+  .menuPanel #playBtn{ flex:1 }
+  .menuPanel .fineprint{ margin-top:10px }
+
+  /* Below 900px the two columns stack. The mockup is a fixed 980x760 desktop
+     frame and simply does not describe a phone, so this fills that gap rather
+     than diverging from it — and it is what keeps the card scrollable and every
+     control reachable on a handset. */
+  @media (max-width:900px){
+    .menuWrap{ flex-direction:column; gap:18px; max-width:600px }
+    .hero{ text-align:center; align-items:center }
+    .wordmark h1{ font-size:clamp(40px,11vw,60px) }
+    /* Stacked and centred, the slash lands straight through the middle line and
+       reads as a smudge rather than an accent. Pushed below the wordmark and
+       softened so it stays decorative. */
+    .heroSlash{ left:50%; transform:translateX(-50%) rotate(-6deg); width:70%;
+      top:auto; bottom:-6px; opacity:.55 }
+    .hero .lead{ max-width:none }
+    .menuPanel .row{ margin-top:6px }
+  }
+
+  /* The old single-column card fitted inside 900px. The mockup's menu is a
+     980-wide two-column frame, so the shell needs to widen — but only where the
+     wide layout is actually used, which is why this is scoped rather than a
+     blanket change to #app. */
+  @media (min-width:940px){
+    #app:has(#start:not(.hidden)), #app:has(#blades:not(.hidden)){ max-width:1100px }
+  }
+
+  /* ================= HUD (floats over the playfield) ================= */
+  /* z-index 5 clears #gl(1) and #fx(2). #fx is pointer-events:none, so nothing
+     between the HUD and the player's click; the pause button stays reachable. */
+  .hud{ position:absolute; inset:0; z-index:5; pointer-events:none; margin:0; display:block }
+  .hud > *{ pointer-events:auto }
+
+  .scoreBadge{ position:absolute; top:18px; left:18px; width:74px; height:74px; border-radius:50%;
+    background:linear-gradient(180deg,#5a3a20,#362114); border:3px solid rgba(0,0,0,.4);
+    box-shadow:inset 0 2px 4px rgba(255,255,255,.15), 0 4px 10px rgba(0,0,0,.4);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px }
+  .scoreBadge span{ font-size:8px; font-weight:600; letter-spacing:1px; color:#c2ab8c }
+  .scoreBadge b{ font-family:var(--display); font-size:21px; font-weight:400; color:#fbe9d0;
+    font-variant-numeric:tabular-nums; line-height:1 }
+
+  .roundBanner{ position:absolute; top:0; left:50%; transform:translateX(-50%);
+    background:linear-gradient(180deg,#5a3a20,#362114); border:2px solid rgba(0,0,0,.4); border-top:none;
+    border-radius:0 0 14px 14px; padding:9px 22px 8px; box-shadow:0 4px 10px rgba(0,0,0,.4);
+    min-width:230px; max-width:min(70%,420px) }
+  .rbTop{ display:flex; align-items:center; justify-content:center; gap:8px; white-space:nowrap }
+  .rbTop .dot{ width:9px; height:9px; border-radius:50%; flex:none }
+  .rbTop #topicName{ font-size:12.5px; font-weight:700; color:#fbe9d0; letter-spacing:.4px;
+    text-transform:uppercase; overflow:hidden; text-overflow:ellipsis }
+  .rbSep{ color:#a8977e }
+  .rbTop b{ font-size:12.5px; font-weight:700; color:#fbe9d0; font-variant-numeric:tabular-nums }
+  .rbTop #roundLbl{ font-size:9.5px; letter-spacing:1px; text-transform:uppercase; color:#c2ab8c }
+  .roundBanner .timebar{ margin-top:7px; width:100%; min-width:0; flex:none; height:6px }
+
+  .pauseBtn{ position:absolute; top:18px; right:18px; width:46px; height:46px; border-radius:50%;
+    background:linear-gradient(180deg,#5a3a20,#422a16); border:1px solid rgba(0,0,0,.5);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.15), 0 4px 10px rgba(0,0,0,.35);
+    display:flex; align-items:center; justify-content:center; gap:4px; cursor:pointer }
+  .pauseBtn span{ width:4px; height:17px; background:#fbe9d0; border-radius:1px; display:block }
+
+  .targetPill{ position:absolute; bottom:18px; left:50%; transform:translateX(-50%);
+    display:flex; align-items:center; gap:9px; border-radius:100px; padding:9px 22px;
+    background:repeating-linear-gradient(100deg,#3a2415 0px,#45301c 3px,#3a2415 6px,#4d3521 30px,#3a2415 34px);
+    box-shadow:inset 0 0 0 2px rgba(0,0,0,.4), 0 6px 16px rgba(0,0,0,.4);
+    font-size:12.5px; font-weight:700; color:#fbe9d0; white-space:nowrap }
+  .targetPill .dot{ width:10px; height:10px; border-radius:50%; flex:none }
+
+  @media (max-width:640px){
+    .scoreBadge{ width:58px; height:58px; top:12px; left:12px }
+    .scoreBadge b{ font-size:17px }
+    .pauseBtn{ width:40px; height:40px; top:12px; right:12px }
+    .roundBanner{ padding:7px 14px 6px; min-width:0; max-width:52% }
+    .rbTop #topicName,.rbTop b{ font-size:11px }
+    .targetPill{ bottom:12px; padding:7px 16px; font-size:11px }
+  }
+
+  /* ================= BLADES (mockup grid) ================= */
+  #blades>.card{ max-width:1000px }
+  .bladelist{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin:16px 0 4px }
+  .blade{ flex-direction:column; align-items:center; text-align:center; gap:10px; padding:16px 12px;
+    border-radius:12px }
+  .bladePv{ width:100%; height:52px; border-radius:8px; background:rgba(0,0,0,.4) }
+  .bladeTxt{ width:100% }
+  @media (max-width:900px){ .bladelist{ grid-template-columns:repeat(2,1fr) } }
+  @media (max-width:520px){ .bladelist{ grid-template-columns:1fr }
+    .blade{ flex-direction:row; text-align:left } .bladePv{ width:100px; height:38px; flex:none } }
+
+  /* No sun in the dojo skin. It also sat at top:26px right:46px, directly under
+     the pause button at top:18px right:18px — a bright disc behind a control. */
+  #bg .sun{ display:none }
+  #bg .ground{ opacity:.5; filter:brightness(.62) }
+
+  /* Error bar for a failing render frame. Fixed and above everything, because
+     the whole point is that it is visible whatever screen you are on — a loop
+     error can happen on the menu, mid-round, or during a mode transition.
+     It deliberately owns its own buttons rather than borrowing the round-start
+     button, which already has a listener. */
+  #errBar{ position:fixed; left:12px; right:12px; bottom:12px; z-index:999;
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+    background:#2a1410; border:1.5px solid #d9534f; border-radius:16px;
+    padding:14px 16px; box-shadow:0 8px 30px rgba(0,0,0,.5);
+    font-size:14px; line-height:1.4; color:#ffd9d4; text-align:left }
+  #errBar.hidden{ display:none !important }
+  #errMsg{ flex:1; min-width:200px; word-break:break-word }
+  #errMsg b{ color:#fff }
+  #errBar button{ flex:none; border:none; border-radius:980px; padding:9px 18px;
+    font-size:14px; font-weight:600; font-family:inherit; cursor:pointer }
+  #errReload{ background:#d9534f; color:#fff }
+  #errHide{ background:rgba(255,255,255,.14); color:#ffd9d4 }
