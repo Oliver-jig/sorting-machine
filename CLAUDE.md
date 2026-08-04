@@ -258,6 +258,14 @@ Aim and Slash now differ ONLY in whether the blade snaps to the target or
 springs to it. `tests/controller.js` guards this. Roll is deliberately dropped
 (spinning the knife, not aiming), so twisting the wrist no longer steers.
 
+The yaw delta is **negated** (`applyAxis(-wrapDeg(...))`) so a physical left
+swing sends the blade left: device yaw increases opposite to screen x. Changing
+that base mapping invalidates any Flip ←→ a player had already saved, which
+would double-flip them back to broken — so `ss3d.axisFix` clears the stored
+`fx` override exactly once per mapping change. Bump that sentinel if the base
+horizontal mapping is ever changed again. This sign is verified against ONE
+phone; the Flip buttons remain the escape hatch for devices that differ.
+
 **Blades are cosmetic only.** The harness enforces this with a banned-field list
 *and* an allowlist. Scores go to a database the teacher reads; if a blade changed
 scoring, a high-level student would out-score a beginner with equal knowledge.
@@ -330,7 +338,7 @@ a timeout also sets), or using swipe paths longer than the gap between cards.
   Powers were built (practice-only, unranked runs) and then reverted at the
   user's request: keeping the fairness guarantee simple and absolute beat having
   the feature. Do not re-open without a new reason.
-- `controller.html` carries its own build number (now **46**), separate from the
+- `controller.html` carries its own build number (now **47**), separate from the
   game's. Phones cache it hard — check that number on the phone before believing
   a controller fix shipped.
 - Unverified on real hardware: the build 60 controller fix on an actual phone,
@@ -342,4 +350,7 @@ a timeout also sets), or using swipe paths longer than the gap between cards.
   deploys **`master`** (`origin/HEAD -> master`), which carries the real 90+
   commit history. Work from those branches must be brought over as a content
   copy (`git checkout origin/main -- <files>`), never an unrelated-history
-  merge. Build 66 did exactly that for the phone-stability work.
+  merge. Build 66 did exactly that for the phone-stability work, controller 47
+  for the horizontal-direction fix. **Copy only the files that branch actually
+  changed** — it trails master on `CLAUDE.md` and `index.html`, so taking those
+  wholesale silently reverts master's docs and build number.
