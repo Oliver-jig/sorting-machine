@@ -192,7 +192,15 @@
      by OS, and can't be verified without the hardware — so instead of guessing
      once in code, the mapping is adjustable from the phone itself. */
   var AX={fx:false, fy:false, sw:false};
-  try{ var _ax=localStorage.getItem("ss3d.axis"); if(_ax) AX=JSON.parse(_ax); }catch(e){}
+  try{
+    var _ax=localStorage.getItem("ss3d.axis"); if(_ax) AX=JSON.parse(_ax);
+    /* The base horizontal mapping changed in this build. Clear only the old
+       horizontal override once so a previous workaround cannot double-flip
+       the corrected direction; users can still choose Flip ←→ afterwards. */
+    if(localStorage.getItem("ss3d.axisFix")!=="left-right-v2"){
+      AX.fx=false; localStorage.setItem("ss3d.axisFix","left-right-v2");
+    }
+  }catch(e){}
   function saveAxis(){ try{ localStorage.setItem("ss3d.axis", JSON.stringify(AX)); }catch(e){} }
 
   /* ---- CONTROL MODE ----
@@ -276,8 +284,10 @@
     return { yaw: Math.atan2(-cB*sA, cA*cB)*180/Math.PI,
              elev: Math.asin(Math.max(-1,Math.min(1,sB)))*180/Math.PI };
   }
-  /* Signs: yaw here is measured east-of-north, so swinging right raises it and
-     it maps straight through. Elevation is negated because raising the tip
+  /* Signs: the device yaw increases opposite to the screen's x direction, so
+     negate the yaw delta before mapping it. A physical left swing must move the
+     blade left and a physical right swing must move it right. Elevation is
+     negated because raising the tip
      should send the blade UP the screen, where y grows downward. If a phone
      maps either the other way the Flip buttons still fix it.
 
@@ -285,7 +295,7 @@
      the +/-180 seam must read as a small move, not a full-screen jump. */
   function pointTarget(){
     var p=pointing();
-    var a=applyAxis(wrapDeg(p.yaw-yaw0)/SLASHYAW, -(p.elev-elev0)/SLASHPITCH);
+    var a=applyAxis(-wrapDeg(p.yaw-yaw0)/SLASHYAW, -(p.elev-elev0)/SLASHPITCH);
     return { x:Math.max(0, Math.min(1, 0.5+a.x*0.5)),
              y:Math.max(0, Math.min(1, 0.5+a.y*0.5)) };
   }

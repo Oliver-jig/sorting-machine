@@ -95,6 +95,8 @@ console.log(`    swing -40° -> x=${aimL.toFixed(3)}    swing +40° -> x=${aimR.
 ck('80° of arm swing crosses most of the screen', Math.abs(aimR-aimL)>0.6,
    `travel ${(Math.abs(aimR-aimL)*100).toFixed(1)}% of screen`);
 ck('the two ends land on opposite sides of centre', (aimL-0.5)*(aimR-0.5)<0);
+ck('left swing moves the blade left and right swing moves it right', aimL>0.8 && aimR<0.2,
+   `left swing x=${aimL.toFixed(3)}, right swing x=${aimR.toFixed(3)}`);
 
 console.log('\n--- 3. AIM: a chop must move the blade vertically ---');
 setMode('aim');
