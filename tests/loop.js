@@ -130,5 +130,41 @@ ck('no ovlBtn handler is assigned anywhere in the error path',
 ck('the reload button is the error bar\'s own',
    /errReload/.test(src) && /errBar/.test(src));
 
+/* ---------- 5. the loop must not start before every script has loaded -------
+   js/game.js is script 2 of 7, but drawFx() calls bladeDrawTrail(), defined in
+   js/blades.js — script 7. Starting the loop at the bottom of game.js ran the
+   first frame while the browser was still fetching the remaining scripts, and
+   rAF DOES fire in those gaps. On a cold cache that threw
+   "bladeDrawTrail is not defined", which killed the render loop.
+
+   This never reproduced on localhost: all seven files arrive before the first
+   frame is due. It only bites on a real network. */
+console.log('\n--- 5. boot waits for every script ---');
+const html=fs.readFileSync(R+'index.html','utf8');
+const order=[...html.matchAll(/<script src="(js\/[^"]+)"/g)].map(m=>m[1]);
+console.log('    load order: '+order.join(' -> '));
+const iGame=order.indexOf('js/game.js'), iBlades=order.indexOf('js/blades.js');
+ck('blades.js still loads AFTER game.js (so the dependency is real)',
+   iBlades>iGame, `game #${iGame+1}, blades #${iBlades+1}`);
+const gameCode=src.replace(/\/\*[\s\S]*?\*\//g,'').replace(/^\s*\/\/.*$/gm,'');
+ck('boot is deferred to DOMContentLoaded, not run during parse',
+   /readyState==="loading"\)\s*document\.addEventListener\("DOMContentLoaded"/.test(gameCode));
+/* Two call sites are correct: loop()'s own reschedule (section 3) and the boot
+   one. What matters is that the BOOT start happens exactly once and only inside
+   the deferred bootGame. */
+ck('the boot start appears exactly once',
+   (gameCode.match(/initThree\(\); resize\(\); requestAnimationFrame\(loop\);/g)||[]).length===1);
+ck('and it sits inside the deferred bootGame',
+   /var bootGame=function\(\)\{[\s\S]{0,200}?initThree\(\); resize\(\); requestAnimationFrame\(loop\);/.test(gameCode));
+
+/* Every cross-file function game.js calls must actually exist in the file that
+   defines it — a rename or a typo here is invisible until a frame runs. */
+const bladesSrc=fs.readFileSync(R+'js/blades.js','utf8');
+const called=[...new Set([...gameCode.matchAll(/\b(blade[A-Za-z]*)\s*\(/g)].map(m=>m[1]))];
+const missing=called.filter(fn=>!new RegExp('function '+fn+'\\s*\\(').test(bladesSrc));
+console.log('    game.js calls into blades.js: '+called.join(', '));
+ck('every blade* function game.js calls is defined in blades.js',
+   missing.length===0, missing.length?('missing: '+missing.join(', ')):'all present');
+
 console.log('\n'+(pass?'ALL PASS':'FAILURES PRESENT'));
 process.exit(pass?0:1);

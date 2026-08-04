@@ -8,7 +8,7 @@ A single-page browser arcade game for **SDG 12** — a Fruit-Ninja-style slicer
 teaching Hong Kong recycling. No build step, no framework, no bundler. Plain
 HTML + CSS + ES5-ish JS with CDN libraries, deployed static to Vercel.
 
-Current state: **build 66**. Dark "dojo-arcade" theme, 50 items, four modes,
+Current state: **build 67**. Dark "dojo-arcade" theme, 50 items, four modes,
 blade skins with an XP/level system.
 
 Repo: `Oliver-jig/sorting-machine`. Two branches, **kept in sync after every
@@ -127,6 +127,25 @@ fault had fired even once, pressing "Start round" both started the round and
 reloaded the page: the game bounced to the main menu and could not be started at
 all, in every mode. The error path made things worse than the fault it reported.
 `tests/loop.js` section 4 asserts `loopFail` never touches `ovlBtn`.
+
+**The render loop must not START until every script has loaded.** `js/game.js`
+is script 2 of 7, but `drawFx()` calls `bladeDrawTrail()`, defined in
+`js/blades.js` — script 7. Starting the loop at the bottom of `game.js` ran the
+first frame while the browser was still fetching the remaining parser-blocking
+scripts, and **rAF callbacks do fire in those gaps**. On a cold cache or a slow
+connection the first frame threw `bladeDrawTrail is not defined`.
+
+That one race caused every "the game is broken" report in this project: build 62
+it killed the rAF chain outright (frozen board, no items, timer stuck full),
+build 63 the error path then poisoned the round-start button (bounce to main
+menu), build 66 it surfaced in `#errBar`. It NEVER reproduced on localhost —
+all seven files arrive before the first frame is due. Reproduced deliberately by
+serving `blades.js` with a 1.5s delay, which fails pre-fix and is clean after.
+
+Boot is therefore deferred to `DOMContentLoaded`, which fires only once every
+parser-inserted synchronous script has executed. `tests/loop.js` section 5
+asserts the deferral, that `blades.js` still loads after `game.js`, and that
+every `blade*` function `game.js` calls actually exists in `blades.js`.
 
 **The render loop must never die, and a dead board must never be silent.**
 `loop()` is a thin wrapper: it calls `loopBody()` in a `try`, reports the first
@@ -258,13 +277,19 @@ Aim and Slash now differ ONLY in whether the blade snaps to the target or
 springs to it. `tests/controller.js` guards this. Roll is deliberately dropped
 (spinning the knife, not aiming), so twisting the wrist no longer steers.
 
-The yaw delta is **negated** (`applyAxis(-wrapDeg(...))`) so a physical left
-swing sends the blade left: device yaw increases opposite to screen x. Changing
-that base mapping invalidates any Flip ←→ a player had already saved, which
-would double-flip them back to broken — so `ss3d.axisFix` clears the stored
-`fx` override exactly once per mapping change. Bump that sentinel if the base
-horizontal mapping is ever changed again. This sign is verified against ONE
-phone; the Flip buttons remain the escape hatch for devices that differ.
+**Yaw maps straight through — do NOT negate it.** Controller build 47 added
+`applyAxis(-wrapDeg(...))` on the theory that device yaw runs opposite to screen
+x. On real hardware that inverted the controls: swing right, blade goes left.
+Build 48 removed it. The tell was in build 47's own test, which asserted a -40°
+("left") swing landed at `x=0.8` — the RIGHT half — while its description said
+"left swing moves the blade left". The sign was reasoned, not measured.
+
+Changing this base mapping invalidates any Flip ←→ a player already saved, which
+would double-flip them straight back to broken, so `ss3d.axisFix` clears the
+stored `fx` override exactly once per change (now `left-right-v3`). **Bump that
+sentinel whenever the base horizontal mapping changes.** The sign is verified
+against one phone plus the harness; the Flip buttons remain the escape hatch for
+devices that differ.
 
 **Blades are cosmetic only.** The harness enforces this with a banned-field list
 *and* an allowlist. Scores go to a database the teacher reads; if a blade changed
@@ -338,7 +363,7 @@ a timeout also sets), or using swipe paths longer than the gap between cards.
   Powers were built (practice-only, unranked runs) and then reverted at the
   user's request: keeping the fairness guarantee simple and absolute beat having
   the feature. Do not re-open without a new reason.
-- `controller.html` carries its own build number (now **47**), separate from the
+- `controller.html` carries its own build number (now **48**), separate from the
   game's. Phones cache it hard — check that number on the phone before believing
   a controller fix shipped.
 - Unverified on real hardware: the build 60 controller fix on an actual phone,
