@@ -8,7 +8,7 @@ A single-page browser arcade game for **SDG 12** — a Fruit-Ninja-style slicer
 teaching Hong Kong recycling. No build step, no framework, no bundler. Plain
 HTML + CSS + ES5-ish JS with CDN libraries, deployed static to Vercel.
 
-Current state: **build 68**. Dark "dojo-arcade" theme, 50 items, four modes,
+Current state: **build 69**. "Preview V6" dark arcade UI, 50 items, four modes,
 blade skins with an XP/level system.
 
 Repo: `Oliver-jig/sorting-machine`. Two branches, **kept in sync after every
@@ -63,7 +63,8 @@ globals, so they exercise shipped code rather than a copy.
 | `js/specials.js` | Sort power-ups (`PWR` timers). Bin It has its own `DSPEC` |
 | `js/scores.js` | Local best + write-only Firestore `scores`, readable `players` (XP) |
 | `js/blades.js` | Blade skins, XP curve, levels, picker UI, `bladeStroke` renderer |
-| `css/styles.css` | Base layer, then a dark theme layer that overrides it |
+| `css/styles.css` | Base layer, dark theme layer, then the V6 menu/screens layer |
+| `img/props.png` | The V6 hero's decorative 3D props (external, cached) |
 | `controller.html` | Fully self-contained phone page (own CSS+JS). Opened via QR |
 
 ### One `GMODE` drives everything
@@ -305,11 +306,27 @@ the silent-camera bug, and `setupCam()`'s failure path can set `"mouse"` on its
 own during an earlier round. `launchVS()` now routes explicitly and refuses an
 unsupported mode instead of guessing.
 
-**`.choose.twoUp` must be named in the narrow-screen media query.** It is two
-classes, so it out-specifies a bare `.choose` inside `@media (max-width:560px)`
-and kept two cramped columns on a phone. The harness first asserted only that
-the media query *existed*, which passed while the layout was broken — a browser
-check caught it. Assert which rule WINS, not that a rule is present.
+**The menu tiles are a VIEW of `GMODE`/`DIFF`, not a record of the last click.**
+`segDelegate()` only paints on a click, but the launchers assign `GMODE` in code
+(`launchGame()` -> "sort", `launchQuiz()` -> "quiz", `launchVS()` -> "vs"). So
+after a round the menu showed **Sort highlighted while the header read "Versus
+selected"**. `paintSegs()` renders both segmented groups from state and
+`show("start")` re-syncs. `aria-pressed` moves with the `.on` class in
+`segDelegate` for the same reason — the V6 tiles carry it and it was stuck at
+its initial value, telling a screen reader the opposite of what was drawn.
+
+**The ported design's CSS must not ship as written.** The Codex mockup used
+`color-mix()` **37 times** and `light-dark()`; both are the same risk class as
+the `oklch()` this file already bans — a silent colour failure on a school
+machine. Every one is resolved to a literal `rgba()`/hex. Its lucide CDN icons
+are an inline `<symbol>` sprite instead (a blocked unpkg leaves empty boxes),
+and its 1.26MB inline base64 PNG is an external `img/props.png` at 317KB.
+`tests/menu.js` section 8 fails on any of them coming back.
+
+**`.menuWrap.v6` must set `display:block`.** The pre-V6 `.menuWrap` is a
+two-column flex row; without the override the V6 sections became flex items side
+by side and each collapsed to ~300px. The 900px breakpoint also caps
+`.menuWrap` at 600px, which the V6 rule has to raise.
 
 **Blades are cosmetic only.** The harness enforces this with a banned-field list
 *and* an allowlist. Scores go to a database the teacher reads; if a blade changed
@@ -342,7 +359,7 @@ Run with `node <file>`; each exits non-zero on failure.
 | `latency.js` | Phone: dead reckoning cuts felt lag and never overshoots off-screen |
 | `loop.js` | Spawn height scales; no silent freeze; errors never touch game UI |
 | `perf.js` | Materials are released, resolution is budgeted, labels are cached |
-| `menu.js` | Versus never offers Mouse, and no stale controlMode reaches it |
+| `menu.js` | Versus never offers Mouse; the V6 re-skin keeps every hook |
 
 They are the only automated protection for the invariants above. Run `npm test`
 before pushing.
@@ -384,7 +401,7 @@ a timeout also sets), or using swipe paths longer than the gap between cards.
   Powers were built (practice-only, unranked runs) and then reverted at the
   user's request: keeping the fairness guarantee simple and absolute beat having
   the feature. Do not re-open without a new reason.
-- `controller.html` carries its own build number (now **48**), separate from the
+- `controller.html` carries its own build number (now **49**), separate from the
   game's. Phones cache it hard — check that number on the phone before believing
   a controller fix shipped.
 - Unverified on real hardware: the build 60 controller fix on an actual phone,

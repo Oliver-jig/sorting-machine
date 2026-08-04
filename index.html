@@ -3,79 +3,121 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="theme-color" content="#14100c">
+<meta name="theme-color" content="#0e0907">
 <title>Slice &amp; Sort 3D — HK recycling (SDG 12)</title>
 <link rel="stylesheet" href="css/styles.css">
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 
 </head>
 <body>
+<!-- Icon sprite. Inlined deliberately: the design pulled these from the lucide
+     CDN and swapped them at runtime, which leaves empty boxes on a school
+     network that blocks or slows unpkg. No request, no fallback needed. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+  <g id="i-base" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"></g>
+  <symbol id="i-swords" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 17.5 3 6V3h3l11.5 11.5"/><path d="m13 19 6-6"/><path d="m16 16 4 4"/><path d="M19 21l2-2"/><path d="M9.5 6.5 21 18v3h-3L6.5 9.5"/></symbol>
+  <symbol id="i-help" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 2.5-3 4"/><path d="M12 17h.01"/></symbol>
+  <symbol id="i-box" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9v10a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V9"/><path d="M2 9h20l-2-5H4Z"/><path d="M10 13h4"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 5.3a3.2 3.2 0 0 1 0 5.4"/><path d="M18.5 20a6.4 6.4 0 0 0-3-5.4"/></symbol>
+  <symbol id="i-cam" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13V6a1.5 1.5 0 0 1 3 0v5m0-.5V4.5a1.5 1.5 0 0 1 3 0V11m0-1a1.5 1.5 0 0 1 3 0v1m0-.5a1.5 1.5 0 0 1 3 0V15a6 6 0 0 1-6 6h-1a6 6 0 0 1-5.2-3l-2-3.4a1.5 1.5 0 0 1 2.6-1.5L8 15"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2.5"/><line x1="11" y1="18.5" x2="13" y2="18.5"/></symbol>
+  <symbol id="i-mouse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="3" width="12" height="18" rx="6"/><line x1="12" y1="7" x2="12" y2="11"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m4 12.5 5 5L20 6.5"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="10" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l13-7.5Z"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/></symbol>
+  <symbol id="i-trophy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v5a5 5 0 0 1-10 0Z"/><path d="M7 5.5H4.5v1a3.5 3.5 0 0 0 3 3.4"/><path d="M17 5.5h2.5v1a3.5 3.5 0 0 1-3 3.4"/><path d="M12 14v3"/><path d="M8.5 20h7"/><path d="M10 17h4l1 3H9Z"/></symbol>
+  <symbol id="i-zap" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7Z"/></symbol>
+</defs></svg>
 <div id="app">
 
-  <!-- START -->
+  <!-- START — "Preview V6" layout.
+       Every id and data-* below is load-bearing: #modeSeg/#choose/#diffSeg are
+       driven by segDelegate() and syncControls(), and #startNote doubles as the
+       error surface for bootFail() and the Versus refusal. Re-skin freely, but
+       do not rename these. -->
   <section id="start" class="screen">
-    <!-- Two columns on desktop, matching the mockup; stacks below 900px.
-         NOTE: the scroll/centring rule keys off the DIRECT child of #start, so
-         .menuWrap (not .card) is what carries margin:auto now. -->
-    <div class="menuWrap">
+    <div class="menuWrap v6">
+      <img class="v6-props" src="img/props.png" width="800" height="533" alt="" aria-hidden="true" loading="lazy" decoding="async">
 
-      <div class="hero">
-        <div class="eyebrow"><span class="sdg">12</span> SDG 12 · Responsible consumption</div>
-        <div class="wordmark">
-          <h1>SLICE<br/>&amp; SORT<br/><span class="accent">3D</span></h1>
-          <span class="slash heroSlash" aria-hidden="true"></span>
+      <nav class="v6-nav" aria-label="Game menu">
+        <div class="v6-logo"><span class="v6-mark">12</span><span>Slice &amp; Sort<small>Recycling arcade</small></span></div>
+        <div class="v6-navchips">
+          <div class="v6-chip hidden" id="startBest" aria-live="polite"></div>
+          <div class="v6-chip hidden" id="lvlBar" aria-live="polite"></div>
         </div>
-        <p class="lead">Reduce, reuse, recycle — <b>slice only the items that fit the round's bin</b>.
-        Wrong slice, lose marks. The last round is the <b>wishcycling traps</b>.</p>
-        <div class="bestbar hidden" id="startBest" aria-live="polite"></div>
-        <div class="lvlbar hidden" id="lvlBar" aria-live="polite"></div>
+      </nav>
+
+      <div class="v6-hero">
+        <div class="v6-overline">Responsible consumption</div>
+        <h1 class="v6-title">Slice <span>&amp; Sort</span> 3D</h1>
+        <p class="v6-tagline">The recycling arena is open. <strong>Choose your setup and start slicing.</strong></p>
+        <div class="v6-belt"><span class="v6-beltline"></span><span>Choose your loadout</span><span class="v6-beltline"></span></div>
       </div>
 
-      <div class="card menuPanel">
-        <div class="label">Game mode</div>
-        <div class="modeList" id="modeSeg">
-          <button data-g="sort" class="on"><span class="bar"></span><span class="mtxt"><b>Sort</b><i>Slice items into the right bin</i></span></button>
-          <button data-g="quiz"><span class="bar"></span><span class="mtxt"><b>Quiz</b><i>Answer recycling questions fast</i></span></button>
-          <button data-g="tsunami"><span class="bar"></span><span class="mtxt"><b>Bin It</b><i>Move the bin, catch what belongs</i></span></button>
-          <button data-g="vs"><span class="bar"></span><span class="mtxt"><b>Versus</b><i>Race a friend to sort first</i></span></button>
-        </div>
-
-        <div class="hr"></div>
-
-        <div class="label">How do you want to play?</div>
-        <div class="choose" id="choose">
-          <button type="button" class="opt sel" data-mode="cam" aria-pressed="true"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 13V6a1.5 1.5 0 0 1 3 0v5m0-.5V4.5a1.5 1.5 0 0 1 3 0V11m0-1a1.5 1.5 0 0 1 3 0v1m0-.5a1.5 1.5 0 0 1 3 0V15a6 6 0 0 1-6 6h-1a6 6 0 0 1-5.2-3l-2-3.4a1.5 1.5 0 0 1 2.6-1.5L8 15"/></svg></div><div class="ti">Webcam hand</div><div class="ds">Your hand is the blade</div></button>
-          <button type="button" class="opt" data-mode="remote" aria-pressed="false"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2.5"/><line x1="11" y1="18.5" x2="13" y2="18.5"/></svg></div><div class="ti">Phone controller</div><div class="ds">Scan a QR, swing to slice</div></button>
-          <button type="button" class="opt" data-mode="mouse" aria-pressed="false"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="3" width="12" height="18" rx="6"/><line x1="12" y1="7" x2="12" y2="11"/></svg></div><div class="ti">Mouse / touch</div><div class="ds">Move or swipe to slice</div></button>
-        </div>
-
-        <div class="speedRow">
-          <div class="label">Speed</div>
-          <div class="seg" id="diffSeg">
-            <button data-d="relaxed" class="on">Relaxed</button>
-            <button data-d="normal">Normal</button>
+      <div class="v6-picker">
+        <div class="v6-panel">
+          <div class="v6-head"><strong>Game mode</strong><span id="v6ModeLabel">Sort selected</span></div>
+          <div class="v6-modes" id="modeSeg">
+            <button data-g="sort" class="v6-mode on" aria-pressed="true"><span class="v6-ic i-blue"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-swords"/></svg></span><span><b>Sort</b><small>Classic slicing challenge</small></span></button>
+            <button data-g="quiz" class="v6-mode" aria-pressed="false"><span class="v6-ic i-yellow"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-help"/></svg></span><span><b>Quiz</b><small>Think fast, slice answers</small></span></button>
+            <button data-g="tsunami" class="v6-mode" aria-pressed="false"><span class="v6-ic i-green"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-box"/></svg></span><span><b>Bin It</b><small>Catch the correct waste</small></span></button>
+            <button data-g="vs" class="v6-mode" aria-pressed="false"><span class="v6-ic i-orange"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-users"/></svg></span><span><b>Versus</b><small>Two-player score race</small></span></button>
+          </div>
+          <div class="v6-speed">
+            <span class="v6-speedlbl">Speed</span>
+            <div class="seg" id="diffSeg">
+              <button data-d="relaxed" class="on">Relaxed</button>
+              <button data-d="normal">Normal</button>
+            </div>
           </div>
         </div>
 
-        <div class="row">
-          <button class="btn" id="playBtn">START GAME →</button>
-          <button class="btn ghost" id="bladesBtn" type="button">🗡 Blades</button>
+        <div class="v6-panel">
+          <div class="v6-head"><strong>Controller</strong><span id="v6CtrlLabel">Ready</span></div>
+          <div class="choose v6-controls" id="choose">
+            <button type="button" class="opt v6-control sel" data-mode="cam" aria-pressed="true"><svg class="v6-cic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-cam"/></svg><span><b>Webcam hand</b><small>Your hand is the blade</small></span><span class="v6-check"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-check"/></svg></span></button>
+            <button type="button" class="opt v6-control" data-mode="remote" aria-pressed="false"><svg class="v6-cic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-phone"/></svg><span><b>Phone controller</b><small>Scan a QR, swing to slice</small></span><span class="v6-check"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-check"/></svg></span></button>
+            <button type="button" class="opt v6-control" data-mode="mouse" aria-pressed="false"><svg class="v6-cic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-mouse"/></svg><span><b>Mouse / touch</b><small>Instant fallback</small></span><span class="v6-check"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-check"/></svg></span></button>
+          </div>
+          <!-- Shown only for Versus. This is an EXPLANATION, not live status:
+               no phone is connected until Play is pressed, so the real
+               Waiting/Connected state stays on #connect where remStatus() drives it. -->
+          <div class="v6-versus hidden" id="v6Versus">
+            <div class="v6-vnote"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-info"/></svg>Versus needs two players: <b>two hands on one webcam</b>, or <b>two phones</b>.</div>
+            <div class="v6-phone"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-phone"/></svg><span><b>Player 1</b><small>Left half of the screen</small></span></div>
+            <div class="v6-phone"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-phone"/></svg><span><b>Player 2</b><small>Right half of the screen</small></span></div>
+          </div>
         </div>
-        <div class="fineprint" id="startNote"></div>
-      <script>
-        (function(){
-          var n=document.getElementById("startNote");
-          if(location.protocol==="file:"){ n.innerHTML='<b>You opened this file directly.</b> Phone mode won\'t work. Serve with:<br><code style="background:#f0f0f5;padding:2px 6px;border-radius:4px">python3 -m http.server 8137</code><br>Then open <b>http://localhost:8137/</b> (same WiFi as phone) — or deploy to Vercel.'; n.style.color='#c0392b'; }
-          else if(location.hostname==="localhost"||location.hostname==="127.0.0.1"){
-            n.innerHTML='Running locally. <b>Make sure your phone is on the same WiFi.</b>';
-          } else { n.innerHTML='Webcam + mouse modes run in your browser. Phone controller: scan the QR or type the code. · build 68 · SDG 12 theme (Sort · Quiz · Bin It · Versus)'; }
-        })();
-      </script>
       </div>
 
+      <div class="v6-panel v6-bladepanel">
+        <div class="v6-head"><strong>Choose blade</strong><span id="v6BladeLabel"></span></div>
+        <!-- filled by bladeRenderStrip() from the real BLADES roster -->
+        <div class="v6-blades" id="v6Blades"></div>
+      </div>
+
+      <div class="v6-startrow">
+        <div class="v6-selection" id="v6Selection" aria-live="polite"></div>
+        <div class="v6-actions">
+          <button class="v6-primary" id="playBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-play"/></svg><span>Enter the arena</span></button>
+          <button class="btn ghost" id="bladesBtn" type="button">All blades</button>
+        </div>
+        <!-- #startNote is ALSO the surface bootFail() and the Versus refusal
+             write to, so it must exist before js/game.js runs. -->
+        <div class="fineprint" id="startNote"></div>
+        <script>
+          (function(){
+            var n=document.getElementById("startNote");
+            if(location.protocol==="file:"){ n.innerHTML='<b>You opened this file directly.</b> Phone mode won\'t work. Serve with:<br><code>python3 -m http.server 8137</code><br>Then open <b>http://localhost:8137/</b> (same WiFi as phone) — or deploy to Vercel.'; n.style.color='#f04444'; }
+            else if(location.hostname==="localhost"||location.hostname==="127.0.0.1"){
+              n.innerHTML='Running locally. <b>Make sure your phone is on the same WiFi.</b>';
+            } else { n.innerHTML='Webcam + mouse run in your browser. Phone controller: scan the QR or type the code. · build 69'; }
+          })();
+        </script>
+      </div>
     </div>
   </section>
-
   <!-- CONNECT (phone controller) -->
   <section id="connect" class="screen hidden">
     <div class="card">

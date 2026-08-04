@@ -3,23 +3,25 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="theme-color" content="#14100c">
+<meta name="theme-color" content="#0e0907">
 <title>Slice &amp; Sort — Phone controller</title>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   /* Dark dojo theme — kept in step with css/styles.css "theme layer".
      If the palette changes there, change it here too; this file is standalone
      by design (the phone loads it without the site's stylesheet). */
-  :root{ --ink:#f7ede0; --muted:#a8977e; --line:rgba(255,255,255,.12);
-    --amber:#e2703a; --amber-d:#b8532a; --amber-l:#f5854d;
-    --panel:#1a1410; --panel2:#241a12;
+  /* Palette mirrored from css/styles.css — the V6 retune. This file is
+     standalone by design, so a change there MUST be repeated here. */
+  :root{ --ink:#fff7e8; --muted:#c5b395; --line:rgba(255,247,232,.14);
+    --amber:#ff6b2c; --amber-d:#9a421c; --amber-l:#ff814a;
+    --panel:#21140d; --panel2:#2b1b11;
     --shadow:0 12px 30px rgba(0,0,0,.45);
     --font:'Space Grotesk',-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
     --display:'Anton',var(--font); }
   *{box-sizing:border-box}
   html,body{margin:0;height:100%}
   html{color-scheme:dark}
-  body{background:radial-gradient(ellipse 900px 600px at 50% -10%, rgba(191,139,46,.16), transparent 55%), #14100c;
+  body{background:radial-gradient(ellipse 900px 600px at 50% -10%, rgba(255,107,44,.16), transparent 55%), #0e0907;
     color:var(--ink); font-family:var(--font);
     -webkit-user-select:none; user-select:none; display:flex; align-items:center; justify-content:center; padding:16px}
   button:focus-visible, input:focus-visible{ outline:3px solid var(--amber); outline-offset:2px }
@@ -100,7 +102,7 @@
           <button type="button" class="chip" id="axSw">Swap</button>
         </span>
       </div>
-      <div class="fine">build 48</div>
+      <div class="fine">build 49</div>
     </div>
   </div>
 

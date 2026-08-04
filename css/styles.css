@@ -50,19 +50,13 @@
 
   .label{font-size:12px; color:var(--muted); font-weight:600; text-align:left; margin:18px 0 8px}
   .choose{display:grid; grid-template-columns:repeat(3,1fr); gap:10px}
-  /* Versus hides the Mouse tile (it needs two cursors). Without this the two
-     survivors keep their 1/3 columns and sit against empty space on the right. */
-  .choose.twoUp{grid-template-columns:repeat(2,1fr)}
   .opt{background:var(--surface2); border:1.5px solid var(--line); border-radius:18px; padding:16px 10px; text-align:center; transition:border-color .15s, transform .15s}
   .opt:hover{transform:translateY(-2px)} .opt.sel{border-color:var(--accent); box-shadow:0 0 0 3px rgba(0,113,227,.12)}
   .opt .ic{font-size:28px} .opt .ti{font-size:14px; font-weight:600; margin-top:6px} .opt .ds{font-size:11px; color:var(--muted); margin-top:3px; line-height:1.3}
   .seg{display:inline-flex; background:var(--surface2); border:1.5px solid var(--line); border-radius:980px; padding:3px}
   .seg button{border:none; background:transparent; padding:8px 18px; border-radius:980px; font-size:14px; font-weight:600; color:var(--muted)}
   .seg button.on{background:var(--accent); color:#fff}
-  /* `.choose.twoUp` is TWO classes, so it out-specifies a bare `.choose` here
-     and would keep two cramped columns on a phone. It must be named explicitly
-     or the narrow layout silently loses. */
-  @media (max-width:560px){ .choose,.choose.twoUp{grid-template-columns:1fr} h1{font-size:32px} }
+  @media (max-width:560px){ .choose{grid-template-columns:1fr} h1{font-size:32px} }
 
   .hud{display:flex; align-items:center; gap:10px; margin-bottom:12px; flex-wrap:wrap}
   .stat{background:var(--surface); border-radius:16px; box-shadow:var(--shadow-sm); padding:9px 15px; line-height:1.1}
@@ -112,13 +106,23 @@
    keeping the names is what makes this a palette swap rather than a rewrite.
    `--amber` is now the rust accent; it is the brand-accent slot, not literally
    amber any more. */
+/* Palette retuned to the "Preview V6" design. NAMES are still unchanged — that
+   is the whole point of this block — so the component rules below and
+   controller.html's standalone copy pick the new colours up for free.
+
+   The design's own CSS leaned on color-mix() 37 times. Every one of those is
+   resolved to a literal rgba()/hex here, for the same reason this file bans
+   oklch(): color-mix needs Chrome 111+/Safari 16.2+, and on a school machine a
+   silent colour failure is invisible until someone complains. */
 :root{
-    --ink:#f7ede0; --muted:#a8977e; --line:rgba(255,255,255,.12);
-    --amber:#e2703a; --amber-d:#b8532a; --amber-l:#f5854d;
-    --eco:#3fa06a; --eco-d:#2e7d50;
-    --panel:#1a1410; --panel2:#241a12;
-    --ground:#14100c;
-    --good:#3fa06a; --bad:#e0483f;
+    --ink:#fff7e8; --muted:#c5b395; --line:rgba(255,247,232,.14);
+    --amber:#ff6b2c; --amber-d:#9a421c; --amber-l:#ff814a;
+    --eco:#49d17d; --eco-d:#2e7d50;
+    --panel:#21140d; --panel2:#2b1b11;
+    --ground:#0e0907;
+    --good:#49d17d; --bad:#f04444;
+    /* mode-tile icon chips */
+    --yellow:#ffc83d; --green:#49d17d; --blue:#3f9cff; --red:#f04444;
     --shadow:0 12px 30px rgba(0,0,0,.45); --shadow-sm:0 4px 10px rgba(0,0,0,.35);
     --font:'Space Grotesk',-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
     --display:'Anton',var(--font);
@@ -126,13 +130,13 @@
        names, and its rules still reference them. Redefining them here means
        anything the theme layer does not explicitly restyle goes dark anyway,
        instead of quietly keeping a white background. */
-    --bg:#14100c; --surface:#1a1410; --surface2:#241a12;
-    --accent:#e2703a; --accent-h:#f5854d;
+    --bg:#0e0907; --surface:#21140d; --surface2:#2b1b11;
+    --accent:#ff6b2c; --accent-h:#ff814a;
   }
   html{color-scheme:dark}
   body{font-family:var(--font); color:var(--ink); letter-spacing:0;
     background:
-      radial-gradient(ellipse 900px 600px at 25% 12%, rgba(191,139,46,.16), transparent 55%),
+      radial-gradient(ellipse 900px 600px at 25% 12%, rgba(255,107,44,.16), transparent 55%),
       radial-gradient(ellipse 700px 500px at 85% 88%, rgba(191,139,46,.10), transparent 50%),
       var(--ground);}
   a:focus-visible, button:focus-visible, .opt:focus-visible, input:focus-visible{
@@ -442,3 +446,174 @@
     font-size:14px; font-weight:600; font-family:inherit; cursor:pointer }
   #errReload{ background:#d9534f; color:#fff }
   #errHide{ background:rgba(255,255,255,.14); color:#ffd9d4 }
+
+/* ===== "Preview V6" menu =====
+   Ported from the Codex mockup. Every color-mix() in the original is resolved
+   to a literal rgba()/hex here — see the note on the theme :root. Icons are the
+   inline <symbol> sprite in index.html, not the mockup's lucide CDN. */
+  /* display:block is NOT redundant. The old .menuWrap (line ~295) is a two-column
+     flex row, and without this override the V6 sections became flex items side
+     by side and each collapsed to ~300px. */
+  .menuWrap.v6{display:block; max-width:1180px; width:100%; padding:6px 4px 10px;
+    position:relative; text-align:left}
+  .v6-props{position:absolute; z-index:0; left:-4%; top:96px; width:108%; height:auto;
+    pointer-events:none; opacity:.5; filter:saturate(1.08) contrast(1.02) drop-shadow(0 22px 28px rgba(0,0,0,.36))}
+  .menuWrap.v6>*:not(.v6-props){position:relative; z-index:1}
+
+  .v6-nav{display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap}
+  .v6-logo{display:flex; align-items:center; gap:10px; text-transform:uppercase; letter-spacing:1.3px; font-weight:500; font-size:14px}
+  .v6-mark{display:grid; place-items:center; width:34px; height:34px; background:var(--amber); color:var(--bg);
+    clip-path:polygon(50% 0,100% 25%,86% 88%,50% 100%,14% 88%,0 25%); font-weight:700; flex:none}
+  .v6-logo small{display:block; color:var(--muted); font-weight:400; letter-spacing:.8px; font-size:11px; text-transform:none}
+  .v6-navchips{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+  .v6-chip{border:1px solid var(--line); background:rgba(255,247,232,.05); border-radius:999px;
+    padding:9px 13px; display:flex; align-items:center; gap:7px; font-size:13px; font-weight:600;
+    font-variant-numeric:tabular-nums}
+  .v6-chip svg{width:15px; height:15px; color:var(--yellow); flex:none}
+
+  .v6-hero{text-align:center; max-width:760px; margin:34px auto 20px}
+  .v6-overline{display:inline-flex; align-items:center; gap:7px; color:var(--yellow);
+    text-transform:uppercase; letter-spacing:2px; font-size:11.5px; font-weight:600}
+  .v6-overline:before,.v6-overline:after{content:""; width:34px; height:1px; background:currentColor}
+  .v6-title{font-family:var(--display); font-weight:400; text-transform:uppercase; line-height:.86;
+    letter-spacing:1px; margin:14px 0 12px; font-size:clamp(46px,8vw,92px);
+    text-shadow:0 8px 0 rgba(255,107,44,.32), 0 18px 34px rgba(0,0,0,.55)}
+  .v6-title span{display:inline-block; color:var(--amber); transform:skewX(-8deg)}
+  .v6-tagline{color:var(--muted); max-width:560px; margin:0 auto; font-size:15px; line-height:1.5}
+  .v6-tagline strong{color:var(--ink); font-weight:600}
+  .v6-belt{display:flex; justify-content:center; align-items:center; gap:18px; margin-top:22px}
+  .v6-beltline{height:2px; flex:1; max-width:130px; background:linear-gradient(90deg,transparent,var(--line))}
+  .v6-beltline:last-child{transform:scaleX(-1)}
+  .v6-belt span:not(.v6-beltline){color:var(--muted); letter-spacing:1px; text-transform:uppercase; font-size:11.5px}
+
+  .v6-picker{display:grid; grid-template-columns:1.05fr .95fr; gap:16px; margin-top:18px}
+  .v6-panel{background:linear-gradient(160deg,#21140d,#0f0a07); border:1px solid var(--line);
+    border-radius:18px; padding:18px; box-shadow:inset 0 1px rgba(255,247,232,.05), 0 18px 44px rgba(0,0,0,.55)}
+  .v6-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; gap:12px}
+  .v6-head strong{text-transform:uppercase; letter-spacing:1.2px; font-weight:600; font-size:13px}
+  .v6-head span{color:var(--muted); font-size:12.5px}
+
+  .v6-modes{display:grid; grid-template-columns:repeat(2,1fr); gap:8px}
+  .v6-mode{border:1px solid transparent; background:rgba(255,247,232,.035); border-radius:12px; padding:13px;
+    text-align:left; display:grid; grid-template-columns:38px 1fr; gap:10px; align-items:center;
+    color:inherit; transition:background .18s, border-color .18s, transform .18s}
+  .v6-mode:hover{transform:translateY(-2px); background:rgba(255,247,232,.07)}
+  .v6-mode.on{border-color:var(--amber); background:rgba(255,107,44,.12)}
+  .v6-mode b{display:block; font-weight:600; font-size:14px}
+  .v6-mode small{display:block; color:var(--muted); font-size:11.5px; margin-top:2px; line-height:1.3}
+  .v6-ic{display:grid; place-items:center; width:38px; height:38px; border-radius:10px}
+  .v6-ic svg{width:19px; height:19px}
+  .i-blue{background:rgba(63,156,255,.14); color:var(--blue)}
+  .i-yellow{background:rgba(255,200,61,.13); color:var(--yellow)}
+  .i-green{background:rgba(73,209,125,.13); color:var(--green)}
+  .i-orange{background:rgba(255,107,44,.14); color:var(--amber)}
+
+  .v6-speed{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:12px}
+  .v6-speedlbl{color:var(--muted); text-transform:uppercase; letter-spacing:1.2px; font-size:11.5px; font-weight:600}
+
+  /* Controls are a vertical list here, not the old 3-up grid. */
+  .choose.v6-controls{display:grid; grid-template-columns:1fr; gap:8px}
+  .opt.v6-control{border:1px solid transparent; background:rgba(255,247,232,.035); border-radius:12px;
+    padding:12px; display:flex; align-items:center; gap:11px; text-align:left; color:inherit;
+    box-shadow:none; transition:background .18s, border-color .18s}
+  .opt.v6-control:hover{transform:none; background:rgba(255,247,232,.07)}
+  .opt.v6-control.sel{border-color:var(--green); background:rgba(73,209,125,.10); box-shadow:none}
+  .v6-cic{width:20px; height:20px; color:var(--muted); flex:none}
+  .opt.v6-control.sel .v6-cic{color:var(--green)}
+  .opt.v6-control b{display:block; font-weight:600; font-size:14px}
+  .opt.v6-control small{display:block; color:var(--muted); font-size:11.5px; margin-top:2px}
+  .v6-check{margin-left:auto; color:var(--green); opacity:0; flex:none}
+  .v6-check svg{width:18px; height:18px; display:block}
+  .opt.v6-control.sel .v6-check{opacity:1}
+
+  .v6-versus{display:grid; gap:9px; margin-top:10px}
+  .v6-vnote{color:var(--muted); display:flex; gap:8px; align-items:flex-start; font-size:12.5px; line-height:1.45}
+  .v6-vnote svg{width:16px; height:16px; color:var(--yellow); flex:none; margin-top:1px}
+  .v6-vnote b{color:var(--ink); font-weight:600}
+  .v6-phone{border:1px solid var(--line); background:rgba(255,247,232,.035); border-radius:12px;
+    padding:11px 12px; display:flex; align-items:center; gap:11px}
+  .v6-phone>svg{width:19px; height:19px; color:var(--blue); flex:none}
+  .v6-phone b{display:block; font-weight:600; font-size:13.5px}
+  .v6-phone small{color:var(--muted); font-size:11.5px}
+
+  .v6-bladepanel{margin-top:16px}
+  .v6-blades{display:grid; grid-template-columns:repeat(4,1fr); gap:8px}
+  .v6-blade{border:1px solid transparent; background:rgba(255,247,232,.035); border-radius:12px; padding:12px;
+    text-align:left; min-height:104px; position:relative; overflow:hidden; color:inherit;
+    transition:background .18s, border-color .18s}
+  .v6-blade:hover:not(:disabled){background:rgba(255,247,232,.07)}
+  .v6-blade.on{border-color:var(--amber); background:rgba(255,107,44,.11)}
+  .v6-blade.locked{opacity:.55; cursor:default}
+  .v6-bline{display:block; height:7px; width:72%; margin:15px 0 14px; border-radius:999px; transform:rotate(-12deg)}
+  .v6-blade b{display:block; font-weight:600; font-size:13.5px}
+  .v6-blade small{color:var(--muted); font-size:11px}
+  .v6-bstate{position:absolute; right:10px; top:10px; color:var(--green)}
+  .v6-bstate svg{width:16px; height:16px; display:block}
+  .v6-blade.locked .v6-bstate{color:var(--muted)}
+
+  .v6-startrow{display:flex; flex-direction:column; align-items:center; gap:10px; margin-top:18px; text-align:center}
+  .v6-selection{color:var(--muted); font-size:13px}
+  .v6-actions{display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:center}
+  .v6-primary{border:0; background:linear-gradient(180deg,#ff814a,var(--amber)); color:var(--bg);
+    border-radius:12px; padding:14px 26px; font-weight:700; font-size:16px; min-width:250px;
+    box-shadow:0 7px 0 #9a421c, 0 14px 28px rgba(255,107,44,.26);
+    display:inline-flex; align-items:center; justify-content:center; gap:8px; transition:transform .12s, box-shadow .12s}
+  .v6-primary svg{width:18px; height:18px}
+  .v6-primary:hover{transform:translateY(-1px)}
+  .v6-primary:active{transform:translateY(4px); box-shadow:0 3px 0 #9a421c, 0 8px 18px rgba(255,107,44,.22)}
+
+  @media (max-width:900px){
+    /* The old .menuWrap caps itself at 600px here for the two-column menu; the
+       V6 layout is one column of full-width panels and needs the room. */
+    .menuWrap.v6{max-width:760px}
+    .v6-picker{grid-template-columns:1fr}
+    .v6-props{display:none}
+  }
+  @media (max-width:560px){
+    .v6-modes{grid-template-columns:1fr}
+    .v6-blades{grid-template-columns:repeat(2,1fr)}
+    .v6-speed{flex-direction:column; align-items:flex-start}
+    .v6-primary{min-width:0; width:100%}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .v6-mode,.opt.v6-control,.v6-blade,.v6-primary{transition:none}
+    .v6-mode:hover,.v6-primary:hover{transform:none}
+  }
+
+  /* #startBest and #lvlBar ARE the nav chips now, and their writers replace
+     innerHTML wholesale (scores.js, bladeRenderLvl) — so their inner pieces get
+     chip-sized here rather than by adding markup that would be wiped. */
+  .v6-chip .bestItem{font-size:12.5px; color:var(--ink)}
+  .v6-chip .bestItem+.bestItem{margin-left:8px}
+  .v6-chip .lvlNum{font-size:12.5px; font-weight:700}
+  .v6-chip .lvlTrack{flex:none; width:64px; height:6px; border-radius:999px; background:rgba(0,0,0,.5); overflow:hidden}
+  .v6-chip .lvlFill{display:block; height:100%; border-radius:999px; background:linear-gradient(90deg,var(--amber-l),var(--amber)); transition:width .3s}
+  .v6-chip .lvlXp{font-size:11px; color:var(--muted)}
+  @media (max-width:560px){ .v6-chip .lvlXp{display:none} }
+
+/* ===== V6 language on the other screens =====
+   Same panel/chip/button vocabulary, applied to markup that is otherwise
+   unchanged. Colour and surface only — no ids, no layout, and #errBar's
+   structure is deliberately untouched (build 64 invariant). */
+  #connect>.card,#result>.card,#blades>.card,#controller>.card{
+    background:linear-gradient(160deg,#21140d,#0f0a07);
+    border:1px solid var(--line); border-radius:18px;
+    box-shadow:inset 0 1px rgba(255,247,232,.05), 0 18px 44px rgba(0,0,0,.55)}
+  #connect .eyebrow,#result .eyebrow,#blades .eyebrow,#controller .eyebrow{
+    color:var(--yellow); text-transform:uppercase; letter-spacing:2px; font-size:11.5px; font-weight:600}
+  #connect h1,#result h1,#controller h1{font-family:var(--display); font-weight:400;
+    text-transform:uppercase; letter-spacing:1px}
+  /* The primary action on each screen gets the arcade button. */
+  #connGo,#againBtn,#ctrlConnect{border:0; background:linear-gradient(180deg,#ff814a,var(--amber));
+    color:var(--bg); border-radius:12px; font-weight:700;
+    box-shadow:0 7px 0 #9a421c, 0 14px 28px rgba(255,107,44,.26); transition:transform .12s, box-shadow .12s}
+  #connGo:not([disabled]):active,#againBtn:active,#ctrlConnect:active{
+    transform:translateY(4px); box-shadow:0 3px 0 #9a421c}
+  #connGo[disabled]{background:rgba(255,247,232,.08); color:var(--muted); box-shadow:none}
+  .btn.ghost{background:rgba(255,247,232,.06); color:var(--ink); border:1px solid var(--line); border-radius:12px}
+  .btn.ghost:hover{background:rgba(255,247,232,.11)}
+  .fact{background:rgba(255,247,232,.035); border:1px solid var(--line); border-radius:12px}
+
+  /* Play HUD — tokens only, no layout or ids touched. */
+  .scoreBadge,.roundBanner,.topicchip,.targetPill{border-color:var(--line)}
+  .timefill{background:linear-gradient(90deg,var(--amber-l),var(--amber))}

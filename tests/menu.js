@@ -56,7 +56,6 @@ console.log('\n--- 2. selecting Versus hides Mouse ---');
   ck('only webcam and phone are shown', t.visible().join()==="cam,remote");
   ck('the mouse tile is disabled too, not just hidden',
      t.opts.find(o=>o.dataset.mode==="mouse").disabled===true);
-  ck('the row reflows to two columns', t.chooseCls.has("twoUp"));
 }
 
 console.log('\n--- 3. THE BUG: a stale mouse selection must not survive ---');
@@ -79,7 +78,6 @@ console.log('\n--- 4. leaving Versus restores Mouse ---');
   ck('all three tiles are back', t.visible().join()==="cam,remote,mouse");
   ck('the mouse tile is enabled again',
      t.opts.find(o=>o.dataset.mode==="mouse").disabled===false);
-  ck('and the row is three columns again', !t.chooseCls.has("twoUp"));
 }
 
 console.log('\n--- 5. the picker is kept in step ---');
@@ -95,14 +93,78 @@ ck('no bare else reaches setupCamVS', !/else setupCamVS\(\)/.test(vs));
 ck('an unsupported mode returns to the menu instead of prompting for a camera',
    /show\("start"\)/.test(vs) && /return;/.test(vs));
 
-console.log('\n--- 7. the two-column rule exists ---');
-ck('.choose.twoUp is defined', /\.choose\.twoUp\{grid-template-columns:repeat\(2,1fr\)\}/.test(css));
-/* This one was a false pass. Asserting the media query merely EXISTS says
-   nothing about which rule wins: `.choose.twoUp` is two classes and
-   out-specifies a bare `.choose` inside the query, so Versus kept two cramped
-   columns on a phone. The narrow rule must name .twoUp explicitly. */
-ck('the narrow-screen rule names .twoUp, so it out-specifies it',
-   /max-width:560px\)\{ ?\.choose,\.choose\.twoUp\{grid-template-columns:1fr\}/.test(css));
+/* The 3-up control grid and its `.choose.twoUp` 3->2 reflow both went with the
+   V6 menu, which lists controls vertically — hiding the Mouse tile now just
+   removes a row. The rule and its assertions are retired together; a leftover
+   .twoUp would be dead CSS claiming a layout that no longer exists. */
+console.log('\n--- 7. the retired two-column reflow ---');
+ck('no .choose.twoUp rule survives in the stylesheet', !/twoUp/.test(css));
+ck('and syncControls no longer toggles it', !/twoUp/.test(code));
+ck('controls are a vertical list in the V6 menu',
+   /\.choose\.v6-controls\{display:grid; grid-template-columns:1fr/.test(css));
+
+/* ---- 8. the re-skin must not break what the code reaches for ---- */
+/* The tiles are a VIEW of GMODE/DIFF. segDelegate only paints on a click, but
+   the launchers assign GMODE in code, so after a round the menu could show Sort
+   highlighted while the header read "Versus selected". */
+console.log('\n--- 7b. tiles are painted from state, not from the last click ---');
+{ const t=build("vs","cam");
+  let painted=null;
+  t.ctx.el=id=>id==="modeSeg" ? {querySelectorAll:()=>[
+      {dataset:{g:"sort"},classList:{toggle:(c,on)=>{if(on)painted="sort";}},setAttribute(){}},
+      {dataset:{g:"vs"},  classList:{toggle:(c,on)=>{if(on)painted="vs";}},  setAttribute(){}}]}
+    : {classList:{toggle(){},contains:()=>false}, querySelectorAll:()=>[]};
+  t.ctx.DIFFS={}; t.ctx.DIFF=null;
+  t.ctx.syncControls();
+  ck('the tile matching GMODE is the one highlighted', painted==="vs", `painted ${painted}`);
+}
+ck('syncControls paints the segmented tiles', /paintSegs\(\)/.test(code));
+ck('and returning to the menu re-syncs', /syncControls\(\);\s*\/\* GMODE may have changed/.test(src));
+
+console.log('\n--- 8. V6 re-skin guards ---');
+const html=fs.readFileSync(R+'index.html','utf8');
+const ctrl=fs.readFileSync(R+'controller.html','utf8');
+/* Scan CODE, not prose. These files EXPLAIN in comments why color-mix, oklch
+   and the lucide CDN are avoided, and matching those words inside their own
+   rationale is a false positive that fails a correct change. This is the third
+   time that has bitten in this repo — strip comments before every source scan. */
+const cssCode=css.replace(/\/\*[\s\S]*?\*\//g,'');
+const htmlCode=html.replace(/<!--[\s\S]*?-->/g,'');
+const ctrlCode=ctrl.replace(/\/\*[\s\S]*?\*\//g,'').replace(/<!--[\s\S]*?-->/g,'');
+/* A large markup rewrite silently dropping one of these is the obvious failure
+   mode. #startNote is the worst of them: it is also the surface bootFail() and
+   the Versus refusal write to. */
+['modeSeg','choose','diffSeg','playBtn','bladesBtn','startBest','lvlBar','startNote',
+ 'v6Blades','v6Selection','v6Versus'].forEach(id=>{
+  ck(`#${id} still exists in index.html`, html.includes('id="'+id+'"'));
+});
+ck('the mode buttons still carry data-g',
+   ['sort','quiz','tsunami','vs'].every(g=>html.includes('data-g="'+g+'"')));
+ck('the control tiles still carry .opt and data-mode',
+   ['cam','remote','mouse'].every(m=>html.includes('data-mode="'+m+'"')) &&
+   (html.match(/class="opt /g)||[]).length===3);
+ck('the difficulty buttons still carry data-d',
+   html.includes('data-d="relaxed"') && html.includes('data-d="normal"'));
+/* The V6 mode tiles carry aria-pressed and segDelegate did not move it, so the
+   selected tile reported aria-pressed="false" — the opposite of what was drawn. */
+ck('segDelegate moves aria-pressed with the .on class',
+   /t\.setAttribute\("aria-pressed","false"\)/.test(code) &&
+   /b\.setAttribute\("aria-pressed","true"\)/.test(code));
+/* The mockup leaned on color-mix() 37 times. This file bans oklch() for the
+   same reason — a silent colour failure on a school machine. */
+ck('no color-mix() shipped in the stylesheet', !/color-mix\(/.test(cssCode));
+ck('no light-dark() shipped in the stylesheet', !/light-dark\(/.test(cssCode));
+ck('no oklch() shipped in the stylesheet', !/oklch\(/.test(cssCode));
+ck('controller.html stays free of them too',
+   !/color-mix\(|light-dark\(|oklch\(/.test(ctrlCode));
+/* Icons are the inline sprite, not the mockup's CDN. */
+ck('no lucide/unpkg script reference', !/lucide|unpkg\.com/.test(htmlCode));
+ck('the inline icon sprite is present', /<symbol id="i-check"/.test(html));
+/* The mockup inlined a 1.26MB base64 PNG; it is an external cached file now. */
+ck('no base64 image payload inlined', !/data:image\/[a-z]+;base64/.test(htmlCode));
+ck('the decorative image is an external asset', /src="img\/props\.png"/.test(html));
+ck('and it declares width/height so it cannot shift layout',
+   /props\.png" width="\d+" height="\d+"/.test(html));
 
 console.log('\n'+(pass?'ALL PASS':'FAILURES PRESENT'));
 process.exit(pass?0:1);
