@@ -1030,9 +1030,6 @@ function show(id){ ["start","connect","controller","play","result","blades"].for
   if(id==="start"){
     scoresRenderStartBest();                  /* refresh the best-score line after a run */
     if(typeof bladeRenderLvl==="function") bladeRenderLvl("lvlBar");   /* XP may have just changed */
-    /* A run may have unlocked a blade, so the menu strip is re-rendered on
-       every return to the menu rather than only at boot. */
-    if(typeof bladeRenderStrip==="function") bladeRenderStrip();
     syncControls();          /* GMODE may have changed during the round */
   } }
 function selectControl(mode){

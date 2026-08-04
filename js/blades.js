@@ -306,11 +306,8 @@ document.addEventListener("DOMContentLoaded", function(){
     if(s && !s.classList.contains("hidden")) bladeClose();
   });
   bladeRenderLvl("lvlBar");
-  /* The menu's blade strip is rendered from HERE, not from game.js's startup:
-     game.js is script 2 of 7 and bladeRenderStrip lives in this file, script 7,
-     so a call over there would run before this function exists — the same
-     load-order trap that cost us `bladeDrawTrail is not defined`. */
-  bladeRenderStrip();
+  /* menuLabels() lives in game.js (script 2) and is safe to call from here
+     (script 7); the selection summary shows the equipped blade. */
   if(typeof menuLabels==="function") menuLabels();
 });
 
@@ -353,46 +350,4 @@ function bladeDrawTrail(trail, now){
   if(live && !BLState.drawing) BLState.swipes++;
   BLState.drawing=live;
   bladeStroke(fxc, trail, b, BLState.swipes, 1);
-}
-
-/* ---- V6 menu blade strip ----
-   The design mocked four invented blades ("Eco Edge", "Solar Saber"…). This
-   renders the REAL roster instead, with the real level gates, so what the menu
-   shows and what bladeSelect() will accept cannot drift apart.
-
-   The glow colour drives the little angled blade streak, so each tile actually
-   previews its blade rather than using the mockup's four fixed colours. */
-function bladeRenderStrip(){
-  var box=(typeof el==="function")?el("v6Blades"):document.getElementById("v6Blades");
-  if(!box) return;
-  var lv=bladeLevel(), sel=bladeSelectedId();
-  box.innerHTML="";
-  BLADES.forEach(function(b){
-    var open=lv>=b.lvl, on=b.id===sel;
-    var t=document.createElement("button");
-    t.type="button";
-    t.className="v6-blade"+(on?" on":"")+(open?"":" locked");
-    t.setAttribute("data-blade", b.id);
-    t.setAttribute("aria-pressed", on?"true":"false");
-    if(!open){ t.disabled=true; }
-    /* A cycling blade has no single glow, so show the amber accent for it. */
-    var g=b.cycle ? "255,107,44" : (b.glow||"255,247,232");
-    t.innerHTML=
-      '<span class="v6-bstate">'+
-        (on   ? '<svg viewBox="0 0 24 24"><use href="#i-check"/></svg>' :
-         open ? '' : '<svg viewBox="0 0 24 24"><use href="#i-lock"/></svg>')+
-      '</span>'+
-      '<span class="v6-bline" style="background:linear-gradient(90deg,transparent,rgba('+g+',1),rgba('+(b.core||"255,255,255")+',1));'+
-        'box-shadow:0 0 14px rgba('+g+',.75)"></span>'+
-      '<b>'+b.zh+' '+b.n+'</b>'+
-      '<small>'+(open ? (on?"Equipped":"Tap to equip") : "Locked · Level "+b.lvl)+'</small>';
-    t.addEventListener("click", function(){
-      if(bladeSelect(b.id)===false) return;      /* locked: refuse, do not fake it */
-      bladeRenderStrip();
-      if(typeof menuLabels==="function") menuLabels();
-    });
-    box.appendChild(t);
-  });
-  var lab=(typeof el==="function")?el("v6BladeLabel"):document.getElementById("v6BladeLabel");
-  if(lab){ var cur=bladeCurrent(); lab.textContent=cur? cur.n+" equipped" : ""; }
 }

@@ -135,7 +135,7 @@ const ctrlCode=ctrl.replace(/\/\*[\s\S]*?\*\//g,'').replace(/<!--[\s\S]*?-->/g,'
    mode. #startNote is the worst of them: it is also the surface bootFail() and
    the Versus refusal write to. */
 ['modeSeg','choose','diffSeg','playBtn','bladesBtn','startBest','lvlBar','startNote',
- 'v6Blades','v6Selection','v6Versus'].forEach(id=>{
+ 'v6Selection','v6Versus'].forEach(id=>{
   ck(`#${id} still exists in index.html`, html.includes('id="'+id+'"'));
 });
 ck('the mode buttons still carry data-g',
@@ -163,6 +163,10 @@ ck('the inline icon sprite is present', /<symbol id="i-check"/.test(html));
 /* The mockup inlined a 1.26MB base64 PNG; it is an external cached file now. */
 ck('no base64 image payload inlined', !/data:image\/[a-z]+;base64/.test(htmlCode));
 ck('the decorative image is an external asset', /src="img\/props\.png"/.test(html));
+/* Blades are chosen on the #blades screen only — the home page must not grow a
+   second picker that could disagree with it. */
+ck('no blade picker on the home page', !/v6Blades|v6-bladepanel/.test(htmlCode));
+ck('but the route to the blades screen is still there', /id="bladesBtn"/.test(html));
 ck('and it declares width/height so it cannot shift layout',
    /props\.png" width="\d+" height="\d+"/.test(html));
 
