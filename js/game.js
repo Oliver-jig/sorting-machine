@@ -1162,6 +1162,17 @@ function bootController(){
 }
 
 /* ================= boot ================= */
+/* Shared by the deferred boot and its outer guard, so a failure reports the
+   same way whichever path caught it. */
+function bootFail(e){
+  var n=el("startNote");
+  if(n){
+    n.innerHTML='<b>Graphics failed to start</b> ('+((e&&e.message)||"WebGL unavailable")+
+      ').<br>Reload the page. If it keeps happening, close some other tabs — each one uses a graphics context.';
+    n.style.color="#c0392b";
+  }
+  if(typeof console!=="undefined" && console.error) console.error("boot failed:", e);
+}
 if(IS_CONTROLLER){
   show("controller");
   try { bootController(); } catch(e) {
@@ -1175,15 +1186,30 @@ if(IS_CONTROLLER){
      responded but starting a game gave a blank frozen screen with nothing in the
      console pointing at why. Intermittent and silent is the worst combination,
      so a failure now surfaces on the start screen instead. */
+  /* THE LOOP MUST NOT START UNTIL EVERY SCRIPT HAS LOADED.
+
+     This file is script 2 of 7, but drawFx() calls bladeDrawTrail(), which is
+     defined in js/blades.js — script 7. Starting the loop here ran the first
+     frame while the browser was still fetching the remaining parser-blocking
+     scripts, and rAF callbacks DO fire in those gaps. On a cold cache or a slow
+     connection the first frame hit `bladeDrawTrail is not defined`.
+
+     That single race is what produced every "the game is broken" report:
+     build 62 it killed the rAF chain outright (frozen board, no items),
+     build 63 the error path poisoned the round-start button (bounce to menu),
+     build 66 it surfaces in #errBar. It never reproduced locally because
+     localhost serves all seven files before the first frame is due.
+
+     DOMContentLoaded fires only after every parser-inserted synchronous script
+     has executed, which is exactly the guarantee needed. readyState is checked
+     because this file could later be moved after the event has already fired. */
+  var bootGame=function(){
+    try {
+      initThree(); resize(); requestAnimationFrame(loop);
+    } catch(e) { bootFail(e); }
+  };
   try {
-    initThree(); resize(); requestAnimationFrame(loop);
-  } catch(e) {
-    var n=el("startNote");
-    if(n){
-      n.innerHTML='<b>Graphics failed to start</b> ('+((e&&e.message)||"WebGL unavailable")+
-        ').<br>Reload the page. If it keeps happening, close some other tabs — each one uses a graphics context.';
-      n.style.color="#c0392b";
-    }
-    if(typeof console!=="undefined" && console.error) console.error("initThree failed:", e);
-  }
+    if(document.readyState==="loading") document.addEventListener("DOMContentLoaded", bootGame);
+    else bootGame();
+  } catch(e) { bootFail(e); }
 }
