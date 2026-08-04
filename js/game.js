@@ -1030,6 +1030,10 @@ function show(id){ ["start","connect","controller","play","result","blades"].for
   if(id==="start"){
     scoresRenderStartBest();                  /* refresh the best-score line after a run */
     if(typeof bladeRenderLvl==="function") bladeRenderLvl("lvlBar");   /* XP may have just changed */
+    /* A run may have unlocked a blade, so the menu strip is re-rendered on
+       every return to the menu rather than only at boot. */
+    if(typeof bladeRenderStrip==="function") bladeRenderStrip();
+    syncControls();          /* GMODE may have changed during the round */
   } }
 function selectControl(mode){
   document.querySelectorAll(".opt").forEach(function(x){
@@ -1039,7 +1043,7 @@ function selectControl(mode){
   controlMode=mode;
 }
 document.querySelectorAll(".opt").forEach(function(o){ o.addEventListener("click", function(){
-  selectControl(o.dataset.mode); }); });
+  selectControl(o.dataset.mode); menuLabels(); }); });
 
 /* ---- which controls a mode can actually be played with ----
    Versus drives TWO blades (BLADE and BLADE2) from two webcam hands or two
@@ -1054,23 +1058,61 @@ function controlsFor(mode){
   return mode==="vs" ? ["cam","remote"] : ["cam","remote","mouse"];
 }
 function syncControls(){
-  var allowed=controlsFor(GMODE), shown=0;
+  var allowed=controlsFor(GMODE);
   document.querySelectorAll(".opt").forEach(function(o){
     var ok=allowed.indexOf(o.dataset.mode)>=0;
     o.classList.toggle("hidden", !ok);
     /* display:none already drops it from the tab order; the attribute keeps
        state honest if that class is ever changed to something visual. */
     o.disabled=!ok;
-    if(ok) shown++;
   });
-  /* Fixed 3-column grid: with a tile hidden the survivors would sit against an
-     empty third column instead of filling the row. */
-  var box=el("choose"); if(box) box.classList.toggle("twoUp", shown===2);
+  /* No column reflow to do: the V6 menu lists controls vertically, so hiding
+     the Mouse tile just removes a row. The old `.choose.twoUp` 3->2 grid fix
+     went with the 3-up layout. */
   /* THE IMPORTANT PART. Hiding the tile while controlMode stays "mouse" is
      exactly the silent-camera bug. This also catches a controlMode that
      setupCam()'s failure path flipped to "mouse" behind the player's back in an
      earlier round. */
   if(allowed.indexOf(controlMode)<0) selectControl("cam");
+  /* Versus is the only mode that needs the two-player explanation. */
+  var v=el("v6Versus"); if(v) v.classList.toggle("hidden", GMODE!=="vs");
+  paintSegs();
+  menuLabels();
+}
+
+/* Paint the mode and speed tiles FROM state, not from whatever was last clicked.
+   segDelegate only highlights on a click, but GMODE is also assigned in code —
+   launchGame() sets "sort", launchQuiz() "quiz", launchVS() "vs" — so after
+   playing a round the menu could show Sort highlighted while the header said
+   "Versus selected". The tiles are a view of GMODE/DIFF; render them that way. */
+function paintSegs(){
+  var ms=el("modeSeg");
+  if(ms) Array.prototype.forEach.call(ms.querySelectorAll("button[data-g]"), function(b){
+    var on=b.dataset.g===GMODE;
+    b.classList.toggle("on", on); b.setAttribute("aria-pressed", on?"true":"false");
+  });
+  var ds=el("diffSeg");
+  if(ds) Array.prototype.forEach.call(ds.querySelectorAll("button[data-d]"), function(b){
+    var on=DIFFS[b.dataset.d]===DIFF;
+    b.classList.toggle("on", on); b.setAttribute("aria-pressed", on?"true":"false");
+  });
+}
+
+/* ---- the V6 menu's live labels ----
+   The mockup shipped these as static text. They are the only feedback that the
+   picker registered a click, so they are driven from real state. */
+var MODENAME={sort:"Sort", quiz:"Quiz", tsunami:"Bin It", vs:"Versus"};
+var CTRLNAME={cam:"Webcam hand", remote:"Phone controller", mouse:"Mouse / touch"};
+function menuLabels(){
+  var m=el("v6ModeLabel"); if(m) m.textContent=(MODENAME[GMODE]||GMODE)+" selected";
+  var c=el("v6CtrlLabel"); if(c) c.textContent=CTRLNAME[controlMode]||"Ready";
+  var s=el("v6Selection");
+  if(s){
+    var blade=(typeof bladeCurrent==="function") ? bladeCurrent() : null;
+    s.textContent=(MODENAME[GMODE]||GMODE)+" · "+
+      (blade ? (blade.zh?blade.zh+" ":"")+blade.n+" · " : "")+
+      (CTRLNAME[controlMode]||"");
+  }
 }
 /* Segmented controls delegate from the CONTAINER, not from each button.
    Listeners were on the buttons, and a measurement of the mode selector found
@@ -1100,8 +1142,12 @@ function segDelegate(id, onPick){
       b=best;
     }
     if(!b) return;
-    btns.forEach(function(t){ t.classList.remove("on"); });
-    b.classList.add("on");
+    /* aria-pressed has to move with the `on` class. The V6 mode tiles carry it
+       and nothing updated it, so the selected tile stayed aria-pressed="false"
+       — a screen reader was told the opposite of what the screen showed. These
+       are toggle buttons in a group, so the state belongs on every one of them. */
+    btns.forEach(function(t){ t.classList.remove("on"); t.setAttribute("aria-pressed","false"); });
+    b.classList.add("on"); b.setAttribute("aria-pressed","true");
     onPick(b);
   });
 }
