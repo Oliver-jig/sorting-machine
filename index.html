@@ -91,12 +91,6 @@
         </div>
       </div>
 
-      <div class="v6-panel v6-bladepanel">
-        <div class="v6-head"><strong>Choose blade</strong><span id="v6BladeLabel"></span></div>
-        <!-- filled by bladeRenderStrip() from the real BLADES roster -->
-        <div class="v6-blades" id="v6Blades"></div>
-      </div>
-
       <div class="v6-startrow">
         <div class="v6-selection" id="v6Selection" aria-live="polite"></div>
         <div class="v6-actions">
@@ -112,7 +106,7 @@
             if(location.protocol==="file:"){ n.innerHTML='<b>You opened this file directly.</b> Phone mode won\'t work. Serve with:<br><code>python3 -m http.server 8137</code><br>Then open <b>http://localhost:8137/</b> (same WiFi as phone) — or deploy to Vercel.'; n.style.color='#f04444'; }
             else if(location.hostname==="localhost"||location.hostname==="127.0.0.1"){
               n.innerHTML='Running locally. <b>Make sure your phone is on the same WiFi.</b>';
-            } else { n.innerHTML='Webcam + mouse run in your browser. Phone controller: scan the QR or type the code. · build 69'; }
+            } else { n.innerHTML='Webcam + mouse run in your browser. Phone controller: scan the QR or type the code. · build 70'; }
           })();
         </script>
       </div>

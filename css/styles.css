@@ -9,10 +9,19 @@
   html,body{margin:0;height:100%}
   body{background:var(--bg); color:var(--ink); font-family:var(--font);
     -webkit-user-select:none; user-select:none; overflow:hidden; letter-spacing:-.01em}
-  /* Widened from 900 for the mockup's two-column menu. Safe for every other
-   screen because .card is still capped at 600px, so only .menuWrap (max
-   1060) actually uses the extra room. */
-  #app{max-width:1100px; margin:0 auto; height:100%; display:flex; flex-direction:column; padding:16px}
+  /* No width cap: the app fills the viewport. The play stage is the reason —
+     a bigger #stage is more playfield, and the text screens cap themselves
+     (.card at 600px, .menuWrap.v6 at 1600px) so nothing stretches to unreadable
+     line lengths on a wide monitor.
+
+     Checked before removing the cap, because Bin It's fairness guarantee is
+     calibrated to "webcam ~= one screen crossing per second": dVmax() returns
+     W/1000, so the reachable window scales with the stage, and the harness
+     reports FORCED STRIKES: 0 at 1280, 1920, 2560 and 3440 wide.
+
+     Resolution stays bounded by PIXBUDGET in dprFor(), so a wider stage costs
+     pixels only up to the 2.6MP budget. */
+  #app{width:100%; margin:0 auto; height:100%; display:flex; flex-direction:column; padding:16px}
   button{font-family:inherit; cursor:pointer; letter-spacing:-.01em}
   .btn{background:var(--accent); color:#fff; border:none; border-radius:980px; padding:13px 26px; font-size:16px; font-weight:500; transition:background .2s}
   .btn:hover{background:var(--accent-h)} .btn:active{transform:scale(.98)}
@@ -356,13 +365,14 @@
     .menuPanel .row{ margin-top:6px }
   }
 
-  /* The old single-column card fitted inside 900px. The mockup's menu is a
-     980-wide two-column frame, so the shell needs to widen — but only where the
-     wide layout is actually used, which is why this is scoped rather than a
-     blanket change to #app. */
-  @media (min-width:940px){
-    #app:has(#start:not(.hidden)), #app:has(#blades:not(.hidden)){ max-width:1100px }
-  }
+  /* This used to cap #app at 1100px on the menu and blades screens. That cap is
+     gone — the app fills the viewport now, and the width limit belongs on the
+     CONTENT (.menuWrap.v6 at 1600px, .card at 600px) rather than on the shell,
+     so the play stage is never constrained by a rule meant for a text layout.
+
+     Kept as a comment rather than deleted because the `:has()` scoping trick
+     here is what previously made the cap apply to some screens and not others;
+     if a screen ever needs a shell-level width again, this is the pattern. */
 
   /* ================= HUD (floats over the playfield) ================= */
   /* z-index 5 clears #gl(1) and #fx(2). #fx is pointer-events:none, so nothing
@@ -454,7 +464,7 @@
   /* display:block is NOT redundant. The old .menuWrap (line ~295) is a two-column
      flex row, and without this override the V6 sections became flex items side
      by side and each collapsed to ~300px. */
-  .menuWrap.v6{display:block; max-width:1180px; width:100%; padding:6px 4px 10px;
+  .menuWrap.v6{display:block; max-width:1600px; width:100%; padding:6px 4px 10px;
     position:relative; text-align:left}
   .v6-props{position:absolute; z-index:0; left:-4%; top:96px; width:108%; height:auto;
     pointer-events:none; opacity:.5; filter:saturate(1.08) contrast(1.02) drop-shadow(0 22px 28px rgba(0,0,0,.36))}
@@ -486,7 +496,7 @@
   .v6-beltline:last-child{transform:scaleX(-1)}
   .v6-belt span:not(.v6-beltline){color:var(--muted); letter-spacing:1px; text-transform:uppercase; font-size:11.5px}
 
-  .v6-picker{display:grid; grid-template-columns:1.05fr .95fr; gap:16px; margin-top:18px}
+  .v6-picker{display:grid; grid-template-columns:1.05fr .95fr; gap:18px; margin-top:18px}
   .v6-panel{background:linear-gradient(160deg,#21140d,#0f0a07); border:1px solid var(--line);
     border-radius:18px; padding:18px; box-shadow:inset 0 1px rgba(255,247,232,.05), 0 18px 44px rgba(0,0,0,.55)}
   .v6-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; gap:12px}
@@ -536,21 +546,6 @@
   .v6-phone b{display:block; font-weight:600; font-size:13.5px}
   .v6-phone small{color:var(--muted); font-size:11.5px}
 
-  .v6-bladepanel{margin-top:16px}
-  .v6-blades{display:grid; grid-template-columns:repeat(4,1fr); gap:8px}
-  .v6-blade{border:1px solid transparent; background:rgba(255,247,232,.035); border-radius:12px; padding:12px;
-    text-align:left; min-height:104px; position:relative; overflow:hidden; color:inherit;
-    transition:background .18s, border-color .18s}
-  .v6-blade:hover:not(:disabled){background:rgba(255,247,232,.07)}
-  .v6-blade.on{border-color:var(--amber); background:rgba(255,107,44,.11)}
-  .v6-blade.locked{opacity:.55; cursor:default}
-  .v6-bline{display:block; height:7px; width:72%; margin:15px 0 14px; border-radius:999px; transform:rotate(-12deg)}
-  .v6-blade b{display:block; font-weight:600; font-size:13.5px}
-  .v6-blade small{color:var(--muted); font-size:11px}
-  .v6-bstate{position:absolute; right:10px; top:10px; color:var(--green)}
-  .v6-bstate svg{width:16px; height:16px; display:block}
-  .v6-blade.locked .v6-bstate{color:var(--muted)}
-
   .v6-startrow{display:flex; flex-direction:column; align-items:center; gap:10px; margin-top:18px; text-align:center}
   .v6-selection{color:var(--muted); font-size:13px}
   .v6-actions{display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:center}
@@ -571,12 +566,11 @@
   }
   @media (max-width:560px){
     .v6-modes{grid-template-columns:1fr}
-    .v6-blades{grid-template-columns:repeat(2,1fr)}
     .v6-speed{flex-direction:column; align-items:flex-start}
     .v6-primary{min-width:0; width:100%}
   }
   @media (prefers-reduced-motion:reduce){
-    .v6-mode,.opt.v6-control,.v6-blade,.v6-primary{transition:none}
+    .v6-mode,.opt.v6-control,.v6-primary{transition:none}
     .v6-mode:hover,.v6-primary:hover{transform:none}
   }
 

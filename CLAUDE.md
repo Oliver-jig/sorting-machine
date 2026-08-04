@@ -8,7 +8,7 @@ A single-page browser arcade game for **SDG 12** — a Fruit-Ninja-style slicer
 teaching Hong Kong recycling. No build step, no framework, no bundler. Plain
 HTML + CSS + ES5-ish JS with CDN libraries, deployed static to Vercel.
 
-Current state: **build 69**. "Preview V6" dark arcade UI, 50 items, four modes,
+Current state: **build 70**. "Preview V6" dark arcade UI, 50 items, four modes,
 blade skins with an XP/level system.
 
 Repo: `Oliver-jig/sorting-machine`. Two branches, **kept in sync after every
@@ -322,6 +322,24 @@ machine. Every one is resolved to a literal `rgba()`/hex. Its lucide CDN icons
 are an inline `<symbol>` sprite instead (a blocked unpkg leaves empty boxes),
 and its 1.26MB inline base64 PNG is an external `img/props.png` at 317KB.
 `tests/menu.js` section 8 fails on any of them coming back.
+
+**The app fills the viewport; width limits live on the CONTENT.** `#app` had a
+1100px cap (plus a `:has()`-scoped copy for the menu and blades screens, which
+is why the first attempt to remove it appeared not to work — computed
+`max-width` stayed 1100 with only one rule edited). Both are gone: `.card` caps
+itself at 600px and `.menuWrap.v6` at 1600px, so text never stretches while the
+play stage gets the whole screen.
+
+Checked before removing it, because Bin It's fairness is calibrated to "webcam
+≈ one screen crossing per second". `dVmax()` returns `W/1000`, so the reachable
+window scales with the stage — the harness reports **FORCED STRIKES: 0 at 1280,
+1920, 2560 and 3440 wide**. `PIXBUDGET` still bounds the cost: a 1920 viewport
+gives dpr 1.15 and exactly 2.60MP.
+
+**Blades are chosen on the `#blades` screen only.** A second picker on the menu
+was built and removed at the user's request — one roster, one place to change
+it, no chance of the two disagreeing. The menu's selection line still *names*
+the equipped blade, which is a summary, not a picker.
 
 **`.menuWrap.v6` must set `display:block`.** The pre-V6 `.menuWrap` is a
 two-column flex row; without the override the V6 sections became flex items side
