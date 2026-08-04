@@ -15,7 +15,7 @@
   "scripts": {
     "start": "python3 -m http.server 8137",
     "dev": "npx serve .",
-    "test": "npm run check && node tests/xp.js && node tests/behaviour.js && node tests/fairness.js && node tests/webcam.js && node tests/quiz.js && node tests/controller.js && node tests/signalling.js && node tests/latency.js && node tests/loop.js && node tests/perf.js",
+    "test": "npm run check && node tests/xp.js && node tests/behaviour.js && node tests/fairness.js && node tests/webcam.js && node tests/quiz.js && node tests/controller.js && node tests/signalling.js && node tests/latency.js && node tests/loop.js && node tests/perf.js && node tests/menu.js",
     "check": "for f in js/*.js; do node --check $f || exit 1; done"
   }
 }

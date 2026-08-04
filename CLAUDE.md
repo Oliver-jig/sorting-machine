@@ -8,7 +8,7 @@ A single-page browser arcade game for **SDG 12** — a Fruit-Ninja-style slicer
 teaching Hong Kong recycling. No build step, no framework, no bundler. Plain
 HTML + CSS + ES5-ish JS with CDN libraries, deployed static to Vercel.
 
-Current state: **build 67**. Dark "dojo-arcade" theme, 50 items, four modes,
+Current state: **build 68**. Dark "dojo-arcade" theme, 50 items, four modes,
 blade skins with an XP/level system.
 
 Repo: `Oliver-jig/sorting-machine`. Two branches, **kept in sync after every
@@ -35,7 +35,7 @@ for f in js/*.js; do node --check $f || echo "FAIL $f"; done
 ```
 
 ```bash
-npm test                  # syntax check + all ten invariant harnesses
+npm test                  # syntax check + all eleven invariant harnesses
 node tests/fairness.js    # or run one on its own
 npm run check             # syntax-check every js file
 ```
@@ -291,6 +291,26 @@ sentinel whenever the base horizontal mapping changes.** The sign is verified
 against one phone plus the harness; the Flip buttons remain the escape hatch for
 devices that differ.
 
+**A mode must not offer a control it cannot use.** Versus drives TWO blades
+(`BLADE`/`BLADE2`) from two webcam hands or two phones; a mouse gives one
+cursor. The picker offered Mouse anyway, and `launchVS()` routed
+`else setupCamVS()` — so **Mouse + Versus silently started the camera**, and
+denying access alerted "Versus needs a webcam" and bounced the player back to
+the menu. They chose a mouse and got a camera prompt.
+
+`controlsFor(mode)` is the single source of truth; `syncControls()` hides
+disallowed tiles and **moves `controlMode` off an invalid choice**. That second
+half is the real fix — hiding the tile while `controlMode` stayed `"mouse"` is
+the silent-camera bug, and `setupCam()`'s failure path can set `"mouse"` on its
+own during an earlier round. `launchVS()` now routes explicitly and refuses an
+unsupported mode instead of guessing.
+
+**`.choose.twoUp` must be named in the narrow-screen media query.** It is two
+classes, so it out-specifies a bare `.choose` inside `@media (max-width:560px)`
+and kept two cramped columns on a phone. The harness first asserted only that
+the media query *existed*, which passed while the layout was broken — a browser
+check caught it. Assert which rule WINS, not that a rule is present.
+
 **Blades are cosmetic only.** The harness enforces this with a banned-field list
 *and* an allowlist. Scores go to a database the teacher reads; if a blade changed
 scoring, a high-level student would out-score a beginner with equal knowledge.
@@ -322,6 +342,7 @@ Run with `node <file>`; each exits non-zero on failure.
 | `latency.js` | Phone: dead reckoning cuts felt lag and never overshoots off-screen |
 | `loop.js` | Spawn height scales; no silent freeze; errors never touch game UI |
 | `perf.js` | Materials are released, resolution is budgeted, labels are cached |
+| `menu.js` | Versus never offers Mouse, and no stale controlMode reaches it |
 
 They are the only automated protection for the invariants above. Run `npm test`
 before pushing.

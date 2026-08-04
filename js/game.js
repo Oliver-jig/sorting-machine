@@ -472,8 +472,23 @@ function launchVS(){ setRoundLbl("players");
   setTopic("Versus", "#7f77dd"); el("scoreN").textContent="0"; el("roundN").textContent="2P"; el("timeFill").style.width="100%";
   el("quizQ").classList.add("hidden"); el("pauseBtn").style.display="";
   show("play"); resize(); el("ovl").classList.add("hidden"); el("pauseOvl").classList.add("hidden");
+  /* Routed EXPLICITLY, never `else setupCamVS()`. That bare else meant any
+     control mode other than remote started the camera — so Mouse + Versus asked
+     for camera access, and denying it alerted and bounced back to the menu. The
+     picker no longer offers Mouse here, but controlMode can also be changed in
+     code (setupCam()'s failure path sets it to "mouse"), so the routing must
+     refuse an unsupported mode rather than guess. */
   if(controlMode==="remote"){ BLADE.active=false; BLADE2.active=false; }   /* two phones drive the blades */
-  else setupCamVS();
+  else if(controlMode==="cam"){ setupCamVS(); }
+  else {
+    VS.running=false;
+    show("start");
+    var n=el("startNote");
+    if(n){ n.innerHTML='<b>Versus needs two players.</b> Choose <b>Webcam hand</b> (two hands) '+
+      'or <b>Phone controller</b> (two phones) — a mouse only gives one blade.';
+      n.style.color="#e2703a"; }
+    return;
+  }
   VS.running=true;
 }
 function vsSpawn(side){
@@ -1016,8 +1031,47 @@ function show(id){ ["start","connect","controller","play","result","blades"].for
     scoresRenderStartBest();                  /* refresh the best-score line after a run */
     if(typeof bladeRenderLvl==="function") bladeRenderLvl("lvlBar");   /* XP may have just changed */
   } }
+function selectControl(mode){
+  document.querySelectorAll(".opt").forEach(function(x){
+    var on = x.dataset.mode===mode;
+    x.classList.toggle("sel", on); x.setAttribute("aria-pressed", on?"true":"false");
+  });
+  controlMode=mode;
+}
 document.querySelectorAll(".opt").forEach(function(o){ o.addEventListener("click", function(){
-  document.querySelectorAll(".opt").forEach(function(x){x.classList.remove("sel"); x.setAttribute("aria-pressed","false");}); o.classList.add("sel"); o.setAttribute("aria-pressed","true"); controlMode=o.dataset.mode; }); });
+  selectControl(o.dataset.mode); }); });
+
+/* ---- which controls a mode can actually be played with ----
+   Versus drives TWO blades (BLADE and BLADE2) from two webcam hands or two
+   phones. A mouse gives one cursor, so it cannot play it — but the menu offered
+   it anyway, which reads as "this works".
+
+   It was worse than a dead option: launchVS() routed `else setupCamVS()`, so
+   picking Mouse + Versus silently started the CAMERA, and denying access alerted
+   "Versus needs a webcam" and bounced the player back to the menu. They asked
+   for a mouse and got a camera prompt. */
+function controlsFor(mode){
+  return mode==="vs" ? ["cam","remote"] : ["cam","remote","mouse"];
+}
+function syncControls(){
+  var allowed=controlsFor(GMODE), shown=0;
+  document.querySelectorAll(".opt").forEach(function(o){
+    var ok=allowed.indexOf(o.dataset.mode)>=0;
+    o.classList.toggle("hidden", !ok);
+    /* display:none already drops it from the tab order; the attribute keeps
+       state honest if that class is ever changed to something visual. */
+    o.disabled=!ok;
+    if(ok) shown++;
+  });
+  /* Fixed 3-column grid: with a tile hidden the survivors would sit against an
+     empty third column instead of filling the row. */
+  var box=el("choose"); if(box) box.classList.toggle("twoUp", shown===2);
+  /* THE IMPORTANT PART. Hiding the tile while controlMode stays "mouse" is
+     exactly the silent-camera bug. This also catches a controlMode that
+     setupCam()'s failure path flipped to "mouse" behind the player's back in an
+     earlier round. */
+  if(allowed.indexOf(controlMode)<0) selectControl("cam");
+}
 /* Segmented controls delegate from the CONTAINER, not from each button.
    Listeners were on the buttons, and a measurement of the mode selector found
    that 33% of the pill's pixels hit no button at all: the pill is 43px tall but
@@ -1052,7 +1106,8 @@ function segDelegate(id, onPick){
   });
 }
 segDelegate("diffSeg", function(b){ DIFF=DIFFS[b.dataset.d]; });
-segDelegate("modeSeg", function(b){ GMODE=b.dataset.g; });
+segDelegate("modeSeg", function(b){ GMODE=b.dataset.g; syncControls(); });
+syncControls();   /* and once now, so a page loading on Versus is already correct */
 
 function startChosen(){ if(GMODE==="quiz") launchQuiz(); else if(GMODE==="tsunami") launchTsunami(); else if(GMODE==="vs") launchVS(); else launchGame(); }
 el("playBtn").addEventListener("click", function(){
