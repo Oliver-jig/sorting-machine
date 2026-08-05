@@ -217,6 +217,10 @@ function spawnBurst(x,y,col){
     G.parts.push({x:x,y:y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1.5,life:1,col:col,sz:3+Math.random()*4}); }
   G.flashes.push({x:x,y:y,r:12,life:1});
 }
+/* First y clear of the floating HUD (score badge 18-92, round banner 0-~50,
+   pause 18-64). Mirrors --hudSafe in css/styles.css — canvas drawing cannot
+   read a CSS variable, so the two are kept in step by hand. */
+var HUDSAFE=100;
 var DIFF=DIFFS.relaxed;
 var BLADE={x:0,y:0,px:0,py:0,active:false, trail:[]};
 var BLADE2={x:0,y:0,px:0,py:0,active:false, trail:[]};

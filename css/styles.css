@@ -611,3 +611,28 @@
   /* Play HUD — tokens only, no layout or ids touched. */
   .scoreBadge,.roundBanner,.topicchip,.targetPill{border-color:var(--line)}
   .timefill{background:linear-gradient(90deg,var(--amber-l),var(--amber))}
+
+/* ===== canvas/HUD collision safety =====
+   The V6 HUD floats OVER the playfield: .scoreBadge occupies y 18-92 top-left,
+   .roundBanner y 0-~50 centre (it carries the topic, the question counter AND
+   the timer bar), .pauseBtn y 18-64 top-right. Anything drawn into that band
+   collides with them.
+
+   --hudSafe is the first y that is clear of all three. js/game.js mirrors it as
+   HUDSAFE for the canvas-drawn overlays, which cannot read a CSS variable. Keep
+   the two in step. */
+  :root{ --hudSafe:100px }
+
+  /* The quiz question. Previously an inline style with a hardcoded WHITE
+     background and color:var(--ink) — which the V6 palette flipped from #1d1d1f
+     to #fff7e8, so it became near-white text on a near-white box: unreadable.
+     It also sat at top:14px, directly on top of the round banner and timer. */
+  #quizQ{ position:absolute; top:var(--hudSafe); left:50%; transform:translateX(-50%);
+    z-index:5; width:max-content; max-width:min(78%,620px); text-align:center;
+    background:linear-gradient(180deg,#2b1b11,#160f0a); border:2px solid rgba(0,0,0,.5);
+    border-radius:14px; padding:12px 20px;
+    box-shadow:inset 0 1px 0 rgba(255,247,232,.10), 0 8px 22px rgba(0,0,0,.55);
+    font-weight:600; font-size:17px; line-height:1.35; color:#fbe9d0;
+    text-wrap:balance }
+  #quizQ b{ color:var(--amber) }
+  @media (max-width:560px){ #quizQ{ font-size:15px; padding:10px 14px; max-width:88% } }

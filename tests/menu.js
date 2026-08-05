@@ -170,5 +170,68 @@ ck('but the route to the blades screen is still there', /id="bladesBtn"/.test(ht
 ck('and it declares width/height so it cannot shift layout',
    /props\.png" width="\d+" height="\d+"/.test(html));
 
+/* ---- 9. nothing may be drawn INTO the floating HUD ---- */
+/* The V6 HUD sits over the playfield: .scoreBadge y 18-92 top-left,
+   .roundBanner y 0-~50 centre (topic, question counter AND timer), .pauseBtn
+   top-right. Two things were drawn straight into that band:
+     - the quiz question at top:14px, on top of the counter and timer;
+     - the active-power chips at y=26, on top of the score.
+   Worse, the question box was an inline style with a hardcoded WHITE background
+   and color:var(--ink) — which the V6 palette flipped to #fff7e8, making it
+   near-white on near-white. */
+console.log('\n--- 9. HUD collision safety ---');
+const quizSrc=fs.readFileSync(R+'js/mode-quiz.js','utf8');
+const specSrc=fs.readFileSync(R+'js/specials.js','utf8');
+const quizCode=decomment(quizSrc), specCode=decomment(specSrc);
+ck('a single --hudSafe is defined in CSS', /--hudSafe:\s*(\d+)px/.test(cssCode));
+ck('and mirrored as HUDSAFE in game.js', /var HUDSAFE=(\d+);/.test(code));
+const cssSafe=+(cssCode.match(/--hudSafe:\s*(\d+)px/)||[])[1];
+const jsSafe=+(code.match(/var HUDSAFE=(\d+);/)||[])[1];
+ck('the two agree', cssSafe===jsSafe, `css ${cssSafe} vs js ${jsSafe}`);
+
+ck('#quizQ no longer carries an inline style', !/id="quizQ"[^>]*style=/.test(html));
+ck('#quizQ is positioned at --hudSafe, not at the top', /#quizQ\{[^}]*top:var\(--hudSafe\)/.test(cssCode));
+/* The actual readability bug: a light background with themed light text. */
+ck('#quizQ does not put var(--ink) on a white background',
+   !/#quizQ\{[^}]*background:\s*(#fff|rgba\(255,\s*255,\s*255)[^}]*var\(--ink\)/.test(cssCode));
+ck('#quizQ uses an explicit light-on-dark pair',
+   /#quizQ\{[^}]*color:#fbe9d0/.test(cssCode) && /#quizQ\{[^}]*background:linear-gradient\(180deg,#2b1b11/.test(cssCode));
+
+ck('power chips start below the HUD, not at y=26',
+   /HUDSAFE[^;]*\+14\+i\*32/.test(specCode) && !/y=26\+i\*30/.test(specCode));
+ck('power chips are dark, not a white pill on a dark playfield',
+   /fxc\.fillStyle="#160f0a"/.test(specCode));
+
+/* Quiz cards were a fixed 148px in a lane of (W-140)/n, so four answers
+   overlapped below ~730px and their labels ran together. */
+ck('quiz cards size themselves to their lane', /o\.cw=L\.cw/.test(quizCode) && /cw:Math\.max\(QCARDMIN/.test(quizCode));
+ck('and wrap to two rows when a lane would be too narrow',
+   /if\(avail\/n < QMINLANE && n>2\)\{ cols=Math\.ceil\(n\/2\); rows=2; \}/.test(quizCode));
+ck('the card draw uses the per-card width', /var w=o\.cw\|\|148, h=w;/.test(quizCode));
+ck('answer labels shrink and ellipsise to fit the card',
+   /while\(fxc\.measureText\(lbl\)\.width>maxw/.test(quizCode));
+ck('cards clear the question box', /HUDSAFE[^)]*\)\+76/.test(quizCode));
+
+/* Run the real layout across every width and answer count. */
+{
+  const c={ console, Math, W:0 };
+  vm.createContext(c);
+  const a2=quizSrc.indexOf('var QMINLANE'), b2=quizSrc.indexOf('function quizLaunch');
+  vm.runInContext(quizSrc.slice(a2,b2), c);
+  let bad=[];
+  for(const w of [320,360,375,414,500,640,760,900,1200,1600,1920,2560]){
+    c.W=w;
+    for(const n of [2,3,4,5]){
+      const L=c.quizLayout(n);
+      const xs=[]; for(let i=0;i<L.cols;i++) xs.push(L.pad+i*L.lw+L.lw/2);
+      const gap=L.cols>1 ? (xs[1]-L.cw/2)-(xs[0]+L.cw/2) : 99;
+      const fits=(xs[0]-L.cw/2)>=-1 && (xs[L.cols-1]+L.cw/2)<=w+1;
+      if(gap<0 || !fits) bad.push(`${w}px/${n} gap=${Math.round(gap)} fits=${fits}`);
+    }
+  }
+  console.log('    checked 12 widths x 4 answer counts');
+  ck('no answer layout overlaps or overflows at any width', bad.length===0, bad.slice(0,3).join('; '));
+}
+
 console.log('\n'+(pass?'ALL PASS':'FAILURES PRESENT'));
 process.exit(pass?0:1);

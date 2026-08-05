@@ -8,7 +8,7 @@ A single-page browser arcade game for **SDG 12** — a Fruit-Ninja-style slicer
 teaching Hong Kong recycling. No build step, no framework, no bundler. Plain
 HTML + CSS + ES5-ish JS with CDN libraries, deployed static to Vercel.
 
-Current state: **build 71**. "Preview V6" dark arcade UI, 50 items, four modes,
+Current state: **build 72**. "Preview V6" dark arcade UI, 50 items, four modes,
 blade skins with an XP/level system.
 
 Repo: `Oliver-jig/sorting-machine`. Two branches, **kept in sync after every
@@ -164,6 +164,31 @@ and set `G.running` LAST, so anything throwing in between (`specialsReset`,
 bar stuck full, zero items, no explanation. Arm the round first, dismiss the
 overlay only once the throwing part has succeeded, and put the overlay back with
 the reason on failure.
+
+**Nothing may be DRAWN into the floating HUD.** The V6 HUD sits over the
+playfield — `.scoreBadge` y 18-92 top-left, `.roundBanner` y 0-~50 centre (it
+carries the topic, the question counter AND the timer bar), `.pauseBtn`
+top-right. Two things were drawn straight into that band: the quiz question at
+`top:14px` and the active-power chips at `y=26`. `--hudSafe` (CSS) and `HUDSAFE`
+(js/game.js) are the first clear y; canvas code cannot read a CSS variable, so
+the two are mirrored by hand and `tests/menu.js` section 9 asserts they agree.
+
+**A hardcoded light background plus `var(--ink)` is a contrast trap.** `#quizQ`
+was an inline style with `background:rgba(255,255,255,.92)` and
+`color:var(--ink)`. The V6 palette flipped `--ink` from `#1d1d1f` to `#fff7e8`,
+so the question became near-white text on a near-white box — invisible. It is
+now a themed dark panel with an explicit `#fbe9d0`. When re-theming, grep for
+white backgrounds paired with themed text; `#camCap` had the same shape but was
+already re-themed in the dark layer.
+
+**Quiz answer cards size themselves to their lane, and wrap.** The card was a
+fixed 148px in a lane of `(W-140)/n`, so below ~730px four answers overlapped and
+their labels ran together. `quizLayout(n)` returns `{cols, rows, lw, cw}`: the
+card shrinks to its lane, and below `QMINLANE` (104px) the answers wrap to two
+rows because four cards cannot share one row on a phone at a tappable size.
+Labels shrink then ellipsise to the card width. The harness runs the real
+`quizLayout` across 12 widths x 4 answer counts and fails on any overlap or
+overflow.
 
 **Item artwork is a painted render with the canvas ART as its FALLBACK.** The 50
 roster items load from `img/items/<t>.webp`, named by the same key as `ITEMS[].t`

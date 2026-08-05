@@ -133,10 +133,35 @@ var QRISE=0.00042;
    ~2% of the 8s question budget, small enough not to feel like a delay, long
    enough that a card cannot land onto a hand that is already moving. */
 var QARM=150;
+/* Where each answer sits. The card used to be a fixed 148px in a lane of
+   (W-140)/n, so the moment the stage dropped under ~730px the answers overlapped
+   and their labels ran together. Two things fix that:
+
+     - the card is sized to its lane, shrinking instead of colliding;
+     - below MINLANE the answers WRAP to two rows, because four or five cards
+       cannot sit in one row on a phone at any tappable size.
+
+   Returns {cols, rows, cw} so the draw and the hit test share one layout. */
+var QMINLANE=104, QCARDMAX=148, QCARDMIN=76;
+function quizLayout(n){
+  var pad=Math.min(70, W*0.06), avail=Math.max(150, W-pad*2);
+  var cols=n, rows=1;
+  if(avail/n < QMINLANE && n>2){ cols=Math.ceil(n/2); rows=2; }
+  var lw=avail/cols;
+  return { pad:pad, cols:cols, rows:rows, lw:lw,
+           cw:Math.max(QCARDMIN, Math.min(QCARDMAX, lw-14)) };
+}
 function quizLaunch(o){
-  var pad=70, lw=Math.max(170,W-pad*2)/o.laneN;
-  o.state="fly"; o.x=pad+o.lane*lw+lw/2;
-  o.hy=Math.max(150, H*0.44);
+  var L=quizLayout(o.laneN);
+  var col=o.lane%L.cols, row=Math.floor(o.lane/L.cols);
+  o.cw=L.cw; o.row=row; o.rows=L.rows;
+  o.state="fly"; o.x=L.pad+col*L.lw+L.lw/2;
+  /* Cards must clear the question box, which sits at HUDSAFE and is ~50px tall.
+     The old floor of 150 let them touch it on a short stage. */
+  var top=Math.max((typeof HUDSAFE!=="undefined"?HUDSAFE:100)+76, H*0.44);
+  /* With two rows, lift the block so the second row still clears the bottom. */
+  if(L.rows>1) top=Math.min(top, Math.max((typeof HUDSAFE!=="undefined"?HUDSAFE:100)+70, H-(L.cw+30)*L.rows));
+  o.hy=top+row*(L.cw+18);
   o.y=H+70; o.vy=-Math.sqrt(2*QRISE*Math.max(60,o.y-o.hy));
 }
 
@@ -286,7 +311,7 @@ function quizGameOver(){
 function quizDraw(now){
   if(G.paused) return;                         /* pausing must not let you read the question for free */
   for(var i=0;i<Q.opts.length;i++){ var o=Q.opts[i]; if(o.sliced || o.state==="wait") continue;
-    var w=148,h=148;
+    var w=o.cw||148, h=w;
     fxc.save(); fxc.translate(o.x,o.y);
     /* A card that has not landed yet cannot be answered, so it must not LOOK
        answerable. Without this the new gate is invisible and a swipe at a rising
@@ -303,13 +328,22 @@ function quizDraw(now){
        once it is ready, so a card never flashes empty. */
     if(o.kind==="item"){ fxc.save(); fxRR(-w/2,-h/2,w,h,20); fxc.clip();
       var ph=(typeof itemPhoto==="function")?itemPhoto(o.t):null;
-      if(ph){ var pw=104, phh=Math.round(pw*ph.naturalHeight/ph.naturalWidth);
-        fxc.drawImage(ph, -pw/2, -14-phh/2, pw, phh); }
-      else { fxc.translate(0,-14); fxc.scale(0.5,0.5); fxc.translate(-110,-110); (ART[o.t]||ART._def)(fxc, hx(o.col)); }
+      var iw=w*0.70;
+      if(ph){ var phh=Math.round(iw*ph.naturalHeight/ph.naturalWidth);
+        fxc.drawImage(ph, -iw/2, -w*0.10-phh/2, iw, phh); }
+      else { var k=iw/220; fxc.translate(0,-w*0.10); fxc.scale(k,k); fxc.translate(-110,-110); (ART[o.t]||ART._def)(fxc, hx(o.col)); }
       fxc.restore();
-      fxc.fillStyle="#173a2a"; fxc.font="600 15px "+FONT; fxc.textAlign="center"; fxc.textBaseline="middle"; fxc.fillText((o.name+"").replace(/^[^ ]+\s/,""), 0, 58); }
-    else if(o.kind==="bin"){ var b=QBINS[o.bin]; fxc.beginPath(); fxc.arc(0,-20,34,0,7); fxc.fillStyle=b.c; fxc.fill(); fxc.fillStyle="#173a2a"; fxc.font="700 20px "+FONT; fxc.textAlign="center"; fxc.textBaseline="middle"; fxc.fillText(b.n, 0, 40); }
-    else { fxc.fillStyle="#173a2a"; fxc.font="700 20px "+FONT; fxc.textAlign="center"; fxc.textBaseline="middle"; wrapFx(o.txt, 0, 0, w-26); }
+      /* Label was fixed 15px at y=58 and regularly wider than the card, so the
+         four names ran into each other. Shrink to fit, then ellipsise. */
+      var lbl=(o.name+"").replace(/^[^ ]+\s/,""), fs=Math.max(10, Math.min(15, w*0.105));
+      fxc.fillStyle="#173a2a"; fxc.textAlign="center"; fxc.textBaseline="middle";
+      fxc.font="600 "+fs.toFixed(1)+"px "+FONT;
+      var maxw=w-14;
+      while(fxc.measureText(lbl).width>maxw && lbl.length>4) lbl=lbl.slice(0,-1);
+      if(lbl!==(o.name+"").replace(/^[^ ]+\s/,"")) lbl+="…";
+      fxc.fillText(lbl, 0, w*0.39); }
+    else if(o.kind==="bin"){ var b=QBINS[o.bin]; fxc.beginPath(); fxc.arc(0,-w*0.14,w*0.23,0,7); fxc.fillStyle=b.c; fxc.fill(); fxc.fillStyle="#173a2a"; fxc.font="700 "+Math.max(12,Math.min(20,w*0.14)).toFixed(0)+"px "+FONT; fxc.textAlign="center"; fxc.textBaseline="middle"; fxc.fillText(b.n, 0, w*0.27); }
+    else { fxc.fillStyle="#173a2a"; fxc.font="700 "+Math.max(12,Math.min(20,w*0.135)).toFixed(0)+"px "+FONT; fxc.textAlign="center"; fxc.textBaseline="middle"; wrapFx(o.txt, 0, 0, w-26); }
     fxc.restore();
   }
   for(var hI=0;hI<QCFG.lives;hI++){ drawHeart(28+hI*30, 26, 12, hI<Q.lives?"#e24b4a":"#e2e2e2"); }

@@ -217,13 +217,20 @@ function specialDrawChips(){
   fxc.save();
   fxc.font="700 14px "+FONT;
   fxc.textAlign="left"; fxc.textBaseline="middle";
+  /* Below the HUD, not in it. These used to start at y=26, which is inside the
+     score badge (top 18, 74px tall) — the active-power chips sat on top of the
+     score. HUDSAFE is the first y clear of the whole floating HUD.
+
+     Dark chips, too: the old ones were a white pill with a coloured border, from
+     the light theme. On the dark playfield that was a bright slab in the corner. */
+  var X=18;
   for(var i=0;i<chips.length;i++){
-    var c=chips[i], w=fxc.measureText(c.txt).width+22, y=26+i*30;
-    fxc.globalAlpha=0.94; fxc.fillStyle="#ffffff";
-    fxRR(20,y-12,w,24,12); fxc.fill();
-    fxc.globalAlpha=1; fxc.strokeStyle=c.col; fxc.lineWidth=2.5;
-    fxRR(20,y-12,w,24,12); fxc.stroke();
-    fxc.fillStyle=c.col; fxc.fillText(c.txt,31,y);
+    var c=chips[i], w=fxc.measureText(c.txt).width+24, y=(typeof HUDSAFE!=="undefined"?HUDSAFE:100)+14+i*32;
+    fxc.globalAlpha=0.92; fxc.fillStyle="#160f0a";
+    fxRR(X,y-13,w,26,13); fxc.fill();
+    fxc.globalAlpha=1; fxc.strokeStyle=c.col; fxc.lineWidth=2;
+    fxRR(X,y-13,w,26,13); fxc.stroke();
+    fxc.fillStyle=c.col; fxc.fillText(c.txt,X+12,y);
   }
   fxc.restore();
 }

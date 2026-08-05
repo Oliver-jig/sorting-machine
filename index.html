@@ -106,7 +106,7 @@
             if(location.protocol==="file:"){ n.innerHTML='<b>You opened this file directly.</b> Phone mode won\'t work. Serve with:<br><code>python3 -m http.server 8137</code><br>Then open <b>http://localhost:8137/</b> (same WiFi as phone) — or deploy to Vercel.'; n.style.color='#f04444'; }
             else if(location.hostname==="localhost"||location.hostname==="127.0.0.1"){
               n.innerHTML='Running locally. <b>Make sure your phone is on the same WiFi.</b>';
-            } else { n.innerHTML='Webcam + mouse run in your browser. Phone controller: scan the QR or type the code. · build 71'; }
+            } else { n.innerHTML='Webcam + mouse run in your browser. Phone controller: scan the QR or type the code. · build 72'; }
           })();
         </script>
       </div>
@@ -186,7 +186,7 @@
       <canvas id="fx"></canvas>
       <video id="cam" playsinline muted class="hidden"></video>
       <div id="camCap" class="hidden">Tracking your index fingertip</div>
-      <div id="quizQ" class="hidden" style="position:absolute; top:14px; left:50%; transform:translateX(-50%); z-index:5; max-width:88%; text-align:center; background:rgba(255,255,255,.92); border:1px solid #dfeee4; border-radius:16px; padding:12px 18px; box-shadow:0 4px 14px rgba(20,60,40,.12); font-weight:600; font-size:18px; color:var(--ink);"></div>
+      <div id="quizQ" class="hidden" aria-live="polite"></div>
       <div class="overlay" id="ovl">
         <div class="r" id="ovlR">Round 1 of 4</div>
         <div class="t" id="ovlT">Paper</div>

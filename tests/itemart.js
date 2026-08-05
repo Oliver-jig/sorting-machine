@@ -54,7 +54,10 @@ console.log('\n--- 3. the canvas ART is the fallback, not dead code ---');
    the item still draws. Deleting the ART path would make a bad network fatal. */
 ck('a failed image swaps in the canvas artwork', /img\.onerror=function\(\)\{[\s\S]{0,160}?artCanvas\(it\)/.test(gcode));
 ck('artCanvas still renders through ART', /ART\[it\.t\]\|\|ART\._def/.test(gcode));
-ck('quiz cards fall back to ART too', /else \{ fxc\.translate\(0,-14\)[\s\S]{0,120}?ART\[o\.t\]\|\|ART\._def/.test(qcode));
+/* Matched on the fallback BRANCH, not on its exact transform maths — the card
+   art now scales with the card, so the numbers inside legitimately change. */
+ck('quiz cards fall back to ART too',
+   /else \{[\s\S]{0,200}?ART\[o\.t\]\|\|ART\._def/.test(qcode));
 ck('items.js still guards that every item HAS an ART entry', /no ART function/.test(fs.readFileSync(R+'js/game.js','utf8')));
 
 console.log('\n--- 4. only roster items use a render ---');
