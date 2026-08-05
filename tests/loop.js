@@ -38,6 +38,17 @@ for(const H of [600, 900, 1200, 1400]){
 /* The floor matters as much as the scaling: short screens keep their tuned feel. */
 ck('the tuned 380px is still the floor on a short screen',
    Math.abs(apexFrac(500,380)-OLD(500,380))<1e-9);
+
+/* ...but a floor with no CEILING overshoots the other way. On a landscape phone
+   (~320px of stage) the 380px floor put the apex at y=-4 — above the top edge,
+   invisible and unslicable. The old Math.min(H,base) prevented that by accident;
+   removing it in build 63 lost the protection, and this only tested H>=600. */
+console.log('    short stages (the overshoot case):');
+[300, 321, 360, 440].forEach(H=>{
+  const f=apexFrac(H,380), px=Math.round(f*H);
+  console.log(`      ${String(H).padStart(3)}px tall -> apex y=${px} (${(f*100).toFixed(0)}% down)`);
+  ck(`items stay on screen on a ${H}px stage`, f>0, `apex y=${px}`);
+});
 ck('both spawners use riseFor', (src.match(/riseFor\(/g)||[]).length>=3,
    `${(src.match(/riseFor\(/g)||[]).length} references`);
 ck('no flat Math.min(H,...) launch height survives',
@@ -152,10 +163,16 @@ ck('boot is deferred to DOMContentLoaded, not run during parse',
 /* Two call sites are correct: loop()'s own reschedule (section 3) and the boot
    one. What matters is that the BOOT start happens exactly once and only inside
    the deferred bootGame. */
+/* Matched loosely on purpose: the boot line legitimately gains steps (the item
+   art preload landed between resize and the first frame). What must hold is
+   that there is ONE boot start and it is inside the deferred bootGame. */
 ck('the boot start appears exactly once',
-   (gameCode.match(/initThree\(\); resize\(\); requestAnimationFrame\(loop\);/g)||[]).length===1);
+   (gameCode.match(/initThree\(\);[^\n]*requestAnimationFrame\(loop\);/g)||[]).length===1);
 ck('and it sits inside the deferred bootGame',
-   /var bootGame=function\(\)\{[\s\S]{0,200}?initThree\(\); resize\(\); requestAnimationFrame\(loop\);/.test(gameCode));
+   /var bootGame=function\(\)\{[\s\S]{0,200}?initThree\(\);[^\n]*requestAnimationFrame\(loop\);/.test(gameCode));
+/* Textures must be warmed BEFORE the first frame, not lazily mid-round. */
+ck('item art is preloaded during boot, before the first frame',
+   /initThree\(\); resize\(\); preloadItemArt\(\); requestAnimationFrame\(loop\);/.test(gameCode));
 
 /* Every cross-file function game.js calls must actually exist in the file that
    defines it — a rename or a typo here is invisible until a frame runs. */
