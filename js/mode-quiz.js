@@ -296,7 +296,17 @@ function quizDraw(now){
     fxRR(-w/2,-h/2,w,h,20); fxc.fillStyle="#ffffff"; fxc.fill();
     fxc.lineWidth=o.showCorrect?6:2.5;
     fxc.strokeStyle=o.showCorrect?"#20a45a":(armed?"#cfe6d8":"#e8eeea"); fxc.stroke();
-    if(o.kind==="item"){ fxc.save(); fxRR(-w/2,-h/2,w,h,20); fxc.clip(); fxc.translate(0,-14); fxc.scale(0.5,0.5); fxc.translate(-110,-110); (ART[o.t]||ART._def)(fxc, hx(o.col)); fxc.restore();
+    /* Quiz cards are the OTHER place item art is drawn — they paint straight
+       onto the 2D overlay rather than going through makeSprite. They have to
+       use the same source or the cards would show old canvas drawings while the
+       playfield showed the renders. itemPhoto() returns the decoded image only
+       once it is ready, so a card never flashes empty. */
+    if(o.kind==="item"){ fxc.save(); fxRR(-w/2,-h/2,w,h,20); fxc.clip();
+      var ph=(typeof itemPhoto==="function")?itemPhoto(o.t):null;
+      if(ph){ var pw=104, phh=Math.round(pw*ph.naturalHeight/ph.naturalWidth);
+        fxc.drawImage(ph, -pw/2, -14-phh/2, pw, phh); }
+      else { fxc.translate(0,-14); fxc.scale(0.5,0.5); fxc.translate(-110,-110); (ART[o.t]||ART._def)(fxc, hx(o.col)); }
+      fxc.restore();
       fxc.fillStyle="#173a2a"; fxc.font="600 15px "+FONT; fxc.textAlign="center"; fxc.textBaseline="middle"; fxc.fillText((o.name+"").replace(/^[^ ]+\s/,""), 0, 58); }
     else if(o.kind==="bin"){ var b=QBINS[o.bin]; fxc.beginPath(); fxc.arc(0,-20,34,0,7); fxc.fillStyle=b.c; fxc.fill(); fxc.fillStyle="#173a2a"; fxc.font="700 20px "+FONT; fxc.textAlign="center"; fxc.textBaseline="middle"; fxc.fillText(b.n, 0, 40); }
     else { fxc.fillStyle="#173a2a"; fxc.font="700 20px "+FONT; fxc.textAlign="center"; fxc.textBaseline="middle"; wrapFx(o.txt, 0, 0, w-26); }

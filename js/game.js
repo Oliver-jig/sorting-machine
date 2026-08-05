@@ -141,18 +141,72 @@ function makeMesh(it){
   return g;
 }
 
-var TEXCACHE={}, SPRITE_GEO=null;
+/* ---- item artwork ----
+   The 50 roster items are painted cartoon renders in `img/items/<t>.webp`,
+   named by the SAME key as ITEMS[].t so there is no manifest to drift from.
+   Everything else that reaches makeSprite() — the power-ups in specials.js —
+   has no render and keeps its canvas drawing, so PHOTO membership is derived
+   from the roster rather than assumed.
+
+   The canvas ART is NOT dead code: it is the fallback. A 404, a decode failure
+   or a browser without WebP falls back to it silently and the game still plays
+   with every item legible. */
+var TEXCACHE={}, SPRITE_GEO=null, PHOTO_GEO=null, PHOTO={}, PHOTOW=300, PHOTOH=220;
+(function(){ if(typeof ITEMS!=="undefined") for(var i=0;i<ITEMS.length;i++) PHOTO[ITEMS[i].t]=1; })();
+
+function artCanvas(it){
+  var S=220, cv=document.createElement("canvas"); cv.width=S; cv.height=S;
+  (ART[it.t]||ART._def)(cv.getContext("2d"), hx(it.col));
+  return cv;
+}
 function getTex(it){
   if(TEXCACHE[it.t]) return TEXCACHE[it.t];
-  var S=220, cv=document.createElement("canvas"); cv.width=S; cv.height=S; var c=cv.getContext("2d");
-  (ART[it.t]||ART._def)(c, hx(it.col));
-  var tex=new THREE.CanvasTexture(cv); tex.anisotropy=2;
+  var tex;
+  if(PHOTO[it.t]){
+    /* Texture is returned immediately and fills in when the image decodes;
+       preloadItemArt() means that has normally already happened. */
+    var img=new Image();
+    tex=new THREE.Texture(img);
+    img.onload=function(){ tex.needsUpdate=true; };
+    img.onerror=function(){
+      /* fall back to the drawn artwork, in place, so the material needs no fixup */
+      tex.image=artCanvas(it); tex.needsUpdate=true;
+      if(typeof console!=="undefined"&&console.warn) console.warn("item art missing, using canvas fallback:", it.t);
+    };
+    img.src="img/items/"+it.t+".webp";
+  } else {
+    tex=new THREE.CanvasTexture(artCanvas(it));
+  }
+  tex.anisotropy=2;
   TEXCACHE[it.t]=tex; return tex;
 }
+/* The decoded <img> for an item, or null if it is not ready / has no render.
+   Quiz cards draw onto the 2D overlay and cannot use a THREE.Texture, but they
+   must not load a SECOND copy of the same file — so they read the image out of
+   the texture the preload already fetched. */
+function itemPhoto(t){
+  var tex=TEXCACHE[t];
+  if(!tex || !PHOTO[t]) return null;
+  var im=tex.image;
+  return (im && im.naturalWidth) ? im : null;
+}
+/* Warm every roster texture once, at boot. Without this the first spawn of each
+   item type would fetch mid-round and pop in blank for a frame or two. */
+function preloadItemArt(){
+  if(typeof ITEMS==="undefined") return;
+  for(var i=0;i<ITEMS.length;i++) getTex(ITEMS[i]);
+}
 function makeSprite(it){
-  if(!SPRITE_GEO) SPRITE_GEO=new THREE.PlaneGeometry(112,112);   /* one shared geometry + one cached texture per item type = no per-spawn allocation */
+  /* Two shared geometries, not one: the renders are 300x220, so a square plane
+     would squash them. PHOTO_GEO is that aspect CONTAINED in the old 112 box
+     (112 x 82) — the art never grows past the footprint the hit radius was
+     tuned against, it only gets shorter. */
+  if(!SPRITE_GEO){
+    SPRITE_GEO=new THREE.PlaneGeometry(112,112);
+    PHOTO_GEO=new THREE.PlaneGeometry(112, Math.round(112*PHOTOH/PHOTOW));
+  }
   var m=new THREE.MeshBasicMaterial({map:getTex(it), transparent:true, side:THREE.DoubleSide, depthWrite:false});
-  return new THREE.Mesh(SPRITE_GEO, m);
+  return new THREE.Mesh(PHOTO[it.t]?PHOTO_GEO:SPRITE_GEO, m);
 }
 
 /* ================= game state ================= */
@@ -316,7 +370,20 @@ function drawHeart(cx,cy,s,col){ fxc.save(); fxc.fillStyle=col; fxc.beginPath();
    difficulty presets keep their tuned feel; only tall stages get more. 0.62
    puts the apex a bit above mid-screen, leaving room for the label drawn under
    each item without pushing items off the top. */
-function riseFor(base){ return Math.max(base, H*0.62); }
+function riseFor(base){
+  /* Items launch from y=H+55, so the apex lands at H+55-rise. The floor stops a
+     tall screen leaving them among the skyline (build 63) — but a FLOOR with no
+     ceiling overshoots the other way: on a short stage (a landscape phone, ~320px)
+     `base` alone put the apex at y=-4, above the top edge, where the item is
+     unslicable and invisible. The old `Math.min(H, base)` happened to prevent
+     that; removing it lost the protection.
+
+     So clamp the top of the arc too, keeping the apex at least TOPPAD below the
+     top edge. On any normal stage (>=440px) the floor still wins and nothing
+     changes. */
+  var TOPPAD=70;
+  return Math.max(60, Math.min(Math.max(base, H*0.62), H+55-TOPPAD));
+}
 function spawn(fx){
   if(G.objs.length>=16) return;   /* cap on-screen items so weaker machines don't choke */
   var R=ROUNDS[G.round]; var wantCorrect=Math.random()<0.55;
@@ -1303,7 +1370,7 @@ if(IS_CONTROLLER){
      because this file could later be moved after the event has already fired. */
   var bootGame=function(){
     try {
-      initThree(); resize(); requestAnimationFrame(loop);
+      initThree(); resize(); preloadItemArt(); requestAnimationFrame(loop);
     } catch(e) { bootFail(e); }
   };
   try {

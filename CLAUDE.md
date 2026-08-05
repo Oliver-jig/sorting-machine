@@ -8,7 +8,7 @@ A single-page browser arcade game for **SDG 12** — a Fruit-Ninja-style slicer
 teaching Hong Kong recycling. No build step, no framework, no bundler. Plain
 HTML + CSS + ES5-ish JS with CDN libraries, deployed static to Vercel.
 
-Current state: **build 70**. "Preview V6" dark arcade UI, 50 items, four modes,
+Current state: **build 71**. "Preview V6" dark arcade UI, 50 items, four modes,
 blade skins with an XP/level system.
 
 Repo: `Oliver-jig/sorting-machine`. Two branches, **kept in sync after every
@@ -35,7 +35,7 @@ for f in js/*.js; do node --check $f || echo "FAIL $f"; done
 ```
 
 ```bash
-npm test                  # syntax check + all eleven invariant harnesses
+npm test                  # syntax check + all twelve invariant harnesses
 node tests/fairness.js    # or run one on its own
 npm run check             # syntax-check every js file
 ```
@@ -65,6 +65,7 @@ globals, so they exercise shipped code rather than a copy.
 | `js/blades.js` | Blade skins, XP curve, levels, picker UI, `bladeStroke` renderer |
 | `css/styles.css` | Base layer, dark theme layer, then the V6 menu/screens layer |
 | `img/props.png` | The V6 hero's decorative 3D props (external, cached) |
+| `img/items/*.webp` | The 50 painted item renders, named `<ITEMS[].t>.webp` |
 | `controller.html` | Fully self-contained phone page (own CSS+JS). Opened via QR |
 
 ### One `GMODE` drives everything
@@ -163,6 +164,28 @@ and set `G.running` LAST, so anything throwing in between (`specialsReset`,
 bar stuck full, zero items, no explanation. Arm the round first, dismiss the
 overlay only once the throwing part has succeeded, and put the overlay back with
 the reason on failure.
+
+**Item artwork is a painted render with the canvas ART as its FALLBACK.** The 50
+roster items load from `img/items/<t>.webp`, named by the same key as `ITEMS[].t`
+so there is no manifest to drift from. `ART` in `items.js` is NOT dead code — a
+404, a decode failure or a browser without WebP falls back to it and the game
+stays playable. `PHOTO` membership is derived from `ITEMS`, so the power-ups in
+`specials.js` (which also reach `makeSprite`) keep their drawings instead of
+404ing. `preloadItemArt()` warms all 50 at boot: **zero network requests during a
+round**, verified. Quiz cards draw item art too, on the 2D overlay — they read
+the already-decoded image via `itemPhoto()` rather than loading a second copy.
+
+Renders are 300x220, so `PHOTO_GEO` is a second shared geometry at 112x82 — the
+aspect CONTAINED in the old 112 square. Art may get shorter, never wider, so the
+hit radius stays at least as generous as the sprite.
+
+**Item launch height needs a CEILING as well as a floor.** Build 63 added the
+floor (`Math.max(base, H*0.62)`) so tall screens stopped hiding items in the
+skyline, and in doing so dropped the old `Math.min(H, base)`. That cap was load
+bearing: on a landscape phone (~320px of stage) the 380px floor put the apex at
+**y=-4, above the top edge** — invisible and unslicable. `riseFor` now clamps to
+`H+55-70` as well. The harness only tested H>=600, which is why it took a live
+short-stage screenshot to catch; it now tests 300/321/360/440 too.
 
 **Item launch height scales with the stage, it is not a constant.** `spawn()`
 fires from `y=H+55`, so the old flat `Math.min(H, DIFF.h)` (380px) meant that on
@@ -378,6 +401,7 @@ Run with `node <file>`; each exits non-zero on failure.
 | `loop.js` | Spawn height scales; no silent freeze; errors never touch game UI |
 | `perf.js` | Materials are released, resolution is budgeted, labels are cached |
 | `menu.js` | Versus never offers Mouse; the V6 re-skin keeps every hook |
+| `itemart.js` | Renders cover the roster exactly, and ART is still the fallback |
 
 They are the only automated protection for the invariants above. Run `npm test`
 before pushing.
