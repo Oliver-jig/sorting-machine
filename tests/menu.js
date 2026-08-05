@@ -233,5 +233,35 @@ ck('cards clear the question box', /HUDSAFE[^)]*\)\+76/.test(quizCode));
   ck('no answer layout overlaps or overflows at any width', bad.length===0, bad.slice(0,3).join('; '));
 }
 
+/* ---- 10. EVERY mode, not just the two that were reported ---- */
+/* Quiz and Bin It both drew lives at y=26 and combo/streak at y=56 — inside the
+   score badge (18-92). Versus put its topic box at y=8, on top of the round
+   banner, and flanked the badge and pause button with the two scores. */
+console.log('\n--- 10. no mode draws into the HUD band ---');
+const defSrc=decomment(fs.readFileSync(R+'js/mode-defend.js','utf8'));
+ck('a shared hudRow() exists so modes cannot invent offsets',
+   /function hudRow\(i\)\{ return HUDSAFE \+ 14 \+ \(i\|\|0\)\*30; \}/.test(code));
+[['quiz',quizCode],['bin it',defSrc]].forEach(([name,src])=>{
+  ck(`${name} lives are drawn from hudRow, not y=26`,
+     /drawHeart\(30\+h?I?\*30, [a-z]+r?0?,/.test(src) && !/drawHeart\(28\+h?I?\*30, 26,/.test(src));
+  ck(`${name} combo/streak is drawn from hudRow, not y=56`,
+     /hudRow/.test(src) && !/, 28, 56\)/.test(src));
+});
+ck('bin it no longer uses a near-white spent-life colour',
+   !/#e2e2e2/.test(defSrc), 'spent hearts must read as empty on a dark playfield');
+const vsDraw=code.slice(code.indexOf('function vsDraw'), code.indexOf('function stopPeer'));
+ck('versus draws its panel below the HUD, not at y=8',
+   /roundRect\(W\/2-bw\/2, vy,/.test(vsDraw) && !/roundRect\(W\/2-bw\/2, 8,/.test(vsDraw));
+ck('versus scores are below the HUD too', /fillText\("P1  "\+VS\.s1, W\*0\.25, vy\+4\)/.test(vsDraw));
+ck('versus no longer paints a white slab on the dark playfield',
+   !/fillStyle="rgba\(255,255,255,\.9\)"/.test(vsDraw));
+/* The badge must come BACK for the other modes. */
+ck('the score badge is hidden only for Versus, and from show()',
+   /sb\.classList\.toggle\("hidden", GMODE==="vs"\)/.test(code));
+/* Scoped to the BADGE: launchVS legitimately hides #quizQ and #ovl. */
+ck('and launchVS does not hide the badge locally',
+   !/scoreBadge[\s\S]{0,80}?classList\.add\("hidden"\)/.test(
+     code.slice(code.indexOf('function launchVS'), code.indexOf('function vsSpawn'))));
+
 console.log('\n'+(pass?'ALL PASS':'FAILURES PRESENT'));
 process.exit(pass?0:1);

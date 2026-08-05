@@ -221,6 +221,11 @@ function spawnBurst(x,y,col){
    pause 18-64). Mirrors --hudSafe in css/styles.css — canvas drawing cannot
    read a CSS variable, so the two are kept in step by hand. */
 var HUDSAFE=100;
+/* Row helper for anything a MODE draws on the canvas. Every mode used to place
+   its lives/combo/score at y=26..80, which is inside the score badge (18-92),
+   and Versus put its topic box at y=8 on top of the round banner. Rows are
+   measured from HUDSAFE so a HUD change moves all of them at once. */
+function hudRow(i){ return HUDSAFE + 14 + (i||0)*30; }
 var DIFF=DIFFS.relaxed;
 var BLADE={x:0,y:0,px:0,py:0,active:false, trail:[]};
 var BLADE2={x:0,y:0,px:0,py:0,active:false, trail:[]};
@@ -540,7 +545,7 @@ async function setupCamVS(){
 function launchVS(){ setRoundLbl("players");
   GMODE="vs"; VS.running=false; VS.s1=0; VS.s2=0; VS.t=60000; VS.spawnT=500; VS.topicIdx=0; VS.topicT=15000;
   G.pops=[]; G.parts=[]; G.flashes=[]; BLADE.trail=[]; BLADE2.trail=[]; clearObjs();
-  setTopic("Versus", "#7f77dd"); el("scoreN").textContent="0"; el("roundN").textContent="2P"; el("timeFill").style.width="100%";
+  setTopic("Versus", "#7f77dd"); el("roundN").textContent="2P"; el("timeFill").style.width="100%";
   el("quizQ").classList.add("hidden"); el("pauseBtn").style.display="";
   show("play"); resize(); el("ovl").classList.add("hidden"); el("pauseOvl").classList.add("hidden");
   /* Routed EXPLICITLY, never `else setupCamVS()`. That bare else meant any
@@ -626,15 +631,25 @@ function drawTrail(trail, now, rgb, inner, w){
 }
 function vsDraw(now){
   fxc.save(); fxc.strokeStyle="rgba(120,140,130,.45)"; fxc.lineWidth=3; fxc.setLineDash([10,10]); fxc.beginPath(); fxc.moveTo(W/2,0); fxc.lineTo(W/2,H); fxc.stroke(); fxc.setLineDash([]); fxc.restore();
-  fxc.textAlign="center"; fxc.textBaseline="top";
-  fxc.fillStyle="#2f7fd1"; fxc.font="700 28px "+FONT; fxc.fillText("P1  "+VS.s1, W*0.25, 12);
-  fxc.fillStyle="#e24b4a"; fxc.fillText("P2  "+VS.s2, W*0.75, 12);
+  /* All of this used to sit at y=8-60: the topic box landed straight on the
+     round banner (also centred, y 0-50) and the two scores flanked the score
+     badge and the pause button. Everything drops below HUDSAFE.
+
+     The white box was a light-theme leftover too — a bright slab on a dark
+     playfield — so it is now a dark panel like the rest of the V6 chrome. */
+  var vy=(typeof hudRow==="function")?hudRow(0)-14:100;
   var R=ROUNDS[VS.topicIdx];
-  fxc.fillStyle="rgba(255,255,255,.9)"; fxc.strokeStyle=R.color; fxc.lineWidth=2;
+  fxc.textAlign="center"; fxc.textBaseline="top";
+  fxc.fillStyle="#160f0a"; fxc.globalAlpha=0.92;
+  fxc.strokeStyle=R.color; fxc.lineWidth=2;
   var bw=Math.max(180, fxc.measureText("Slice: "+R.topic).width+40);
-  fxc.beginPath(); fxc.roundRect(W/2-bw/2, 8, bw, 52, 14); fxc.fill(); fxc.stroke();
-  fxc.fillStyle=R.color; fxc.font="700 22px "+FONT; fxc.fillText("Slice: "+R.topic, W/2, 12);
-  fxc.fillStyle="#fbe9d0"; fxc.font="700 15px "+FONT; fxc.fillText(Math.ceil(Math.max(0,VS.t)/1000)+"s", W/2, 38);   /* was #173a2a */
+  fxc.beginPath(); fxc.roundRect(W/2-bw/2, vy, bw, 52, 14); fxc.fill();
+  fxc.globalAlpha=1; fxc.stroke();
+  fxc.fillStyle=R.color; fxc.font="700 22px "+FONT; fxc.fillText("Slice: "+R.topic, W/2, vy+4);
+  fxc.fillStyle="#fbe9d0"; fxc.font="700 15px "+FONT; fxc.fillText(Math.ceil(Math.max(0,VS.t)/1000)+"s", W/2, vy+30);
+  /* Player scores sit on their OWN half, clear of the centre box. */
+  fxc.fillStyle="#3f9cff"; fxc.font="700 28px "+FONT; fxc.fillText("P1  "+VS.s1, W*0.25, vy+4);
+  fxc.fillStyle="#e24b4a"; fxc.fillText("P2  "+VS.s2, W*0.75, vy+4);
   drawTrail(BLADE.trail, now, "47,127,209"); drawTrail(BLADE2.trail, now, "226,75,74");
   if(BLADE.active){ fxc.strokeStyle="rgba(47,127,209,.95)"; fxc.lineWidth=3; fxc.beginPath(); fxc.arc(BLADE.x,BLADE.y,20,0,7); fxc.stroke(); }
   if(BLADE2.active){ fxc.strokeStyle="rgba(226,75,74,.95)"; fxc.lineWidth=3; fxc.beginPath(); fxc.arc(BLADE2.x,BLADE2.y,20,0,7); fxc.stroke(); }
@@ -1098,6 +1113,14 @@ function show(id){ ["start","connect","controller","play","result","blades"].for
      scrolled there, so the NEXT game over opens past your score. Always open a
      screen at the top. */
   var sc=el(id); if(sc) sc.scrollTop=0;
+  if(id==="play"){
+    /* Versus keeps its two scores on the canvas, one per half, so the DOM badge
+       has nowhere sensible to point and showed a permanent 0 beside them. Driven
+       from HERE, not from launchVS, because hiding it in one launcher leaves it
+       hidden for every other mode afterwards. */
+    var sb=document.querySelector(".scoreBadge");
+    if(sb) sb.classList.toggle("hidden", GMODE==="vs");
+  }
   if(id==="start"){
     scoresRenderStartBest();                  /* refresh the best-score line after a run */
     if(typeof bladeRenderLvl==="function") bladeRenderLvl("lvlBar");   /* XP may have just changed */

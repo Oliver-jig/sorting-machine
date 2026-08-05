@@ -346,8 +346,10 @@ function quizDraw(now){
     else { fxc.fillStyle="#173a2a"; fxc.font="700 "+Math.max(12,Math.min(20,w*0.135)).toFixed(0)+"px "+FONT; fxc.textAlign="center"; fxc.textBaseline="middle"; wrapFx(o.txt, 0, 0, w-26); }
     fxc.restore();
   }
-  for(var hI=0;hI<QCFG.lives;hI++){ drawHeart(28+hI*30, 26, 12, hI<Q.lives?"#e24b4a":"#e2e2e2"); }
-  if(Q.mult>1){ fxc.fillStyle="#7f77dd"; fxc.font="700 18px "+FONT; fxc.textAlign="left"; fxc.textBaseline="middle"; fxc.fillText("streak x"+Q.mult, 28, 56); }
+  /* Below the floating HUD. These sat at y=26/56, inside the score badge. */
+  var qr0=(typeof hudRow==="function")?hudRow(0):114, qr1=(typeof hudRow==="function")?hudRow(1):144;
+  for(var hI=0;hI<QCFG.lives;hI++){ drawHeart(30+hI*30, qr0, 12, hI<Q.lives?"#e24b4a":"#4a3f33"); }
+  if(Q.mult>1){ fxc.fillStyle="#9b93ff"; fxc.font="700 18px "+FONT; fxc.textAlign="left"; fxc.textBaseline="middle"; fxc.fillText("streak x"+Q.mult, 18, qr1); }
   if(Q.teach>0) quizDrawTeach();
 }
 

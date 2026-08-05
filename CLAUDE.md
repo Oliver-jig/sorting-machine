@@ -8,7 +8,7 @@ A single-page browser arcade game for **SDG 12** — a Fruit-Ninja-style slicer
 teaching Hong Kong recycling. No build step, no framework, no bundler. Plain
 HTML + CSS + ES5-ish JS with CDN libraries, deployed static to Vercel.
 
-Current state: **build 72**. "Preview V6" dark arcade UI, 50 items, four modes,
+Current state: **build 73**. "Preview V6" dark arcade UI, 50 items, four modes,
 blade skins with an XP/level system.
 
 Repo: `Oliver-jig/sorting-machine`. Two branches, **kept in sync after every
@@ -165,13 +165,31 @@ bar stuck full, zero items, no explanation. Arm the round first, dismiss the
 overlay only once the throwing part has succeeded, and put the overlay back with
 the reason on failure.
 
-**Nothing may be DRAWN into the floating HUD.** The V6 HUD sits over the
-playfield — `.scoreBadge` y 18-92 top-left, `.roundBanner` y 0-~50 centre (it
-carries the topic, the question counter AND the timer bar), `.pauseBtn`
-top-right. Two things were drawn straight into that band: the quiz question at
-`top:14px` and the active-power chips at `y=26`. `--hudSafe` (CSS) and `HUDSAFE`
-(js/game.js) are the first clear y; canvas code cannot read a CSS variable, so
-the two are mirrored by hand and `tests/menu.js` section 9 asserts they agree.
+**Nothing may be DRAWN into the floating HUD — and EVERY mode did it.** The V6
+HUD sits over the playfield: `.scoreBadge` y 18-92 top-left, `.roundBanner`
+y 0-~50 centre (topic, question counter AND timer bar), `.pauseBtn` top-right.
+Every mode painted into that band:
+
+| mode | drew at | collided with |
+|---|---|---|
+| Sort | power chips `y=26` | score badge |
+| Quiz | question `top:14px`, lives `y=26`, streak `y=56` | banner, badge |
+| Bin It | lives `y=26`, combo/shield `y=56/80` | score badge |
+| Versus | topic box `y=8`, P1/P2 `y=12` | round banner, badge/pause |
+
+`--hudSafe` (CSS) and `HUDSAFE` (js/game.js) are the first clear y; canvas code
+cannot read a CSS variable, so the two are mirrored by hand and `tests/menu.js`
+section 9 asserts they agree. **`hudRow(i)` is the shared row helper** — use it
+rather than inventing offsets, which is how four modes drifted independently.
+Section 10 checks all of them.
+
+**Versus hides the score badge, and `show()` owns that.** Versus keeps its two
+scores on the canvas, one per half, so the DOM badge showed a permanent 0 beside
+them. It is toggled in `show("play")` from `GMODE`, **not** in `launchVS` —
+hiding it in one launcher leaves it hidden for every other mode afterwards.
+
+Spent lives were `#e2e2e2`: near-white on a dark playfield, so an empty heart
+read as a full one. They are `#4a3f33` now.
 
 **A hardcoded light background plus `var(--ink)` is a contrast trap.** `#quizQ`
 was an inline style with `background:rgba(255,255,255,.92)` and

@@ -388,11 +388,18 @@ function tsunamiDraw(now){
     fxc.restore();
   }
 
-  for(var h=0;h<DCFG.lives;h++) drawHeart(28+h*30, 26, 12, h<TS.lives?"#e24b4a":"#e2e2e2");
-  if(TS.mult>1){ fxc.fillStyle="#20a45a"; fxc.font="700 18px "+FONT;
-    fxc.textAlign="left"; fxc.textBaseline="middle"; fxc.fillText("combo x"+TS.mult, 28, 56); }
-  if(TS.shield){ fxc.fillStyle="#bf8b2e"; fxc.font="700 16px "+FONT;
-    fxc.textAlign="left"; fxc.textBaseline="middle"; fxc.fillText("☀ shield ready", 28, TS.mult>1?80:56); }
+  /* Below the floating HUD. These sat at y=26/56/80, inside the score badge.
+     The spent-life colour was #e2e2e2 — near-white on a dark playfield, which
+     read as a FULL heart rather than an empty one. */
+  var dr0=(typeof hudRow==="function")?hudRow(0):114;
+  var dRow=1;
+  for(var h=0;h<DCFG.lives;h++) drawHeart(30+h*30, dr0, 12, h<TS.lives?"#e24b4a":"#4a3f33");
+  if(TS.mult>1){ fxc.fillStyle="#49d17d"; fxc.font="700 18px "+FONT;
+    fxc.textAlign="left"; fxc.textBaseline="middle";
+    fxc.fillText("combo x"+TS.mult, 18, (typeof hudRow==="function")?hudRow(dRow):144); dRow++; }
+  if(TS.shield){ fxc.fillStyle="#ffc83d"; fxc.font="700 16px "+FONT;
+    fxc.textAlign="left"; fxc.textBaseline="middle";
+    fxc.fillText("☀ shield ready", 18, (typeof hudRow==="function")?hudRow(dRow):174); }
 
   /* heads-up before the bin changes what it wants */
   if(TS.switchT<DCFG.warnMs){
