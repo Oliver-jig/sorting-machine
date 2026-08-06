@@ -106,7 +106,7 @@
             if(location.protocol==="file:"){ n.innerHTML='<b>You opened this file directly.</b> Phone mode won\'t work. Serve with:<br><code>python3 -m http.server 8137</code><br>Then open <b>http://localhost:8137/</b> (same WiFi as phone) — or deploy to Vercel.'; n.style.color='#f04444'; }
             else if(location.hostname==="localhost"||location.hostname==="127.0.0.1"){
               n.innerHTML='Running locally. <b>Make sure your phone is on the same WiFi.</b>';
-            } else { n.innerHTML='Webcam + mouse run in your browser. Phone controller: scan the QR or type the code. · build 73'; }
+            } else { n.innerHTML='Webcam + mouse run in your browser. Phone controller: scan the QR or type the code. · build 74'; }
           })();
         </script>
       </div>
@@ -162,26 +162,11 @@
         <div class="targetPill hidden" id="targetPill"><span class="dot" id="targetDot"></span><span id="targetName"></span></div>
         <div class="phoneState hidden" id="phoneState" aria-live="polite"></div>
       </div>
-      <div id="bg">
-        <div class="sun"></div>
-        <div class="ground"></div>
-        <svg class="skyline" viewBox="0 0 900 300" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <g fill="#243026">
-            <rect x="20" y="150" width="46" height="150"/><rect x="72" y="188" width="34" height="112"/>
-            <rect x="112" y="120" width="40" height="180"/><rect x="158" y="170" width="30" height="130"/>
-            <rect x="196" y="196" width="38" height="104"/><rect x="240" y="140" width="44" height="160"/>
-            <rect x="700" y="150" width="44" height="150"/><rect x="748" y="184" width="34" height="116"/>
-            <rect x="786" y="120" width="42" height="180"/><rect x="832" y="168" width="30" height="132"/>
-          </g>
-          <g fill="#1d2820">
-            <rect x="300" y="96" width="54" height="204"/><rect x="360" y="140" width="40" height="160"/>
-            <rect x="404" y="70" width="46" height="230"/><rect x="456" y="126" width="42" height="174"/>
-            <rect x="504" y="104" width="52" height="196"/><rect x="562" y="150" width="40" height="150"/>
-            <rect x="608" y="118" width="46" height="182"/><rect x="660" y="160" width="34" height="140"/>
-          </g>
-          <rect x="0" y="286" width="900" height="20" fill="#172018"/>
-        </svg>
-      </div>
+      <!-- The playfield backdrop is a single painted image; the hand-built
+           gradient + SVG skyline + ground strip it replaced are gone. The CSS
+           keeps a gradient UNDER it so a failed load still leaves a dark,
+           playable field rather than a blank one. -->
+      <div id="bg"></div>
       <canvas id="gl"></canvas>
       <canvas id="fx"></canvas>
       <video id="cam" playsinline muted class="hidden"></video>

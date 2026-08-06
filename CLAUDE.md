@@ -8,7 +8,7 @@ A single-page browser arcade game for **SDG 12** — a Fruit-Ninja-style slicer
 teaching Hong Kong recycling. No build step, no framework, no bundler. Plain
 HTML + CSS + ES5-ish JS with CDN libraries, deployed static to Vercel.
 
-Current state: **build 73**. "Preview V6" dark arcade UI, 50 items, four modes,
+Current state: **build 74**. "Preview V6" dark arcade UI, 50 items, four modes,
 blade skins with an XP/level system.
 
 Repo: `Oliver-jig/sorting-machine`. Two branches, **kept in sync after every
@@ -65,6 +65,7 @@ globals, so they exercise shipped code rather than a copy.
 | `js/blades.js` | Blade skins, XP curve, levels, picker UI, `bladeStroke` renderer |
 | `css/styles.css` | Base layer, dark theme layer, then the V6 menu/screens layer |
 | `img/props.png` | The V6 hero's decorative 3D props (external, cached) |
+| `img/bg-harbour.jpg` | The playfield backdrop, shared by all four modes |
 | `img/items/*.webp` | The 50 painted item renders, named `<ITEMS[].t>.webp` |
 | `controller.html` | Fully self-contained phone page (own CSS+JS). Opened via QR |
 
@@ -88,7 +89,8 @@ maxed out.
   and sharing one `SPRITE_GEO`. Never create/dispose per frame.
 - A second `#fx` **canvas 2D** overlay draws trails, quiz cards, the Bin It bin,
   pops and hearts.
-- `#bg` is DOM/SVG (gradient + skyline), so it is restylable with CSS.
+- `#bg` is a single painted backdrop (`img/bg-harbour.jpg`) with a gradient
+  under it as the fallback. It lives inside `#stage`, so all four modes share it.
 
 ## Invariants — these were each a shipped bug, do not regress
 
@@ -207,6 +209,24 @@ rows because four cards cannot share one row on a phone at a tappable size.
 Labels shrink then ellipsise to the card width. The harness runs the real
 `quizLayout` across 12 widths x 4 answer counts and fails on any overlap or
 overflow.
+
+**The playfield backdrop is shipped AS SUPPLIED — do not "improve" it.** The
+Victoria Harbour image replaced a hand-built gradient + SVG skyline + ground
+strip. The plan was to blur and darken it and fade its painted corner bins;
+**measuring the actual file said don't**. It arrives already treated for
+gameplay: mean luminance 3-8/255 across the sky, 11-30 in the band items fly
+through, under 1% of pixels above luminance 110 — and the painted bins in the
+bottom corners measure DARKER (17.6, 15.4) than mid-field (23.3), so they recede
+unaided. Softening further would have crushed it to mud for no legibility gain.
+
+Encoded JPEG q82: 141KB from a 627KB PNG, verified visually lossless before
+shipping (PSNR 47.6dB, max error 15/255, and the smooth sky keeps 28 luminance
+levels — identical to the source, so no banding in the gradient).
+
+The gradient stays as the SECOND background layer. Removing the image makes the
+playfield a dark playable field rather than a blank one — verified live by
+deleting the file mid-session. Same fallback principle as the item renders
+keeping their canvas `ART`.
 
 **Item artwork is a painted render with the canvas ART as its FALLBACK.** The 50
 roster items load from `img/items/<t>.webp`, named by the same key as `ITEMS[].t`

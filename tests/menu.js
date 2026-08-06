@@ -263,5 +263,41 @@ ck('and launchVS does not hide the badge locally',
    !/scoreBadge[\s\S]{0,80}?classList\.add\("hidden"\)/.test(
      code.slice(code.indexOf('function launchVS'), code.indexOf('function vsSpawn'))));
 
+/* ---- 11. the playfield backdrop ---- */
+console.log('\n--- 11. harbour backdrop ---');
+const bgPath=R+'img/bg-harbour.jpg';
+ck('the backdrop image exists', fs.existsSync(bgPath));
+if(fs.existsSync(bgPath)){
+  const kb=Math.round(fs.statSync(bgPath).size/1024);
+  console.log(`    bg-harbour.jpg ${kb} KB`);
+  ck('and stays within the asset budget', kb<300, kb+' KB');
+}
+/* Shared by all four modes because #bg lives inside #stage. */
+/* Asserted by POSITION: the HUD markup sits between them, so a fixed-width
+   regex window is the wrong tool. What matters is the nesting and paint order —
+   #bg after #stage opens, and before the two canvases that draw over it. */
+{
+  const iStage=html.indexOf('<div id="stage">'), iBg=html.indexOf('<div id="bg"></div>');
+  const iGl=html.indexOf('<canvas id="gl">'), iFx=html.indexOf('<canvas id="fx">');
+  ck('#bg is inside #stage, so every mode gets it', iStage>=0 && iBg>iStage);
+  ck('and it is painted before the item/fx canvases', iBg<iGl && iGl<iFx);
+}
+ck('the backdrop is referenced by URL, not inlined',
+   /url\("\.\.\/img\/bg-harbour\.jpg"\)/.test(cssCode) && !/data:image\/[a-z]+;base64/.test(cssCode));
+/* THE FALLBACK: a 404 or decode failure must still leave a dark playable field,
+   not a blank one — verified live by removing the file. */
+const bgRule=cssCode.slice(cssCode.indexOf('#bg{position:absolute'), cssCode.indexOf('#bg{position:absolute')+400);
+ck('a gradient sits UNDER the image as a fallback',
+   /linear-gradient\(180deg,#1a1510/.test(bgRule));
+ck('the image is the FIRST layer, gradient second',
+   bgRule.indexOf('bg-harbour.jpg') < bgRule.indexOf('linear-gradient'));
+ck('it covers without stretching', /cover no-repeat/.test(bgRule));
+ck('#bg stays at z-index 0, below the canvases', /#bg\{position:absolute; inset:0; z-index:0;/.test(cssCode));
+/* The hand-built skyline it replaced must be gone, markup AND rules — dead CSS
+   claiming a layer that no longer exists is how stale rules accumulate. */
+ck('the old SVG skyline markup is gone', !/class="skyline"/.test(html));
+ck('the old .sun/.ground/.skyline rules are gone',
+   !/#bg \.(sun|ground|skyline)/.test(cssCode));
+
 console.log('\n'+(pass?'ALL PASS':'FAILURES PRESENT'));
 process.exit(pass?0:1);
