@@ -150,6 +150,12 @@ function playersRestore(){
 
 /* ---- called by each mode's game-over ---- */
 function scoresRecord(mode,score){
+  /* THE ONE PLACE tutorial isolation is enforced. XP is not a stored counter —
+     bladeXP() derives it from this run history, and unlocks derive from XP — so
+     refusing to record a tutorial run closes the local best, the history, the
+     XP floor and the leaderboard submit in a single line. Do not "helpfully"
+     add a second path that writes runs. */
+  if(typeof TUT!=="undefined" && TUT.active) return;
   if(!SMODES[mode]) return;                    /* versus is not recorded */
   score=Math.round(score);
   var prevBest=bestFor(mode);                  /* read BEFORE appending, or every run is its own best */

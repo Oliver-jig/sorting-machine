@@ -1052,7 +1052,16 @@ function loopBody(now){
      position for this frame rather than whatever the last packet left behind.
      Mouse and webcam already update at their own event rate and are untouched. */
   if(controlMode==="remote") remoteDrive(now);
-  if(GMODE==="quiz"){
+  /* A lesson owns the frame while it runs: its own slicing (which scores
+     nothing), its own scripted spawns, and no mode update underneath. Checked
+     before the GMODE branches because a lesson borrows a mode's GMODE to get
+     that mode's rendering. */
+  if(typeof TUT!=="undefined" && TUT.active){
+    updatePhysics(dt);
+    if(BLADE.active){ tutSliceAlong(BLADE.px,BLADE.py,BLADE.x,BLADE.y); BLADE.trail.push({x:BLADE.x,y:BLADE.y,t:now}); }
+    BLADE.px=BLADE.x; BLADE.py=BLADE.y;
+    tutUpdate(dt, now);
+  } else if(GMODE==="quiz"){
     if(Q.running && !G.paused){
       quizUpdate(dt);
       if(BLADE.active){ quizSliceCheck(BLADE.px,BLADE.py,BLADE.x,BLADE.y); BLADE.trail.push({x:BLADE.x,y:BLADE.y,t:now}); }
@@ -1167,7 +1176,7 @@ function drawFx(now){
 }
 
 /* ================= screens/wire ================= */
-function show(id){ ["start","connect","controller","play","result","blades"].forEach(function(s){ var e=el(s); if(e) e.classList.toggle("hidden", s!==id); });
+function show(id){ ["start","connect","controller","play","result","blades","tutorial"].forEach(function(s){ var e=el(s); if(e) e.classList.toggle("hidden", s!==id); });
   /* These screens scroll now, and display:none does NOT reset scrollTop. Without
      this, reaching "Play again" at the bottom of the result screen leaves it
      scrolled there, so the NEXT game over opens past your score. Always open a
@@ -1311,7 +1320,13 @@ el("playBtn").addEventListener("click", function(){
   if(controlMode==="remote") hostStartConnect();     /* Versus included — two phones, one per player */
   else startChosen();
 });
-el("connGo").addEventListener("click", function(){ startChosen(); });
+/* The phone-connect screen is shared: a lesson that needs a phone sends the
+   player through the normal QR flow and is resumed here, rather than starting
+   a game they did not ask for. */
+el("connGo").addEventListener("click", function(){
+  if(typeof TUT!=="undefined" && TUT.pending){ var id=TUT.pending; TUT.pending=null; tutStart(id); return; }
+  startChosen();
+});
 el("connBack").addEventListener("click", function(){ stopPeer(); show("start"); });
 el("ovlBtn").addEventListener("click", function(){
   if(GMODE==="tsunami") tsunamiBegin();   /* Bin It's rules screen */
@@ -1460,6 +1475,7 @@ if(IS_CONTROLLER){
       /* Sound first: it touches no three.js state, and keeping the boot line
          below contiguous is an invariant tests/loop.js checks. */
       if(typeof sfxSetup==="function") sfxSetup();
+      if(typeof tutSetup==="function") tutSetup();
       initThree(); resize(); preloadItemArt(); requestAnimationFrame(loop);
     } catch(e) { bootFail(e); }
   };

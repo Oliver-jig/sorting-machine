@@ -8,7 +8,7 @@ A single-page browser arcade game for **SDG 12** — a Fruit-Ninja-style slicer
 teaching Hong Kong recycling. No build step, no framework, no bundler. Plain
 HTML + CSS + ES5-ish JS with CDN libraries, deployed static to Vercel.
 
-Current state: **build 76**. "Preview V6" dark arcade UI, 50 items, four modes,
+Current state: **build 77**. "Preview V6" dark arcade UI, 50 items, four modes,
 blade skins with an XP/level system.
 
 Repo: `Oliver-jig/sorting-machine`. Two branches, **kept in sync after every
@@ -35,7 +35,7 @@ for f in js/*.js; do node --check $f || echo "FAIL $f"; done
 ```
 
 ```bash
-npm test                  # syntax check + all thirteen invariant harnesses
+npm test                  # syntax check + all fourteen invariant harnesses
 node tests/fairness.js    # or run one on its own
 npm run check             # syntax-check every js file
 ```
@@ -49,7 +49,7 @@ globals, so they exercise shipped code rather than a copy.
 
 `index.html` loads: CDN libs (three.js r128, qrcodejs, mqtt) → `js/items.js` →
 `js/game.js` → `js/mode-quiz.js` → `js/mode-defend.js` → `js/specials.js` →
-`js/scores.js` → `js/audio.js` → `js/blades.js`. Everything is globals; the mode files depend on
+`js/scores.js` → `js/audio.js` → `js/blades.js` → `js/tutorial.js`. Everything is globals; the mode files depend on
 `game.js`. `items.js` is first because it defines `FONT` and the roster.
 
 ### Files
@@ -64,6 +64,7 @@ globals, so they exercise shipped code rather than a copy.
 | `js/scores.js` | Local best + write-only Firestore `scores`, readable `players` (XP) |
 | `js/blades.js` | Blade skins, XP curve, levels, picker UI, `bladeStroke` renderer |
 | `js/audio.js` | Per-bin cut sounds (Web Audio), voice throttle, mute toggle |
+| `js/tutorial.js` | `TLESSONS` lesson data, the step runner, coach card, pause Quick Help |
 | `audio/*.wav` | The five CC0 cut sounds, one per bin. Provenance in `audio/SOURCES.md` |
 | `css/styles.css` | Base layer, dark theme layer, then the V6 menu/screens layer |
 | `img/props.png` | The V6 hero's decorative 3D props (external, cached) |
@@ -290,6 +291,50 @@ the gate is invisible.
 **The webcam has a 200ms grace window** (`CAMGRACE`). Dropping the blade on a
 single missed detection made it flash and made fast swipes silently fail to cut.
 `stopCam` must clear the interval.
+
+**Tutorial isolation lives in `scoresRecord`, not at the call sites.** XP here is
+not a stored counter — `bladeXP()` derives it from the run history and unlocks
+derive from XP — so "a lesson must not award XP, scores or unlocks" reduces to a
+single rule: **a tutorial run is never recorded.** `scoresRecord()` returns early
+while `TUT.active`, which closes the local best, the run history, the XP floor
+and the leaderboard submit at once. Do not add a second path that writes runs,
+and do not move this check out to the three call sites, which is where it would
+rot. `tests/tutorial.js` section 5 asserts both the guard and that three call
+sites remain the only way a run is recorded.
+
+The second half is that a lesson never reaches a mode's game over
+(`tutModeEnded()` intercepts), so there is no result screen and no life is ever
+really spent. `tutSliceAlong` deliberately scores nothing: a running total in a
+lesson would imply a result the player never gets.
+
+**A lesson names its items by key, and a bad key fails SILENTLY.**
+`tutSpawn("canAlu")` looks up `ITEMBYT` and returns early on a miss — no item, no
+error — and the step's goal can then never come true, so the lesson hangs on
+"let the can fall" forever, looking exactly like a player who has not acted yet.
+That shipped into the first build of this file (`canAlu` was never real; the soda
+can is `canTall`). `tests/tutorial.js` section 1 extracts every `tutSpawn(...)`
+key and checks it against the roster in `items.js`.
+
+**Every lesson step must carry both languages.** The likeliest rot is a step
+added in a hurry with only English. The harness renders every `en`/`zh` pair
+(they may be functions — several vary by controller) and fails on a missing one
+OR on a `zh` containing no CJK, which is untranslated English in the Chinese
+slot.
+
+**The Versus lesson must never present mouse as a real controller.** Mouse and
+touch cannot play a real Versus match — there is one pointer — and a mouse player
+who learns otherwise here discovers it only when they have a friend waiting. The
+lesson offers a bot exercise and states the limitation plainly; the harness
+asserts the statement is present and that nothing contradicts it.
+
+**Pause Quick Help must not disturb the run it opens over.** It renders over
+`#pauseOvl` and closes back to it, and touches neither `G.paused`, the clock, nor
+the objects on screen — the player asked for help, not for their run to move.
+
+**`.v6-startrow` is a centred COLUMN flex, so its rows shrink-to-fit.** The
+action rows need `align-self:stretch`, or `.v6-primary{width:100%}` on a narrow
+screen resolves against the button's own text — START came out 195px wide on a
+375px phone.
 
 **A cut sound is chosen by BIN, and every bin must have one.** `sfxCut(o.it.bin)`
 looks the sound up by bin name, so adding a sixth bin or renaming one makes those
@@ -548,6 +593,7 @@ Run with `node <file>`; each exits non-zero on failure.
 | `menu.js` | Versus never offers Mouse; the V6 re-skin keeps every hook |
 | `itemart.js` | Renders cover the roster exactly, and ART is still the fallback |
 | `audio.js` | Every bin has a cut sound, nothing clips, a swipe is not a burst |
+| `tutorial.js` | Lessons are bilingual, name real items, and never touch progress |
 
 They are the only automated protection for the invariants above. Run `npm test`
 before pushing.

@@ -45,9 +45,9 @@
      later and left out of them, which cost it centring AND scrolling in one go —
      its Back button ended up below the fold with no way to reach it, trapping
      the player on the screen. */
-  #start,#result,#connect,#controller,#blades{align-items:center; text-align:center;
+  #start,#result,#connect,#controller,#blades,#tutorial{align-items:center; text-align:center;
     overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch}
-  #start>.card,#result>.card,#connect>.card,#controller>.card,#blades>.card,
+  #start>.card,#result>.card,#connect>.card,#controller>.card,#blades>.card,#tutorial>.card,
   #start>.menuWrap{margin:auto; flex:0 0 auto}
   .card{background:var(--surface); border-radius:28px; box-shadow:var(--shadow); padding:40px 34px; max-width:600px; width:100%}
   h1{font-size:44px; line-height:1.03; margin:0; font-weight:600; letter-spacing:-.03em}
@@ -434,6 +434,7 @@
 
   /* ================= BLADES (mockup grid) ================= */
   #blades>.card{ max-width:1000px }
+  #tutorial>.card{ max-width:900px }
   .bladelist{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin:16px 0 4px }
   .blade{ flex-direction:column; align-items:center; text-align:center; gap:10px; padding:16px 12px;
     border-radius:12px }
@@ -593,11 +594,11 @@
    Same panel/chip/button vocabulary, applied to markup that is otherwise
    unchanged. Colour and surface only — no ids, no layout, and #errBar's
    structure is deliberately untouched (build 64 invariant). */
-  #connect>.card,#result>.card,#blades>.card,#controller>.card{
+  #connect>.card,#result>.card,#blades>.card,#controller>.card,#tutorial>.card{
     background:linear-gradient(160deg,#21140d,#0f0a07);
     border:1px solid var(--line); border-radius:18px;
     box-shadow:inset 0 1px rgba(255,247,232,.05), 0 18px 44px rgba(0,0,0,.55)}
-  #connect .eyebrow,#result .eyebrow,#blades .eyebrow,#controller .eyebrow{
+  #connect .eyebrow,#result .eyebrow,#blades .eyebrow,#controller .eyebrow,#tutorial .eyebrow{
     color:var(--yellow); text-transform:uppercase; letter-spacing:2px; font-size:11.5px; font-weight:600}
   #connect h1,#result h1,#controller h1{font-family:var(--display); font-weight:400;
     text-transform:uppercase; letter-spacing:1px}
@@ -640,3 +641,121 @@
     text-wrap:balance }
   #quizQ b{ color:var(--amber) }
   @media (max-width:560px){ #quizQ{ font-size:15px; padding:10px 14px; max-width:88% } }
+
+  /* ================= tutorial =================
+     Lives in the V6 layer so it inherits the arcade palette. The coach card is
+     positioned INSIDE #stage rather than as a modal: a lesson has to stay
+     playable while its instructions are on screen. */
+
+  /* START row 2. The primary button keeps its own full-width row above. */
+  /* Both rows stretch to the column's width. .v6-startrow is a centred column
+     flex, so without this its children shrink-to-fit and the primary button's
+     `width:100%` on narrow screens resolves against its own text — the START
+     row came out 195px wide on a 375px phone instead of full width. */
+  .v6-actions,.v6-actions2{align-self:stretch; width:100%}
+  .v6-actions2{display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:center; margin-top:2px}
+  .v6-actions2 .btn{flex:0 1 auto}
+  .v6-actions2 .btn i{font-style:normal; opacity:.72; font-size:.92em; margin-left:3px}
+  /* First visit only — a nudge toward the tutorial, never a gate. */
+  #tutBtn.suggest{background:linear-gradient(180deg,#7a4a24,#5b3418); color:#ffe9cf;
+    box-shadow:0 0 0 1px rgba(255,169,90,.5), 0 0 18px rgba(255,140,60,.25)}
+
+  .tutHead{text-align:center; margin-bottom:18px}
+  .tutHead h2{font-family:var(--display); font-size:38px; font-weight:400; margin:0 0 6px}
+  .tutHead h2 i{font-style:normal; font-size:.55em; color:var(--muted); margin-left:8px}
+  .tutHead p{color:#c9bda8; font-size:14px; line-height:1.5; margin:0 auto; max-width:56ch}
+  .tutHead p b{color:var(--ink)}
+  .tutHead p i{font-style:normal; color:var(--muted); font-size:13px}
+
+  .tutProg{margin:14px auto 0; max-width:420px; display:flex; flex-direction:column; gap:6px; align-items:center}
+  .tutProg .tpBar{width:100%; height:7px; border-radius:999px; background:rgba(255,247,232,.10); overflow:hidden}
+  .tutProg .tpBar i{display:block; height:100%; background:linear-gradient(90deg,#ff814a,var(--amber)); transition:width .3s}
+  .tutProg span{font-size:12.5px; color:var(--muted)}
+  .tutHint{margin-top:12px; font-size:13px; color:#ffd9b0}
+  .tutHint i{font-style:normal; color:var(--muted)}
+
+  .tutList{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-bottom:18px}
+  .tutCard{display:flex; align-items:center; gap:14px; text-align:left; width:100%;
+    background:linear-gradient(160deg,#21140d,#0f0a07); border:1px solid var(--line);
+    border-radius:16px; padding:14px 16px; color:var(--ink); font-family:inherit;
+    transition:transform .12s, border-color .12s, background .12s}
+  .tutCard:hover{transform:translateY(-2px); border-color:rgba(255,169,90,.45)}
+  .tutCard .tcMark{flex:0 0 auto; width:34px; height:34px; border-radius:50%;
+    display:grid; place-items:center; font-weight:700; font-size:15px;
+    background:rgba(255,247,232,.08); color:var(--muted)}
+  .tutCard.done .tcMark{background:linear-gradient(180deg,#3fae6a,#2c8850); color:#06240f}
+  .tutCard .tcBody{display:flex; flex-direction:column; gap:1px; min-width:0; flex:1 1 auto}
+  .tutCard .tcBody b{font-size:15.5px; font-weight:700}
+  .tutCard .tcBody i{font-style:normal; font-size:12.5px; color:var(--muted)}
+  .tutCard .tcBody small{font-size:12px; color:#c9bda8; line-height:1.35}
+  .tutCard .tcBody small.zh{color:var(--muted)}
+  .tutCard .tcGo{flex:0 0 auto; font-size:12px; font-weight:600; color:var(--amber); white-space:nowrap}
+
+  /* ---- the in-arena coach card ---- */
+  .tutCoach{position:absolute; left:50%; transform:translateX(-50%); bottom:18px; z-index:7;
+    width:min(560px, calc(100% - 32px)); box-sizing:border-box;
+    background:linear-gradient(160deg,rgba(38,23,14,.97),rgba(15,10,7,.97));
+    border:1px solid var(--line); border-radius:18px; padding:14px 16px;
+    box-shadow:0 18px 44px rgba(0,0,0,.6); color:var(--ink); text-align:left}
+  .tutCoach.warn{border-color:rgba(255,169,90,.55)}
+  .tutCoach.failed{border-color:rgba(215,0,21,.6)}
+  .tutCoach.done{border-color:rgba(63,174,106,.55)}
+  .tcTop{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:7px}
+  .tcName{font-size:12px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--amber)}
+  .tcName i{font-style:normal; color:var(--muted); font-weight:600; letter-spacing:0; text-transform:none}
+  .tcStep{font-size:11.5px; color:var(--muted); font-variant-numeric:tabular-nums}
+  .tcBar{height:4px; border-radius:999px; background:rgba(255,247,232,.10); overflow:hidden; margin-bottom:10px}
+  .tcBar i{display:block; height:100%; background:linear-gradient(90deg,#ff814a,var(--amber)); transition:width .3s}
+  .tutCoach .tcEn{margin:0 0 3px; font-size:15px; line-height:1.4; font-weight:600}
+  .tutCoach .tcZh{margin:0; font-size:12.5px; line-height:1.45; color:var(--muted)}
+  .tutCoach .tcNote{margin:8px 0 0; font-size:12px; color:#c9bda8; line-height:1.4}
+  .tutCoach .tcNote i{color:var(--muted)}
+  .tcRow{display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:11px}
+  .tcRow .btn{padding:9px 16px; font-size:14px}
+  .tcWait{font-size:13px; font-weight:700; color:var(--amber);
+    padding:9px 0; animation:tcPulse 1.5s ease-in-out infinite}
+  @keyframes tcPulse{0%,100%{opacity:1} 50%{opacity:.45}}
+
+  /* ---- controller demonstrations ---- */
+  .tcDemo{display:flex; flex-direction:column; align-items:center; gap:4px; margin:2px 0 9px}
+  .tcDemo svg{width:100%; max-width:230px; height:auto}
+  .tcDemo .tcCap{font-size:11px; color:var(--muted)}
+  .tcDemo .dmPhone rect{fill:rgba(255,247,232,.10); stroke:var(--amber); stroke-width:2}
+  .tcDemo .dmPhone line{stroke:var(--muted); stroke-width:2; stroke-linecap:round}
+  .tcDemo .dmBox{fill:none; stroke:var(--line); stroke-width:2}
+  .tcDemo .dmDot{fill:var(--amber)}
+  .tcDemo .dmBin rect{fill:rgba(63,174,106,.22); stroke:#3fae6a; stroke-width:2}
+  .tcDemo .dmTrack{stroke:var(--line); stroke-width:2; stroke-dasharray:4 5}
+  .tcDemo .dmRing{fill:none; stroke:var(--amber); stroke-width:2; stroke-dasharray:4 6}
+  .tcDemo .dmArc{fill:none; stroke:#ff814a; stroke-width:3; stroke-linecap:round;
+    stroke-dasharray:190; stroke-dashoffset:190; animation:tcSweep 2.2s ease-in-out infinite}
+  .tcDemo .dmPhone{animation:tcTilt 2.2s ease-in-out infinite; transform-origin:100px 45px}
+  .tcDemo .dmDot{animation:tcTrack 2.2s ease-in-out infinite}
+  .tcDemo .dmBin{animation:tcSlide 2.6s ease-in-out infinite}
+  @keyframes tcSweep{0%{stroke-dashoffset:190} 55%{stroke-dashoffset:0} 100%{stroke-dashoffset:0; opacity:0}}
+  @keyframes tcTilt{0%,100%{transform:rotate(-13deg)} 50%{transform:rotate(13deg)}}
+  @keyframes tcTrack{0%,100%{transform:translateX(-26px)} 50%{transform:translateX(26px)}}
+  @keyframes tcSlide{0%,100%{transform:translateX(-34px)} 50%{transform:translateX(34px)}}
+
+  @media (max-width:560px){
+    .tutList{grid-template-columns:1fr}
+    .tutHead h2{font-size:30px}
+    .tutCard .tcGo{display:none}          /* the whole card is the button on a phone */
+    .tutCoach{bottom:10px; padding:12px 13px}
+    .tutCoach .tcEn{font-size:14px}
+    .tcRow .btn{flex:1 1 auto; text-align:center}
+  }
+
+  /* Reduced motion: the illustrations stay, the movement goes. A missing
+     diagram would cost the lesson its meaning; a still one does not. */
+  @media (prefers-reduced-motion:reduce){
+    .tcDemo .dmArc,.tcDemo .dmPhone,.tcDemo .dmDot,.tcDemo .dmBin{animation:none}
+    .tcDemo .dmArc{stroke-dashoffset:0}
+    .tcWait{animation:none}
+    .tutCard{transition:none} .tutCard:hover{transform:none}
+    .tcBar i,.tutProg .tpBar i{transition:none}
+  }
+  /* Matches the JS check in tutReduced(), which swaps the animated demo for a
+     static one even where the CSS above cannot reach. */
+  .tcDemo.still .dmArc,.tcDemo.still .dmPhone,.tcDemo.still .dmDot,.tcDemo.still .dmBin{animation:none}
+  .tcDemo.still .dmArc{stroke-dashoffset:0}

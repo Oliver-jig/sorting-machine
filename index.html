@@ -93,8 +93,15 @@
 
       <div class="v6-startrow">
         <div class="v6-selection" id="v6Selection" aria-live="polite"></div>
+        <!-- Two rows on purpose: START is the primary action and keeps the full
+             width, while TUTORIAL and BLADES are equal siblings below it. The
+             old single row grew a fourth button and started wrapping badly on
+             narrow phones. -->
         <div class="v6-actions">
           <button class="v6-primary" id="playBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-play"/></svg><span>Enter the arena</span></button>
+        </div>
+        <div class="v6-actions2">
+          <button class="btn ghost" id="tutBtn" type="button">Tutorial <i>教學</i></button>
           <button class="btn ghost" id="bladesBtn" type="button">All blades</button>
           <button class="btn ghost" id="soundBtn" type="button" aria-pressed="false">Sound on</button>
         </div>
@@ -107,7 +114,7 @@
             if(location.protocol==="file:"){ n.innerHTML='<b>You opened this file directly.</b> Phone mode won\'t work. Serve with:<br><code>python3 -m http.server 8137</code><br>Then open <b>http://localhost:8137/</b> (same WiFi as phone) — or deploy to Vercel.'; n.style.color='#f04444'; }
             else if(location.hostname==="localhost"||location.hostname==="127.0.0.1"){
               n.innerHTML='Running locally. <b>Make sure your phone is on the same WiFi.</b>';
-            } else { n.innerHTML='Webcam + mouse run in your browser. Phone controller: scan the QR or type the code. · build 76'; }
+            } else { n.innerHTML='Webcam + mouse run in your browser. Phone controller: scan the QR or type the code. · build 77'; }
           })();
         </script>
       </div>
@@ -182,8 +189,32 @@
       <div class="overlay hidden" id="pauseOvl">
         <div class="t">Paused</div>
         <div class="d">Take a break — the game is on hold.</div>
-        <div class="row"><button class="btn" id="resumeBtn">Resume</button><button class="btn ghost" id="quitBtn">Quit to menu</button></div>
+        <div class="row"><button class="btn" id="resumeBtn">Resume</button><button class="btn ghost" id="helpBtn" type="button">How to play <i>遊戲教學</i></button><button class="btn ghost" id="quitBtn">Quit to menu</button></div>
       </div>
+      <!-- Quick Help. Opens OVER the pause overlay and closes back to it; it
+           never touches G.paused or the clock, so the run resumes untouched. -->
+      <div class="overlay hidden" id="tutHelp"></div>
+      <!-- The tutorial coach card lives in the arena, not in a modal, so the
+           lesson stays playable while it is on screen. -->
+      <div class="tutCoach hidden" id="tutCoach" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <!-- TUTORIAL LIBRARY -->
+  <section id="tutorial" class="screen hidden">
+    <div class="card">
+      <!-- A second exit at the top, for the same reason the blades list has one:
+           six cards push the bottom button off a phone screen. -->
+      <button class="btn ghost bladeClose" id="tutBackTop" type="button" aria-label="Back to the menu">← Back</button>
+      <div class="eyebrow">Learn by playing</div>
+      <h1 style="font-size:34px">Tutorial <i style="font-style:normal;font-size:.55em;color:var(--muted)">教學</i></h1>
+      <p class="lead" style="font-size:15px">Every lesson can be skipped, replayed or exited, and
+        <b>nothing here changes your XP, scores or unlocks</b>.<br>
+        <i style="font-style:normal;font-size:13px;color:var(--muted)">每課都可略過、重播或離開，而且不會影響你的經驗值、分數或解鎖。</i></p>
+      <div class="tutProg" id="tutProg"></div>
+      <div class="tutHint hidden" id="tutHint">New here? Start with <b>Quick Start</b>. <i>新手建議由「快速入門」開始。</i></div>
+      <div class="tutList" id="tutList"></div>
+      <div class="row"><button class="btn" id="tutBack" type="button">Done — back to the menu</button></div>
     </div>
   </section>
 
@@ -251,6 +282,8 @@
 <script src="js/scores.js"></script>
 <!-- after scores.js: sfxSetup uses its lsGet/lsSet -->
 <script src="js/audio.js"></script>
+<!-- after game.js and the mode files: lessons drive them -->
+<script src="js/tutorial.js"></script>
 <script src="js/blades.js"></script>
 </body>
 </html>
