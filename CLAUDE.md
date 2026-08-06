@@ -8,7 +8,7 @@ A single-page browser arcade game for **SDG 12** — a Fruit-Ninja-style slicer
 teaching Hong Kong recycling. No build step, no framework, no bundler. Plain
 HTML + CSS + ES5-ish JS with CDN libraries, deployed static to Vercel.
 
-Current state: **build 74**. "Preview V6" dark arcade UI, 50 items, four modes,
+Current state: **build 75**. "Preview V6" dark arcade UI, 50 items, four modes,
 blade skins with an XP/level system.
 
 Repo: `Oliver-jig/sorting-machine`. Two branches, **kept in sync after every
@@ -289,6 +289,48 @@ the gate is invisible.
 single missed detection made it flash and made fast swipes silently fail to cut.
 `stopCam` must clear the interval.
 
+**The host holds ONE PEER CONNECTION PER PHONE — Versus must not be relay-only.**
+`hostAnswer` was built around a single `hostPC`, and the offer handler read
+`if(remMax()===1) hostAnswer(d.sdp)` on the reasoning that "two phones can't
+share one RTCPeerConnection". True, and the wrong conclusion: hold one each.
+The gate meant **Versus answered no offer at all**, so two-player games ran
+entirely on the relay — ~205ms round trip, and the broker's ~11 msg/s cap is per
+TOPIC, so two phones publishing at `RELAYMS` (90ms) each sent ~22 msg/s into an
+11 msg/s pipe and about half was dropped. Each player got roughly **5.5 irregular
+updates a second**. That is the whole of the "both blades are too laggy to play"
+report; nothing was wrong with the sensors or the tuning.
+
+Peers live in `HPEER[cid]`, each with its own `pc`, ICE queue and `remoteSet`
+flag. Everything downstream was already per-player (`RSAMP` is keyed by slot,
+`applyRemote` splits the screen by slot), so only the signalling was single.
+
+**Both directions of signalling must carry the `cid`.** Two phones share one
+MQTT topic, so an untagged `answer` or `ice` is consumed by whichever phone sees
+it first and the two negotiations cross. The controller already filtered on
+`d.cid!==CID`; the host's `answer`/`ice` and the controller's `offer`/`ice` are
+all tagged now.
+
+**The data channel must route to its peer's slot, not 0.** `ch.onmessage` called
+`applyRemote(...,0,...)` — hardcoded, so player 2's direct link would have driven
+player 1's blade. `hostAnswer` resolves the slot through `remSlot(cid)` (which is
+idempotent, covering an offer that races ahead of the hello) and refuses to build
+a peer at all when the room is full. `remReset()` closes every peer; the old code
+never closed anything and leaked a connection on every renegotiation.
+
+**`RELAYMS` scales with how many phones share the topic.** The host sends
+`players` in its `slot` message and the controller uses `RELAYBASE*players` —
+180ms for two. Slower nominal rate, same delivered rate, evenly spaced: exactly
+the reasoning that set 90ms for one phone, applied one level up.
+
+**The input-lost window is derived from the cadence, not flat.** `remStale(relay)`
+was a flat `RCFG.stale` (350ms) tuned against one phone at 90ms. At the
+two-player 180ms cadence, two dropped publishes blanked the blade to `INPUT LOST`
+mid-swing. It is `max(350, 2.5 * relayMs * remMax())` now — 450ms for two
+players, and **single player is unchanged**. `RCFG.lead` stays 120; see below.
+
+`tests/signalling.js` sections 8-10 and `tests/latency.js` sections 7-8 guard all
+of it, including that the `remMax()===1` gate cannot come back.
+
 **The MQTT relay is a fallback, not the control path.** Measured against
 `broker.emqx.io`, publishing blade positions every frame:
 
@@ -459,8 +501,8 @@ Run with `node <file>`; each exits non-zero on failure.
 | `webcam.js` | Blade flicker under simulated detection loss |
 | `xp.js` | XP curve, unlock pacing, and the cosmetic-only guarantee |
 | `controller.js` | Phone: a real arm swing moves the blade, in both modes |
-| `signalling.js` | Phone: no ICE candidate is lost; the relay is not flooded |
-| `latency.js` | Phone: dead reckoning cuts felt lag and never overshoots off-screen |
+| `signalling.js` | Phone: no ICE candidate is lost; two phones get two peers |
+| `latency.js` | Phone: dead reckoning cuts felt lag; slot 1 is independent of slot 0 |
 | `loop.js` | Spawn height scales; no silent freeze; errors never touch game UI |
 | `perf.js` | Materials are released, resolution is budgeted, labels are cached |
 | `menu.js` | Versus never offers Mouse; the V6 re-skin keeps every hook |
@@ -506,7 +548,14 @@ a timeout also sets), or using swipe paths longer than the gap between cards.
   Powers were built (practice-only, unranked runs) and then reverted at the
   user's request: keeping the fairness guarantee simple and absolute beat having
   the feature. Do not re-open without a new reason.
-- `controller.html` carries its own build number (now **49**), separate from the
+- **Two-phone Versus is unverified on real hardware.** The per-peer fix is
+  proven by `tests/signalling.js` against a fake `RTCPeerConnection`; only two
+  actual phones on the laptop's WiFi can prove ICE forms both links. Look for
+  `DIRECT · P2 DIRECT` in `#phoneState`.
+- A phone that reloads mid-setup gets a new `CID` and is refused the room
+  (`remSlot` returns -1 once both slots are taken), forcing the laptop to restart
+  the connect screen. A pairing bug, not lag; not fixed here.
+- `controller.html` carries its own build number (now **50**), separate from the
   game's. Phones cache it hard — check that number on the phone before believing
   a controller fix shipped.
 - Unverified on real hardware: the build 60 controller fix on an actual phone,

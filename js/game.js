@@ -704,30 +704,55 @@ function hostStartConnect(){
    there is no free one worth relying on. Multiple STUN hosts so one being
    unreachable does not cost us the srflx candidate. */
 var HICE={iceServers:[{urls:["stun:stun.l.google.com:19302","stun:stun1.l.google.com:19302","stun:stun.cloudflare.com:3478"]}]};
-var hostPC=null, hostTopic=null;
+var hostTopic=null;
+/* ---- one peer connection PER PHONE, keyed by the controller's cid ----
+   This used to be a single `hostPC`, and Versus refused to answer an offer at
+   all because "two phones can't share one RTCPeerConnection". True, and the
+   wrong conclusion: the host holds one connection each instead. Versus was
+   therefore played entirely on the MQTT relay — ~205ms round trip and the
+   broker capped near 11 msg/s for the WHOLE topic, so two phones publishing at
+   RELAYMS each got about half their packets dropped and landed near 5.5Hz
+   apiece. That is the two-player lag; the sensors were never the problem.
+
+   Everything downstream was already per-player (RSAMP is keyed by slot,
+   applyRemote splits the screen by slot), so only the signalling was single.
+
+   Both directions of signalling must carry the cid: two phones share one MQTT
+   topic, so an untagged answer or candidate is consumed by whichever phone sees
+   it first. The controller already drops messages whose cid is not its own. */
+var HPEER={};
+function hostPeer(cid){
+  if(!HPEER[cid]) HPEER[cid]={pc:null, iceQ:[], remoteSet:false, slot:0};
+  return HPEER[cid];
+}
 /* ICE candidates arrive over the same relay as the offer. The old code had
    `d.type==="ice" && hostPC` — so any candidate arriving before the offer built
-   hostPC was SILENTLY DISCARDED, and addIceCandidate's rejection is a promise
+   the peer was SILENTLY DISCARDED, and addIceCandidate's rejection is a promise
    the sync try/catch could never have caught anyway.
 
    Honest scope: browsers queue addIceCandidate behind a pending
    setRemoteDescription, so the common ordering is absorbed by the browser and
-   this was probably not the whole latency story. The discard when hostPC is
+   this was probably not the whole latency story. The discard when the peer is
    null is a real unconditional loss though, and losing candidates means ICE can
    fail and the phone then plays the whole game on the relay — measured at
    ~205ms round trip, capped near 11 msg/s. Cheap to make correct; do so. */
-var hostIceQ=[], hostRemoteSet=false;
-function hostAddIce(c){
-  if(!hostPC || !hostRemoteSet){ hostIceQ.push(c); return; }
-  try{ var p=hostPC.addIceCandidate(c); if(p&&p.catch) p.catch(function(){}); }catch(e){}
+function hostAddIce(cid, c){
+  var p=hostPeer(cid);
+  if(!p.pc || !p.remoteSet){ p.iceQ.push(c); return; }
+  try{ var r=p.pc.addIceCandidate(c); if(r&&r.catch) r.catch(function(){}); }catch(e){}
 }
-function hostFlushIce(){
-  hostRemoteSet=true;
+function hostFlushIce(cid){
+  var p=hostPeer(cid); p.remoteSet=true;
   /* Drain into a copy and clear FIRST. Replaying in place would let hostAddIce
      push straight back into the array being iterated — the index and the length
      then advance together and the loop never ends. */
-  var q=hostIceQ.slice(); hostIceQ.length=0;
-  for(var i=0;i<q.length;i++) hostAddIce(q[i]);
+  var q=p.iceQ.slice(); p.iceQ.length=0;
+  for(var i=0;i<q.length;i++) hostAddIce(cid, q[i]);
+}
+function hostClosePeers(){
+  for(var cid in HPEER){ if(!HPEER.hasOwnProperty(cid)) continue;
+    if(HPEER[cid].pc){ try{ HPEER[cid].pc.close(); }catch(e){} } }
+  HPEER={};
 }
 function hostPub(o){ if(mqttClient&&mqttClient.connected) mqttClient.publish(hostTopic, JSON.stringify(o), {qos:0}); }
 /* Versus needs both phones before it can start; every other mode needs one. */
@@ -743,19 +768,30 @@ function remStatus(){
     b.disabled=true; b.textContent="Waiting for Player 2…";
   }
 }
-function hostAnswer(offer){
+function hostAnswer(cid, offer){
   if(typeof RTCPeerConnection==="undefined") return;
+  /* An offer can beat the hello here, so claim the slot now — remSlot is
+     idempotent. -1 means the room is full: that phone gets no peer at all. */
+  var slot=remSlot(cid); if(slot<0) return;
   try{
-    hostRemoteSet=false; hostIceQ.length=0;          /* a fresh negotiation */
-    hostPC=new RTCPeerConnection(HICE);
-    hostPC.onicecandidate=function(e){ if(e.candidate) hostPub({from:"host", type:"ice", cand:e.candidate}); };
-    hostPC.ondatachannel=function(e){ var ch=e.channel;
-      ch.onopen=function(){ roomLine("Direct link to the phone — lowest delay."); };
-      ch.onmessage=function(m){ try{ var o=JSON.parse(m.data); applyRemote(o.g,o.b,0,false,o.seq); }catch(_){} }; };
+    var p=hostPeer(cid);
+    /* A renegotiation from the same phone replaces its peer. The old one has to
+       be closed, or it leaks and its data channel keeps driving the blade. */
+    if(p.pc){ try{ p.pc.close(); }catch(e){} }
+    p.remoteSet=false; p.iceQ.length=0;               /* a fresh negotiation */
+    p.slot=slot;
+    var pc=new RTCPeerConnection(HICE);
+    p.pc=pc;
+    pc.onicecandidate=function(e){ if(e.candidate) hostPub({from:"host", type:"ice", cid:cid, cand:e.candidate}); };
+    pc.ondatachannel=function(e){ var ch=e.channel;
+      ch.onopen=function(){ roomLine(remMax()===2 ? "Direct link to player "+(p.slot+1)+" — lowest delay."
+                                                  : "Direct link to the phone — lowest delay."); };
+      /* p.slot, not 0 — hardcoding 0 here sent player 2's phone to player 1's blade. */
+      ch.onmessage=function(m){ try{ var o=JSON.parse(m.data); applyRemote(o.g,o.b,p.slot,false,o.seq); }catch(_){} }; };
     /* Flush the moment the remote description lands, not when the answer is
        published — candidates queued in between are still valid and waiting
        longer than necessary only lengthens the handshake. */
-    hostPC.setRemoteDescription(offer).then(function(){ hostFlushIce(); return hostPC.createAnswer(); }).then(function(a){ return hostPC.setLocalDescription(a); }).then(function(){ hostPub({from:"host", type:"answer", sdp:hostPC.localDescription}); }).catch(function(){});
+    pc.setRemoteDescription(offer).then(function(){ hostFlushIce(cid); return pc.createAnswer(); }).then(function(a){ return pc.setLocalDescription(a); }).then(function(){ hostPub({from:"host", type:"answer", cid:cid, sdp:pc.localDescription}); }).catch(function(){});
   }catch(e){}
 }
 function connectHostMqtt(){
@@ -768,19 +804,22 @@ function connectHostMqtt(){
     if(d.from==="host") return;                                  /* ignore our own echoed messages */
     if(d.type==="hello"){
       var slot=remSlot(d.cid);
-      if(slot>=0) hostPub({from:"host", type:"slot", cid:d.cid, slot:slot});   /* tell the phone which player it is */
+      /* `players` lets the phone size its relay rate to how many share the topic */
+      if(slot>=0) hostPub({from:"host", type:"slot", cid:d.cid, slot:slot, players:remMax()});   /* tell the phone which player it is */
       remStatus();
     }
     else if(d.type==="orient"){
       var s = d.cid ? REM[d.cid] : 0;               /* no cid = older controller, treat as Player 1 */
       if(s!==undefined) applyRemote(d.g,d.b,s,true,d.seq); /* unknown cid = room was full; ignore it */
     }
-    /* Two phones can't share one RTCPeerConnection, so Versus stays on the
-       relay. The controller falls back on its own when no answer arrives. */
-    else if(d.type==="offer"){ if(remMax()===1) hostAnswer(d.sdp); }
-    /* No `&& hostPC` guard: a candidate that beats the offer here used to be
+    /* Every phone gets its own peer connection, Versus included — this used to
+       be gated to `remMax()===1`, which is what pinned two-player Versus to the
+       relay for the whole game. An untagged offer is an older controller; it is
+       Player 1 by the same rule the orient handler uses. */
+    else if(d.type==="offer"){ hostAnswer(d.cid||"anon", d.sdp); }
+    /* No `&& pc` guard: a candidate that beats the offer here used to be
        thrown away, which is one of the two ways the direct link failed. */
-    else if(d.type==="ice"){ hostAddIce(d.cand); }
+    else if(d.type==="ice"){ hostAddIce(d.cid||"anon", d.cand); }
   });
   mqttClient.on("error", function(){ roomLine("Relay error — check internet, then reload."); });
 }
@@ -790,7 +829,10 @@ function connectHostMqtt(){
    second gets Player 2. Versus takes two; every other mode takes one. */
 var REM={}, remOrder=[];
 function remMax(){ return GMODE==="vs" ? 2 : 1; }
-function remReset(){ REM={}; remOrder=[]; remoteReset(); }
+/* Peers are closed too: a second round inheriting the previous round's
+   connections would keep driving blades from a phone that has since re-paired
+   into a different slot. */
+function remReset(){ REM={}; remOrder=[]; hostClosePeers(); remoteReset(); }
 function remSlot(cid){
   if(!cid) cid="anon";
   if(REM[cid]===undefined){
@@ -835,8 +877,19 @@ function remCount(){ return remOrder.length; }
    `cap` bounds total extrapolation, `maxJump` bounds how far a bad velocity
    estimate can throw the blade, and `vmin` stops a resting hand from jittering
    once the lead multiplies its noise. */
-var RCFG={ lead:120, cap:220, maxJump:0.20, vlp:0.45, vmin:0.03, stale:350, vmax:1.6 };
+var RCFG={ lead:120, cap:220, maxJump:0.20, vlp:0.45, vmin:0.03, stale:350, vmax:1.6, relayMs:90, staleMul:2.5 };
 var RSAMP={};
+/* How long to keep trusting a sample before declaring the input lost.
+
+   A flat 350ms was tuned against ONE phone on the relay, publishing every
+   RELAYMS (90ms). Two phones share the topic and so publish half as often each
+   (the controller scales RELAYMS by the player count), which puts the expected
+   gap at 180ms — two dropped publishes and the blade blanked to INPUT LOST
+   mid-swing. The window is derived from the cadence that path actually has, and
+   never drops below the tuned 350, so single-player is unchanged. */
+function remStale(relay){
+  return relay ? Math.max(RCFG.stale, RCFG.staleMul*RCFG.relayMs*remMax()) : RCFG.stale;
+}
 function remoteReset(){ RSAMP={}; }
 function remoteSample(slot, x, y, viaRelay, seq){
   var now=performance.now(), r=RSAMP[slot];
@@ -853,7 +906,7 @@ function remoteSample(slot, x, y, viaRelay, seq){
   }
   r.lead=lead;
   var dt=now-r.t;
-  if(dt>=RCFG.stale){ r.vx=0; r.vy=0; }        /* long gap: stop guessing */
+  if(dt>=remStale(r.relay)){ r.vx=0; r.vy=0; }        /* long gap: stop guessing */
   else if(dt>4 && !transportChanged){
     /* Low-passed, so one noisy sample cannot fling the blade across the screen */
     r.vx += ((x-r.x)/dt - r.vx)*RCFG.vlp;
@@ -870,7 +923,7 @@ function remoteSample(slot, x, y, viaRelay, seq){
 }
 function remotePos(slot, now){
   var r=RSAMP[slot]; if(!r) return null;
-  if(now-r.t>RCFG.stale) return null;
+  if(now-r.t>remStale(r.relay)) return null;
   var age=Math.min(now-r.t+r.lead, RCFG.cap);
   var px=r.x+r.vx*age, py=r.y+r.vy*age;
   var mx=W*RCFG.maxJump, my=H*RCFG.maxJump;

@@ -23,7 +23,11 @@ const ck=(n,c,d)=>{ if(!c)pass=false; console.log(`${c?'PASS':'FAIL'}  ${n}${d?'
 ck('found the dead-reckoning block in js/game.js', A>=0 && B>A);
 
 let CLOCK=0;
-const ctx={ console, Math, W:1280, H:720, performance:{ now:()=>CLOCK } };
+/* remMax lives above the extracted block; remStale uses it to size the
+   input-lost window to how many phones are sharing the relay topic. */
+let PLAYERS=1;
+const ctx={ console, Math, W:1280, H:720, performance:{ now:()=>CLOCK },
+            remMax:()=>PLAYERS };
 vm.createContext(ctx);
 vm.runInContext(src.slice(A, B+END.length), ctx);
 
@@ -125,6 +129,53 @@ ck('late packet cannot reverse the newest position', newest.x>850, `x=${newest.x
 CLOCK=48; ctx.remoteSample(0,920,360,true,13);
 const switched=ctx.remotePos(0,CLOCK);
 ck('transport change clears old velocity', Math.abs(switched.x-920)<1, `x=${switched.x.toFixed(0)}`);
+
+console.log('\n--- 7. VERSUS: the second player is a first-class slot ---');
+/* Player 2 was an afterthought everywhere: the direct data channel hardcoded
+   slot 0, so before this fix a second phone could not have driven BLADE2 even
+   if Versus had been allowed a direct link at all. Dead reckoning was always
+   per-slot; assert it stays that way and that the slots do not leak into each
+   other. */
+PLAYERS=2; ctx.remoteReset();
+CLOCK=0;  ctx.remoteSample(0,200,300,true,1); ctx.remoteSample(1,900,300,true,1);
+CLOCK=90; ctx.remoteSample(0,300,300,true,2); ctx.remoteSample(1,800,300,true,2);
+const s0=ctx.remotePos(0,90), s1=ctx.remotePos(1,90);
+ck('player 1 keeps its own position', Math.abs(s0.x-300)<200, `x=${s0.x.toFixed(0)}`);
+ck('player 2 keeps its own position', Math.abs(s1.x-800)<200, `x=${s1.x.toFixed(0)}`);
+ck('the two players move independently', s0.x<s1.x, `${s0.x.toFixed(0)} vs ${s1.x.toFixed(0)}`);
+/* Player 2 moved LEFT while player 1 moved right — if the slots shared state
+   the prediction for one would carry the other's velocity. */
+ck('player 2 is predicted along its own velocity, not player 1\'s',
+   ctx.RSAMP[1].vx<0 && ctx.RSAMP[0].vx>0,
+   `p1 vx=${ctx.RSAMP[0].vx.toFixed(2)} p2 vx=${ctx.RSAMP[1].vx.toFixed(2)}`);
+ck('a direct sample gets no lead on either slot', (()=>{
+  ctx.remoteReset(); CLOCK=0;
+  ctx.remoteSample(0,400,300,false,1); ctx.remoteSample(1,900,300,false,1);
+  return ctx.RSAMP[0].lead===0 && ctx.RSAMP[1].lead===0;
+})());
+
+console.log('\n--- 8. the input-lost window must fit the cadence it is given ---');
+/* THE BUG THIS GUARDS. The window was a flat 350ms, tuned against ONE phone
+   publishing every 90ms. Two phones share the MQTT topic, which the broker caps
+   near 11 msg/s in TOTAL, so each publishes at 180ms — two dropped packets and
+   the blade blanked to INPUT LOST in the middle of a swing. */
+PLAYERS=2;
+const gap2=90*2;
+ck('a two-player relay survives a dropped publish', ctx.remStale(true)>gap2*2,
+   `window ${ctx.remStale(true)}ms vs ${gap2}ms cadence`);
+ck('the direct link keeps the tuned window', ctx.remStale(false)===ctx.RCFG.stale,
+   `${ctx.remStale(false)}ms`);
+PLAYERS=1;
+ck('single player is unchanged at the tuned 350ms', ctx.remStale(true)===350,
+   `${ctx.remStale(true)}ms`);
+/* And the blade must actually still be alive across that gap. */
+PLAYERS=2; ctx.remoteReset();
+CLOCK=0;   ctx.remoteSample(1,600,300,true,1);
+CLOCK=360;                                    /* one publish missed at 180ms each */
+ck('player 2 is not declared lost after one missed publish', !!ctx.remotePos(1,CLOCK),
+   `at ${CLOCK}ms`);
+CLOCK=900;
+ck('a phone genuinely put down still goes quiet', ctx.remotePos(1,CLOCK)===null);
 
 console.log('\n'+(pass?'ALL PASS':'FAILURES PRESENT'));
 process.exit(pass?0:1);

@@ -102,7 +102,7 @@
           <button type="button" class="chip" id="axSw">Swap</button>
         </span>
       </div>
-      <div class="fine">build 49</div>
+      <div class="fine">build 50</div>
     </div>
   </div>
 
@@ -355,8 +355,16 @@
      the SAME number of updates, evenly spaced, which is strictly better.
 
      The data channel has no such limit and is on the LAN, so it stays at 60 Hz.
-     RELAYMS is 90 rather than 100 to leave a little headroom under the cap. */
-  var DCMS=16, RELAYMS=90;
+     RELAYMS is 90 rather than 100 to leave a little headroom under the cap.
+
+     That cap is per TOPIC, not per phone. In Versus two phones publish to the
+     same topic, so 90ms each is ~22 msg/s into an 11 msg/s pipe — the broker
+     dropped about half and each player fell to roughly 5.5 updates/sec of
+     irregular, stuttering input. The host reports how many players share the
+     room in its `slot` message and the interval scales with it, so the pair
+     stays under the cap and the SAME number of updates arrive, evenly spaced.
+     Identical reasoning to the 60Hz->11Hz change above, one level up. */
+  var DCMS=16, RELAYMS=90, RELAYBASE=90;
   /* g/b keep the existing coordinate mapping; seq orders packets at the host. */
   function sendBlade(){
     var direct=!!(dc && dc.readyState==="open");
@@ -426,7 +434,7 @@ document.getElementById("recenter").addEventListener("click", function(){
       if(d.from==="ctrl") return;                                   /* ignore our own echoed messages */
       /* signalling and slot messages are addressed by cid — ignore the other phone's */
       if(d.cid && d.cid!==CID) return;
-      if(d.type==="slot"){ myTeam=d.slot; setStatus(statusText()); }
+      if(d.type==="slot"){ myTeam=d.slot; RELAYMS=RELAYBASE*Math.max(1, d.players||1); setStatus(statusText()); }
       /* The host attaches onicecandidate as soon as it builds its peer
          connection and only publishes the answer at the end of the
          setRemoteDescription chain, so its candidates can reach us before the
@@ -455,8 +463,11 @@ document.getElementById("recenter").addEventListener("click", function(){
          problem (AP isolation, guest WiFi) rather than a sensor one. */
       dc.onopen=function(){ dcReady=true; linkPath="direct"; setInputLost(false); setStatus(statusText()); };
       dc.onclose=function(){ dcReady=false; linkPath="relay"; setStatus("DIRECT dropped — <b>RELAY / delayed</b> fallback"); };
-      pc.onicecandidate=function(e){ if(e.candidate) pub({from:"ctrl", type:"ice", cand:e.candidate}); };
-      pc.createOffer().then(function(o){ return pc.setLocalDescription(o); }).then(function(){ pub({from:"ctrl", type:"offer", sdp:pc.localDescription}); }).catch(function(){});
+      /* cid on BOTH: two phones share one topic, and the host now holds a peer
+         connection per phone — an untagged offer or candidate cannot be told
+         apart from the other player's and would cross the two negotiations. */
+      pc.onicecandidate=function(e){ if(e.candidate) pub({from:"ctrl", type:"ice", cid:CID, cand:e.candidate}); };
+      pc.createOffer().then(function(o){ return pc.setLocalDescription(o); }).then(function(){ pub({from:"ctrl", type:"offer", cid:CID, sdp:pc.localDescription}); }).catch(function(){});
     }catch(e){}
   }
   document.getElementById("go").addEventListener("click", function(){
