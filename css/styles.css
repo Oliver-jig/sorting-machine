@@ -692,8 +692,14 @@
   .tutCard .tcGo{flex:0 0 auto; font-size:12px; font-weight:600; color:var(--amber); white-space:nowrap}
 
   /* ---- the in-arena coach card ---- */
+  /* The card is an overlay ON the playfield, so its height is a gameplay
+     constraint, not just a layout one: tutApexY() keeps every scripted item
+     above it. A tall card squeezes that flight path, and a bilingual version of
+     this card once grew tall enough to hide items for their whole arc. Capped
+     at a third of the stage, scrolling internally rather than growing. */
   .tutCoach{position:absolute; left:50%; transform:translateX(-50%); bottom:18px; z-index:7;
     width:min(560px, calc(100% - 32px)); box-sizing:border-box;
+    max-height:34%; overflow-y:auto;
     background:linear-gradient(160deg,rgba(38,23,14,.97),rgba(15,10,7,.97));
     border:1px solid var(--line); border-radius:18px; padding:14px 16px;
     box-shadow:0 18px 44px rgba(0,0,0,.6); color:var(--ink); text-align:left}

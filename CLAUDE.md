@@ -8,7 +8,7 @@ A single-page browser arcade game for **SDG 12** — a Fruit-Ninja-style slicer
 teaching Hong Kong recycling. No build step, no framework, no bundler. Plain
 HTML + CSS + ES5-ish JS with CDN libraries, deployed static to Vercel.
 
-Current state: **build 77**. "Preview V6" dark arcade UI, 50 items, four modes,
+Current state: **build 78**. "Preview V6" dark arcade UI, 50 items, four modes,
 blade skins with an XP/level system.
 
 Repo: `Oliver-jig/sorting-machine`. Two branches, **kept in sync after every
@@ -315,11 +315,41 @@ That shipped into the first build of this file (`canAlu` was never real; the sod
 can is `canTall`). `tests/tutorial.js` section 1 extracts every `tutSpawn(...)`
 key and checks it against the roster in `items.js`.
 
-**Every lesson step must carry both languages.** The likeliest rot is a step
-added in a hurry with only English. The harness renders every `en`/`zh` pair
-(they may be functions — several vary by controller) and fails on a missing one
-OR on a `zh` containing no CJK, which is untranslated English in the Chinese
-slot.
+**The tutorial is ENGLISH ONLY, and that is a layout constraint as well as a
+wording one.** It shipped bilingual, with a Traditional Chinese line under every
+instruction. That doubled the height of the coach card, and the card is an
+overlay ON the playfield — see the next rule. Item NAME labels are still
+bilingual, because they come from the roster in `items.js` and read the same in
+every mode; only tutorial-authored text is English. `tests/tutorial.js` section 3
+fails on any CJK in lesson text, buttons, the library or the demo captions, and
+also checks the old `zh`/`blurbZh`/`failZh` fields are *removed* rather than
+blanked — an empty slot invites someone to fill it back in.
+
+**Everything a lesson asks the player to look at must be ABOVE the coach card.**
+`tutSpawn` used the normal launch height. On a 720px stage an item apexed at
+about y=453 while the card's top edge sat at about y=472, so an item spent
+almost its whole flight BEHIND the card and the sky looked empty. Reported as
+"I cannot play, nothing is showing, there is not any items". Items are now
+launched to reach `tutApexY()`, which is derived from `tutCeil()` — measured from
+the real card via `getBoundingClientRect`, not assumed — and the card is capped
+at `max-height:34%` so it cannot grow back over the playfield. The coach card is
+also rendered BEFORE a step's `setup()` runs, so the measurement is current when
+items are launched.
+
+**If a lesson step names something on screen, something must DRAW it.** Quick
+Start step 2 said "move the blade into the ring" and nothing ever drew a ring —
+the instruction pointed at an object that did not exist. `tutDraw()` now draws
+the aim ring and the Versus bot, and `drawFx` calls it *before* the host mode's
+draw, since a lesson borrows a mode's GMODE for rendering but must not show that
+mode's furniture.
+
+**Only item exercises may restock.** `tutRestock()` re-runs a step's `setup()`
+when the arena empties, so a `do` step whose items all fell does not strand the
+player. The aim-ring step spawns nothing, so its arena is empty for its whole
+duration — restock re-ran `setup()` every frame, resetting the ring's dwell
+counter, and the step became impossible to finish. It now returns early unless
+`TUT.scratch.spawnedT` exists, which `tutSpawn` writes. Caught by playing the
+lesson, not by reading it.
 
 **The Versus lesson must never present mouse as a real controller.** Mouse and
 touch cannot play a real Versus match — there is one pointer — and a mouse player

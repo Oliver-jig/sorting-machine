@@ -39,31 +39,47 @@ const asked=[...tutSrc.matchAll(/tutSpawn\("([^"]+)"/g)].map(m=>m[1]);
 ck('lessons do spawn named items', asked.length>0, `${asked.length} spawns`);
 [...new Set(asked)].forEach(t=>ck(`tutSpawn("${t}") names a real item`, keys.indexOf(t)>=0));
 
-console.log('\n--- 2. the library is complete and bilingual ---');
+console.log('\n--- 2. the library is complete ---');
 const want=["quickstart","sort","quiz","binit","versus","controls"];
 ck('all six lessons are present', L.length===6, L.map(x=>x.id).join(','));
 want.forEach(id=>ck(`lesson "${id}" exists`, !!ctx.tutById(id)));
 L.forEach(les=>{
-  ck(`${les.id}: has an English and a Chinese name`, !!les.name && !!les.zh);
-  ck(`${les.id}: has both blurbs`, !!les.blurb && !!les.blurbZh);
+  ck(`${les.id}: has a name and a blurb`, !!les.name && !!les.blurb);
   ck(`${les.id}: has steps`, les.steps.length>0, `${les.steps.length} steps`);
 });
 
-console.log('\n--- 3. NO step may be missing its translation ---');
-/* The single most likely thing to rot: someone adds a step in a hurry and only
-   writes the English. A half-translated tutorial is worse than an obvious gap. */
-let miss=0;
-L.forEach(les=>les.steps.forEach((s,i)=>{
-  const en=typeof s.en==="function" ? s.en() : s.en;
-  const zh=typeof s.zh==="function" ? s.zh() : s.zh;
-  if(!en || !zh) { miss++; console.log(`      missing on ${les.id} step ${i+1}`); }
-  /* Chinese text that contains no CJK is untranslated English in the zh slot. */
-  else if(!/[一-鿿]/.test(zh)) { miss++; console.log(`      not Chinese on ${les.id} step ${i+1}`); }
-}));
-ck('every step has English and Traditional Chinese', miss===0, `${miss} gaps`);
-let failMiss=0;
-L.forEach(les=>les.steps.forEach(s=>{ if(s.fail && (!s.failEn || !s.failZh)) failMiss++; }));
-ck('every correction message is bilingual too', failMiss===0);
+console.log('\n--- 3. the tutorial is ENGLISH ONLY ---');
+/* Requested outright: no Chinese anywhere in the tutorial. It was bilingual, and
+   the Chinese line under every instruction is also what doubled the height of
+   the coach card — the direct cause of the "no items" bug guarded in section 11.
+   So this is not only a wording preference; the layout depends on it.
+   The game's ITEM NAMES are still bilingual and are NOT covered here: they come
+   from the roster in items.js and read the same in every mode. */
+const CJK=/[㐀-鿿豈-﫿]/;
+let cjk=0;
+const flag=(where,txt)=>{ if(txt && CJK.test(txt)){ cjk++; console.log(`      Chinese in ${where}: ${txt.slice(0,40)}`); } };
+L.forEach(les=>{
+  flag(`${les.id} name`, les.name); flag(`${les.id} blurb`, les.blurb);
+  les.steps.forEach((s,i)=>{
+    const en=typeof s.en==="function" ? s.en() : s.en;
+    if(!en){ cjk++; console.log(`      ${les.id} step ${i+1} has no text at all`); }
+    flag(`${les.id} step ${i+1}`, en);
+    flag(`${les.id} step ${i+1} correction`, s.failEn);
+  });
+});
+ck('no lesson text contains Chinese', cjk===0, `${cjk} found`);
+/* The old bilingual fields must be gone, not merely emptied — an empty zh slot
+   invites someone to "helpfully" fill it back in. */
+ck('the bilingual fields are removed, not blanked',
+   L.every(les=>les.zh===undefined && les.blurbZh===undefined &&
+     les.steps.every(s=>s.zh===undefined && s.failZh===undefined)));
+ck('the coach card renders no Chinese column', !/tcZh/.test(tutSrc));
+/* Buttons and chrome too, not just the lesson prose. */
+const chrome=tutSrc.match(/function tutRenderCoach[\s\S]*?\n\}/)[0]
+           + tutSrc.match(/function tutRenderDone[\s\S]*?\n\}/)[0]
+           + tutSrc.match(/function tutRenderLibrary[\s\S]*?\n\}/)[0]
+           + tutSrc.match(/function tutDemoHTML[\s\S]*?\n^\}/m)[0];
+ck('the buttons, library and demo captions are English only', !CJK.test(chrome));
 
 console.log('\n--- 4. the step machine cannot be handed a broken step ---');
 let bad=0;
@@ -122,7 +138,12 @@ ck('START keeps its own full-width row', /<div class="v6-actions">\s*<button cla
 ck('TUTORIAL and BLADES are siblings on the second row',
    /<div class="v6-actions2">[\s\S]{0,400}?id="tutBtn"[\s\S]{0,400}?id="bladesBtn"/.test(htmlSrc));
 ck('the pause menu offers HOW TO PLAY', /id="helpBtn"[^>]*>How to play/.test(htmlSrc));
-ck('and it is bilingual', /How to play <i>遊戲教學<\/i>/.test(htmlSrc));
+/* The tutorial screen and its menu button must stay English too. Checked on the
+   markup because that is where the Chinese labels used to live. */
+const tutMarkup=(htmlSrc.match(/<section id="tutorial"[\s\S]*?<\/section>/)||[''])[0]
+              + (htmlSrc.match(/id="tutBtn"[^<]*<\/button>/)||[''])[0]
+              + (htmlSrc.match(/id="helpBtn"[^<]*<\/button>/)||[''])[0];
+ck('the tutorial screen and its buttons carry no Chinese', !CJK.test(tutMarkup));
 
 console.log('\n--- 8. Quick Help must not disturb the run it opens over ---');
 const helpFn=tutSrc.match(/function tutHelpOpen[\s\S]*?\n\}/)[0]
@@ -133,7 +154,8 @@ ck('nor the objects on screen', !/clearObjs|G\.objs/.test(helpFn));
 ck('there is a reference for every mode',
    ["sort","quiz","tsunami","vs"].every(m=>!!ctx.TUTREF[m]));
 Object.keys(ctx.TUTREF).forEach(m=>{
-  ck(`the ${m} reference is bilingual`, !!ctx.TUTREF[m].en && /[一-鿿]/.test(ctx.TUTREF[m].zh));
+  ck(`the ${m} reference is written and English only`,
+     typeof ctx.TUTREF[m]==="string" && ctx.TUTREF[m].length>40 && !CJK.test(ctx.TUTREF[m]));
 });
 
 console.log('\n--- 9. reduced motion is honoured, not ignored ---');
@@ -147,6 +169,63 @@ ck('the lesson grid collapses to one column',
    /max-width:560px\)\{[\s\S]{0,300}?\.tutList\{grid-template-columns:1fr\}/.test(cssSrc));
 ck('the coach card is width-capped, not fixed',
    /\.tutCoach\{[\s\S]{0,300}?width:min\(/.test(cssSrc));
+
+console.log('\n--- 11. the lesson must be VISIBLE and PLAYABLE ---');
+/* TWO BUGS THIS GUARDS, both reported as "I cannot play, nothing is showing".
+
+   (a) Step 2 of Quick Start asks the player to move the blade into a ring, and
+       NOTHING DREW THE RING. The instruction pointed at something that did not
+       exist on screen.
+   (b) The coach card is an overlay at the bottom of the stage. tutSpawn used the
+       normal launch height, so on a 720px stage an item apexed at ~453 while the
+       card's top edge sat at ~472 — items spent their whole flight BEHIND the
+       card, and the sky looked empty. */
+/* Scan CODE only — game.js explains this fix in prose right above it. */
+const gameCode=gameSrc.replace(/\/\*[\s\S]*?\*\//g,'').replace(/^\s*\/\/.*$/gm,'');
+ck('the tutorial has its own draw pass', /function tutDraw\(/.test(tutSrc));
+ck('and the render loop actually calls it', /TUT\.active\)\{\s*tutDraw\(now\)/.test(gameCode));
+ck('it is called before the host mode draws, not after',
+   gameCode.indexOf('tutDraw(now)') < gameCode.indexOf('quizDraw(now)'));
+const drawFn=tutSrc.match(/function tutDraw[\s\S]*?\n\}/)[0];
+ck('the aim ring is actually stroked', /scratch\.ring/.test(drawFn) && /arc\(/.test(drawFn));
+ck('and it shows the player when they are inside it', /inside/.test(drawFn));
+ck('the Versus bot is drawn too, not invisible', /TUT\.bot/.test(drawFn));
+
+/* Items must be launched at a height derived from the card, never a constant. */
+const spawnFn=tutSrc.match(/function tutSpawn[\s\S]*?\n\}/)[0];
+ck('scripted items are launched to clear the coach card', /tutApexY\(\)/.test(spawnFn));
+ck('the ceiling is measured from the real card, not assumed',
+   /getBoundingClientRect/.test(tutSrc.match(/function tutCeil[\s\S]*?\n\}/)[0]));
+ck('the card is rendered before setup runs, so the measurement is current',
+   /tutRenderCoach\(\);\s*\n\s*if\(s\.setup\)/.test(tutSrc));
+/* Arithmetic check on a realistic stage: the apex must sit clear of the card. */
+(()=>{
+  const H=720, cardH=170;                       // English-only card measures ~150-170px
+  const ceil=Math.max(120, H-(cardH+34));
+  const apex=Math.max(70, Math.min(H*0.34, ceil-90));
+  ck('on a 720px stage the apex clears the card', apex < ceil-60,
+     `apex y=${apex.toFixed(0)}, card top y=${ceil.toFixed(0)}`);
+  const short=320, sCeil=Math.max(120, short-(cardH+34));
+  const sApex=Math.max(70, Math.min(short*0.34, sCeil-90));
+  ck('and on a 320px landscape phone it is still on screen', sApex>=70 && sApex<short,
+     `apex y=${sApex.toFixed(0)}`);
+})();
+/* A do-step whose items all fell without the goal being met must not strand the
+   player in an empty arena forever. */
+ck('an exhausted exercise restocks itself', /function tutRestock/.test(tutSrc));
+ck('and restocking does not wipe the progress already made',
+   /slicedT=keep;\s*TUT\.scratch\.slicedN=keepN/.test(tutSrc));
+/* A SECOND BUG, caught by playing it rather than by reading it. Restock re-runs
+   the step's setup() when the arena is empty. The aim-ring step spawns nothing,
+   so its arena is empty for its whole duration — restock re-ran setup on every
+   frame, resetting the ring's dwell counter, and the goal could never be met.
+   The ring step became impossible to complete. Only item exercises may restock. */
+const restockFn=tutSrc.match(/function tutRestock[\s\S]*?\n\}/)[0];
+ck('restock only applies to steps that actually spawn items',
+   /scratch\.spawnedT\)\s*return;/.test(restockFn));
+ck('so a step with no items is never re-set-up under the player',
+   restockFn.indexOf('spawnedT') < restockFn.indexOf('s.setup()'));
+ck('the card cannot grow back over the playfield', /\.tutCoach\{[\s\S]{0,400}?max-height:/.test(cssSrc));
 
 console.log('\n'+(pass?'ALL PASS':'FAILURES PRESENT'));
 process.exit(pass?0:1);

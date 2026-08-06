@@ -1123,7 +1123,11 @@ function roundedText(txt,x,y){
 }
 function drawFx(now){
   fxc.clearRect(0,0,W,H);
-  if(GMODE==="quiz"){ quizDraw(now); }
+  /* A lesson draws its own arena furniture (the aim ring, the Versus bot) and
+     suppresses the host mode's, which belongs to a real run. Without this the
+     ring the coach card asks you to reach was never drawn at all. */
+  if(typeof TUT!=="undefined" && TUT.active){ tutDraw(now); }
+  else if(GMODE==="quiz"){ quizDraw(now); }
   else if(GMODE==="tsunami"){ tsunamiDraw(now); }
   else if(GMODE==="vs"){ vsDraw(now); }
   else if(G.running && !G.paused){ specialDraw(now); }
