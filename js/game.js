@@ -441,6 +441,12 @@ function sliceAlong(x1,y1,x2,y2){
       var correct=R.bins.indexOf(o.it.bin)>=0, pts=correct?15*specialMult():-12;
       G.score=Math.max(-999,G.score+pts); el("scoreN").textContent=G.score;
       spawnBurst(o.x,o.y, correct?(BINCOL[o.it.bin]||"#2fae6a"):"#d70015");
+      /* The sound follows the MATERIAL, not the score: a glass jar sounds like
+         glass whether or not it belonged in this round's bin. Right and wrong
+         are already said twice over, by the burst colour and the score pop.
+         typeof-guarded because a missing js file must not throw inside the game
+         loop — that exact race is what broke builds 62/63/66. */
+      if(typeof sfxCut==="function") sfxCut(o.it.bin);
       G.pops.push({x:o.x,y:o.y,txt:(pts>0?"+":"")+pts,col:correct?"#1f9d55":"#d70015",a:1}); } }
 }
 
@@ -585,6 +591,7 @@ function vsSliceFor(side,x1,y1,x2,y2){
       var correct=tb.indexOf(o.it.bin)>=0, pts=correct?1:-1;
       if(side===0){ VS.s1=Math.max(0,VS.s1+pts); } else { VS.s2=Math.max(0,VS.s2+pts); }
       spawnBurst(o.x,o.y, correct?(side===0?"#2f7fd1":"#e24b4a"):"#d70015");
+      if(typeof sfxCut==="function") sfxCut(o.it.bin);   /* same material sound for both players */
     }
   }
 }
@@ -1450,6 +1457,9 @@ if(IS_CONTROLLER){
      because this file could later be moved after the event has already fired. */
   var bootGame=function(){
     try {
+      /* Sound first: it touches no three.js state, and keeping the boot line
+         below contiguous is an invariant tests/loop.js checks. */
+      if(typeof sfxSetup==="function") sfxSetup();
       initThree(); resize(); preloadItemArt(); requestAnimationFrame(loop);
     } catch(e) { bootFail(e); }
   };

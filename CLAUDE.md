@@ -8,7 +8,7 @@ A single-page browser arcade game for **SDG 12** — a Fruit-Ninja-style slicer
 teaching Hong Kong recycling. No build step, no framework, no bundler. Plain
 HTML + CSS + ES5-ish JS with CDN libraries, deployed static to Vercel.
 
-Current state: **build 75**. "Preview V6" dark arcade UI, 50 items, four modes,
+Current state: **build 76**. "Preview V6" dark arcade UI, 50 items, four modes,
 blade skins with an XP/level system.
 
 Repo: `Oliver-jig/sorting-machine`. Two branches, **kept in sync after every
@@ -35,7 +35,7 @@ for f in js/*.js; do node --check $f || echo "FAIL $f"; done
 ```
 
 ```bash
-npm test                  # syntax check + all twelve invariant harnesses
+npm test                  # syntax check + all thirteen invariant harnesses
 node tests/fairness.js    # or run one on its own
 npm run check             # syntax-check every js file
 ```
@@ -49,7 +49,7 @@ globals, so they exercise shipped code rather than a copy.
 
 `index.html` loads: CDN libs (three.js r128, qrcodejs, mqtt) → `js/items.js` →
 `js/game.js` → `js/mode-quiz.js` → `js/mode-defend.js` → `js/specials.js` →
-`js/scores.js` → `js/blades.js`. Everything is globals; the mode files depend on
+`js/scores.js` → `js/audio.js` → `js/blades.js`. Everything is globals; the mode files depend on
 `game.js`. `items.js` is first because it defines `FONT` and the roster.
 
 ### Files
@@ -63,6 +63,8 @@ globals, so they exercise shipped code rather than a copy.
 | `js/specials.js` | Sort power-ups (`PWR` timers). Bin It has its own `DSPEC` |
 | `js/scores.js` | Local best + write-only Firestore `scores`, readable `players` (XP) |
 | `js/blades.js` | Blade skins, XP curve, levels, picker UI, `bladeStroke` renderer |
+| `js/audio.js` | Per-bin cut sounds (Web Audio), voice throttle, mute toggle |
+| `audio/*.wav` | The five CC0 cut sounds, one per bin. Provenance in `audio/SOURCES.md` |
 | `css/styles.css` | Base layer, dark theme layer, then the V6 menu/screens layer |
 | `img/props.png` | The V6 hero's decorative 3D props (external, cached) |
 | `img/bg-harbour.jpg` | The playfield backdrop, shared by all four modes |
@@ -289,6 +291,44 @@ the gate is invisible.
 single missed detection made it flash and made fast swipes silently fail to cut.
 `stopCam` must clear the interval.
 
+**A cut sound is chosen by BIN, and every bin must have one.** `sfxCut(o.it.bin)`
+looks the sound up by bin name, so adding a sixth bin or renaming one makes those
+items cut in **silence** with nothing else complaining. `tests/audio.js` reads
+`QBINS` out of `game.js` and asserts the mapping both ways — no bin without a
+sound, no sound without a bin. Sounds live in `SFXSRC` in `js/audio.js`.
+
+The sound follows the **material, not the verdict**: a glass jar sounds like
+glass whether or not it belonged in this round's bin. Right and wrong are already
+said twice, by the burst colour and the score pop.
+
+**Web Audio, not `new Audio()`.** An HTMLAudioElement costs tens of milliseconds
+between `.play()` and sound — the same order as the input latency the phone work
+went to some trouble to remove, and audible as the sound trailing the blade. A
+decoded `AudioBuffer` starts in well under a millisecond and is polyphonic for
+free. Buffers are decoded at **boot**, not on first gesture: `decodeAudioData`
+works on a suspended context, and fetching five files at the moment the player
+clicks in means the first swipe lands before they are ready. The context is
+resumed on the first gesture of any kind (autoplay policy), not wired to one
+button.
+
+**The files are peak-normalized but NOT loudness-matched.** Measured RMS spanned
+-24.9dB (glass) to -16.6dB (general waste) — 8.3dB. Played flat, glass sounds
+weak and metal dominates despite matching peaks. The per-bin `g` trims close
+roughly **half** that gap in dB. Full RMS-matching is wrong for transients: glass
+shatter carries a long quiet tail that drags its RMS down, so normalizing to it
+would push the initial smash far too loud. Measured in-browser after the trims,
+peak RMS runs 0.086-0.117 — a 2.7dB spread.
+
+**A swipe is throttled, or it is a burst of noise.** One `sliceAlong` call can
+cross several items and Versus has two players swiping at once. `SFXMINGAP` (45ms
+per bin) and `SFXMAXVOICE` (4 at once) cap it; identical samples starting on the
+same frame sum into a harsh peak rather than sounding louder. Playback rate is
+detuned a few percent per hit — ten newspapers in a row is one file ten times,
+and an exact repeat reads as a machine gun.
+
+**`sfxCut` is called `typeof`-guarded from the game loop.** A missing js file must
+not throw inside `loop()`; that is the race that broke builds 62, 63 and 66.
+
 **The host holds ONE PEER CONNECTION PER PHONE — Versus must not be relay-only.**
 `hostAnswer` was built around a single `hostPC`, and the offer handler read
 `if(remMax()===1) hostAnswer(d.sdp)` on the reasoning that "two phones can't
@@ -507,6 +547,7 @@ Run with `node <file>`; each exits non-zero on failure.
 | `perf.js` | Materials are released, resolution is budgeted, labels are cached |
 | `menu.js` | Versus never offers Mouse; the V6 re-skin keeps every hook |
 | `itemart.js` | Renders cover the roster exactly, and ART is still the fallback |
+| `audio.js` | Every bin has a cut sound, nothing clips, a swipe is not a burst |
 
 They are the only automated protection for the invariants above. Run `npm test`
 before pushing.
