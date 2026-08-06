@@ -1,3 +1,9 @@
 node_modules/
 .DS_Store
 .vercel
+
+# Chat transcripts are exported and scrubbed into final-report/transcripts/ but
+# held out of this PUBLIC repo — 44MB of raw working conversation. The folder's
+# README explains what was scrubbed and how to submit them. Add with -f if you
+# decide to, ideally after making the repo private.
+final-report/transcripts/*.jsonl
