@@ -466,6 +466,109 @@ var camStream=null, hands=null, mpCam=null, mouseHandler=null, camWanted=false;
    not noticeable; going higher only helps a badly degraded tracker while making
    removal feel sticky. */
 var CAMGRACE=200, camSeen=0, camSeen2=0, camGrace=null;
+
+/* ---------- webcam stability ----------
+   Three separate things made the webcam blade feel unstable, and none of them
+   was the camera:
+
+   1. NOTHING WAS SMOOTHED. `BLADE.x=(1-tip.x)*W` put the raw landmark straight
+      on screen. MediaPipe's fingertip jitters by a few pixels every frame even
+      with a perfectly still hand, so the blade shivered permanently and slicing
+      picked up items you were only hovering near.
+   2. THE BLADE MOVED AT CAMERA RATE, NOT FRAME RATE. Frames arrive ~20-30 times
+      a second against 60 rendered, so the blade sat still for two frames and
+      then teleported: measured at 67% of rendered frames frozen, with jumps of
+      hundreds of pixels. Cutting still WORKED — the slice segment on a camera
+      frame spans the whole travel since the last one, and a simulation of the
+      old ordering covered 2532px of a 2535px swipe — so this was a
+      smoothness-and-aiming problem, not a dropped-input one.
+   3. THE WHOLE CAMERA FRAME MAPPED TO THE WHOLE STAGE. The camera is 4:3 and
+      the stage is usually 16:9, so horizontal and vertical gain differed, and
+      reaching a screen edge meant putting your hand at the very edge of the
+      camera view — where it is half out of frame and tracking drops. The blade
+      died exactly where players reach for it.
+
+   The phone controller already solved the same class of problem with RCFG; the
+   webcam never got the equivalent. */
+var CAMCFG={
+  /* One Euro filter. At rest the cutoff is `mincut` Hz, which is low enough to
+     erase landmark jitter; `beta` raises it with speed so a fast swing is not
+     dragged behind the hand. Filtering is done in NORMALIZED camera coordinates
+     so it behaves the same on every stage size and webcam resolution.
+
+     Tuned by simulation, not by feel: a 25fps tracker with MediaPipe-scale
+     landmark noise (0.004 normalized), measuring WOBBLE — the RMS distance
+     between the drawn blade and where the hand actually is — and LAG on a fast
+     swipe. Both include the 1.25x zoom the active-region mapping below adds,
+     which amplifies noise as well as movement, so these are like for like:
+
+       mincut/beta        wobble RMS   worst    lag on a fast swipe
+       none (shipped)       3.68px     9.0px          --
+       4.5 / 12             2.87px     8.6px         31px
+       3.0 / 6              2.55px     6.2px         49px
+       1.6 / 2              1.92px     4.2px         91px
+
+     3.0/6 is the chosen balance: a third less wobble and the worst excursion
+     cut from 9px to 6px, while the lag stays inside one item radius (50px) so
+     the blade is still under your hand when you swipe. Trailing the hand is the
+     worse failure in a slicing game — the same reasoning that kept RCFG.lead at
+     120 rather than 180 for phones. */
+  mincut:3.0, beta:6, dcut:1.0,
+  margin:0.10,        /* unusable border of the camera frame, per side */
+  /* 12ms, not 28: at 28 the interpolation added 23px of lag at swing speed
+     (135 vs 112 with none at all), which is real. At 12 the lag is within a
+     pixel of no interpolation while the biggest single-frame jump still drops
+     from 755px to 343px and frozen frames go from 67% to 1%. Smoothness for
+     free; anything slower is bought with responsiveness. */
+  lerpTau:12,
+  snapMs:400          /* re-acquired after this long: jump, do not slide in */
+};
+/* One filter per tracked hand — Versus tracks two. */
+function camFilterNew(){ return {fx:null, fy:null, dxf:0, dyf:0, t:0}; }
+function camAlpha(cut, dt){ var tau=1/(2*Math.PI*cut); return 1/(1+tau/dt); }
+function camSmooth(f, nx, ny, now){
+  var dt=(now-f.t)/1000; f.t=now;
+  /* First sample, or a gap long enough that any velocity estimate is stale. */
+  if(f.fx===null || !(dt>0) || dt>0.5){ f.fx=nx; f.fy=ny; f.dxf=0; f.dyf=0; return true; }
+  var ad=camAlpha(CAMCFG.dcut, dt);
+  f.dxf += ad*((nx-f.fx)/dt - f.dxf);
+  f.dyf += ad*((ny-f.fy)/dt - f.dyf);
+  f.fx += camAlpha(CAMCFG.mincut+CAMCFG.beta*Math.abs(f.dxf), dt)*(nx-f.fx);
+  f.fy += camAlpha(CAMCFG.mincut+CAMCFG.beta*Math.abs(f.dyf), dt)*(ny-f.fy);
+  return false;
+}
+/* Map a CENTRED, aspect-matched box of the camera frame onto the whole stage,
+   so a given hand movement travels the same distance horizontally as vertically
+   and the screen edges are reachable without leaving the camera's good zone. */
+function camMap(nx, ny){
+  var v=el("cam");
+  var vw=(v&&v.videoWidth)||640, vh=(v&&v.videoHeight)||480;
+  var aw=1-2*CAMCFG.margin, ah=aw;
+  var ca=vw/vh, sa=(W&&H)?(W/H):ca;
+  if(sa>ca) ah=aw*(ca/sa); else aw=ah*(sa/ca);
+  var px=(nx-(0.5-aw/2))/aw, py=(ny-(0.5-ah/2))/ah;
+  return { x:Math.max(0,Math.min(1,px))*W, y:Math.max(0,Math.min(1,py))*H };
+}
+var CAM={ f:camFilterNew(), f2:camFilterNew(), tx:0, ty:0, tx2:0, ty2:0,
+          has:false, has2:false, dT:0, frames:0, fpsT:0, fps:0 };
+/* Called every rendered frame so the blade travels between camera samples
+   instead of teleporting on them. Short time constant: this is interpolation,
+   not extra smoothing — the One Euro filter above already did that. */
+function camDrive(now){
+  var dt=Math.min(48, now-(CAM.dT||now)); CAM.dT=now;
+  var k=1-Math.exp(-dt/CAMCFG.lerpTau);
+  if(CAM.has){ BLADE.x+=(CAM.tx-BLADE.x)*k; BLADE.y+=(CAM.ty-BLADE.y)*k; }
+  if(CAM.has2){ BLADE2.x+=(CAM.tx2-BLADE2.x)*k; BLADE2.y+=(CAM.ty2-BLADE2.y)*k; }
+}
+/* Make the tracking state visible. "Is it working?" was previously unanswerable
+   from the screen — the caption said the same thing whether or not a hand had
+   ever been seen. */
+function camStatus(txt, ok){
+  var c=el("camCap"); if(!c) return;
+  if(c.textContent!==txt) c.textContent=txt;
+  c.classList.toggle("camOn", !!ok);
+  c.classList.toggle("camOff", !ok);
+}
 function loadScript(src){ return new Promise(function(res,rej){ var s=document.createElement("script"); s.src=src; s.onload=res; s.onerror=rej; document.head.appendChild(s); }); }
 
 /* Release the webcam the moment play ends. Stopping MediaPipe's Camera is NOT
@@ -483,6 +586,10 @@ function stopCam(){
   /* Stop the grace timer too, or it keeps clearing BLADE.active for the rest of
      the session and a second interval is added every time the camera restarts. */
   clearInterval(camGrace); camGrace=null; BLADE.active=false; BLADE2.active=false;
+  /* Drop the filter state with the camera. Keeping it means the next session
+     starts by easing in from wherever the last hand was, which looks like the
+     blade drifting on its own before you have even raised your hand. */
+  CAM.f=camFilterNew(); CAM.f2=camFilterNew(); CAM.has=false; CAM.has2=false;
   mpCam=null; camStream=null;
 }
 function setupMouse(){ var lastMove=0;
@@ -497,7 +604,16 @@ async function setupCam(){
     await loadScript("https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js");
     await loadScript("https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js");
     hands=new Hands({locateFile:function(f){return "https://cdn.jsdelivr.net/npm/@mediapipe/hands/"+f;}});
-    hands.setOptions({maxNumHands:1,modelComplexity:0,minDetectionConfidence:0.6,minTrackingConfidence:0.6});
+    /* minTrackingConfidence is what decides whether MediaPipe KEEPS tracking or
+       falls back to re-running palm detection. At 0.6 a fast swing — when the
+       hand is motion-blurred and confidence dips — forced a re-detect, which is
+       a multi-frame dropout at exactly the moment you were cutting. 0.35 keeps
+       the track through the blur; the One Euro filter absorbs the noisier
+       landmark that comes with it. Detection stays lower too, for poor light.
+       modelComplexity stays 0 deliberately: the full model is roughly twice the
+       CPU, and on a school laptop a lower frame rate would cost more stability
+       than the extra accuracy buys. */
+    hands.setOptions({maxNumHands:1,modelComplexity:0,minDetectionConfidence:0.5,minTrackingConfidence:0.35});
     /* A single missed detection used to kill the blade outright, which is what
        made it flash. MediaPipe loses the hand most often during FAST motion —
        exactly when you are slicing — so the blade blinked out at the worst
@@ -509,11 +625,39 @@ async function setupCam(){
        in FRAMES needs more wall-clock time.
        Holding the last position across a gap is safe: sliceAlong then gets a
        zero-length segment, and segHit already guards `len2||1`. */
-    hands.onResults(function(res){ var lm=res.multiHandLandmarks&&res.multiHandLandmarks[0];
-      if(lm){ var tip=lm[8]; BLADE.x=(1-tip.x)*W; BLADE.y=tip.y*H; BLADE.active=true; camSeen=performance.now(); } });
+    hands.onResults(function(res){
+      var lm=res.multiHandLandmarks&&res.multiHandLandmarks[0];
+      var now=performance.now();
+      CAM.frames++;
+      if(!lm) return;                       /* the grace window below owns the loss */
+      var tip=lm[8];
+      /* Re-acquired after a real absence: snap rather than slide across the
+         screen from wherever the hand was last seen. */
+      if(now-camSeen>CAMCFG.snapMs) CAM.f.fx=null;
+      var snapped=camSmooth(CAM.f, 1-tip.x, tip.y, now);   /* 1-x: the preview is mirrored */
+      var p=camMap(CAM.f.fx, CAM.f.fy);
+      CAM.tx=p.x; CAM.ty=p.y; CAM.has=true;
+      if(snapped){ BLADE.x=p.x; BLADE.y=p.y; }
+      BLADE.active=true; camSeen=now;
+    });
     clearInterval(camGrace);
-    camGrace=setInterval(function(){ if(performance.now()-camSeen>CAMGRACE) BLADE.active=false; },50);
-    var v=el("cam"); mpCam=new Camera(v,{onFrame:async function(){ if(controlMode==="cam") await hands.send({image:v}); },width:640,height:480});
+    camGrace=setInterval(function(){
+      var now=performance.now();
+      if(now-camSeen>CAMGRACE){ BLADE.active=false; CAM.has=false; }
+      /* Measured, not assumed: the caption reports the real tracker rate, so a
+         camera that has quietly dropped to 5fps is visible instead of just
+         "feeling laggy". */
+      if(now-CAM.fpsT>=1000){ CAM.fps=Math.round(CAM.frames*1000/(now-CAM.fpsT)); CAM.frames=0; CAM.fpsT=now; }
+      camStatus(now-camSeen<=CAMGRACE ? ("Hand tracked · "+CAM.fps+" fps")
+                                      : "Show your hand to the camera", now-camSeen<=CAMGRACE);
+    },50);
+    var v=el("cam");
+    CAM.f=camFilterNew(); CAM.has=false; CAM.fpsT=performance.now(); CAM.frames=0;
+    mpCam=new Camera(v,{onFrame:async function(){
+      /* readyState<2 means no decoded frame yet; sending then throws inside
+         MediaPipe and kills the onFrame pump for the rest of the session. */
+      if(controlMode==="cam" && v.readyState>=2) await hands.send({image:v});
+    },width:640,height:480});
     await mpCam.start(); camStream=v.srcObject;
     if(!camWanted) stopCam();     /* quit during start-up — don't leave the camera running */
   }catch(err){ el("camCap").classList.add("hidden"); el("cam").classList.add("hidden"); controlMode="mouse"; setupMouse(); }
@@ -528,26 +672,51 @@ async function setupCamVS(){
     await loadScript("https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js");
     await loadScript("https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js");
     hands=new Hands({locateFile:function(f){return "https://cdn.jsdelivr.net/npm/@mediapipe/hands/"+f;}});
-    hands.setOptions({maxNumHands:2,modelComplexity:0,minDetectionConfidence:0.6,minTrackingConfidence:0.6});
+    hands.setOptions({maxNumHands:2,modelComplexity:0,minDetectionConfidence:0.5,minTrackingConfidence:0.35});
     hands.onResults(function(res){
-      var lms=res.multiHandLandmarks||[], pts=[];
-      for(var i=0;i<Math.min(2,lms.length);i++){ var tip=lms[i][8]; pts.push({x:(1-tip.x)*W, y:tip.y*H}); }
-      pts.sort(function(a,b){return a.x-b.x;});
+      var lms=res.multiHandLandmarks||[], raw=[];
+      for(var i=0;i<Math.min(2,lms.length);i++){ var tip=lms[i][8]; raw.push({nx:1-tip.x, ny:tip.y}); }
+      /* Sort BEFORE filtering, so each filter keeps following the same player.
+         Filtering first and sorting after would swap the two filters' state the
+         moment the players' hands crossed, and both blades would jump. */
+      raw.sort(function(a,b){return a.nx-b.nx;});
+      var t=performance.now();
+      CAM.frames++;
       /* Same grace window as single-player: do NOT clear on a miss, or both
          blades blink out whenever either hand is momentarily lost. The two
          players are timed SEPARATELY (camSeen / camSeen2) so one player's
          dropout can never disable the other's blade. */
-      var t=performance.now();
-      if(pts.length>=1){ BLADE.x=Math.max(0,Math.min(W/2-6,pts[0].x)); BLADE.y=pts[0].y; BLADE.active=true; camSeen=t; }
-      if(pts.length>=2){ BLADE2.x=Math.max(W/2+6,Math.min(W,pts[1].x)); BLADE2.y=pts[1].y; BLADE2.active=true; camSeen2=t; }
+      if(raw.length>=1){
+        if(t-camSeen>CAMCFG.snapMs) CAM.f.fx=null;
+        var s1=camSmooth(CAM.f, raw[0].nx, raw[0].ny, t), p1=camMap(CAM.f.fx, CAM.f.fy);
+        CAM.tx=Math.max(0,Math.min(W/2-6,p1.x)); CAM.ty=p1.y; CAM.has=true;
+        if(s1){ BLADE.x=CAM.tx; BLADE.y=CAM.ty; }
+        BLADE.active=true; camSeen=t;
+      }
+      if(raw.length>=2){
+        if(t-camSeen2>CAMCFG.snapMs) CAM.f2.fx=null;
+        var s2=camSmooth(CAM.f2, raw[1].nx, raw[1].ny, t), p2=camMap(CAM.f2.fx, CAM.f2.fy);
+        CAM.tx2=Math.max(W/2+6,Math.min(W,p2.x)); CAM.ty2=p2.y; CAM.has2=true;
+        if(s2){ BLADE2.x=CAM.tx2; BLADE2.y=CAM.ty2; }
+        BLADE2.active=true; camSeen2=t;
+      }
     });
     clearInterval(camGrace);
     camGrace=setInterval(function(){
       var t=performance.now();
-      if(t-camSeen>CAMGRACE)  BLADE.active=false;
-      if(t-camSeen2>CAMGRACE) BLADE2.active=false;
+      if(t-camSeen>CAMGRACE){  BLADE.active=false;  CAM.has=false; }
+      if(t-camSeen2>CAMGRACE){ BLADE2.active=false; CAM.has2=false; }
+      if(t-CAM.fpsT>=1000){ CAM.fps=Math.round(CAM.frames*1000/(t-CAM.fpsT)); CAM.frames=0; CAM.fpsT=t; }
+      var n=(t-camSeen<=CAMGRACE?1:0)+(t-camSeen2<=CAMGRACE?1:0);
+      camStatus(n===0 ? "Show two hands to the camera"
+                      : n+(n===1?" hand":" hands")+" tracked · "+CAM.fps+" fps", n===2);
     },50);
-    var v=el("cam"); mpCam=new Camera(v,{onFrame:async function(){ if(GMODE==="vs") await hands.send({image:v}); },width:640,height:480});
+    var v=el("cam");
+    CAM.f=camFilterNew(); CAM.f2=camFilterNew(); CAM.has=false; CAM.has2=false;
+    CAM.fpsT=performance.now(); CAM.frames=0;
+    mpCam=new Camera(v,{onFrame:async function(){
+      if(GMODE==="vs" && v.readyState>=2) await hands.send({image:v});
+    },width:640,height:480});
     await mpCam.start(); camStream=v.srcObject;
     if(!camWanted) stopCam();     /* quit during start-up — don't leave the camera running */
   }catch(err){ el("cam").classList.add("hidden"); el("camCap").classList.add("hidden"); alert("Versus needs a webcam. Please allow camera access, then try again."); show("start"); }
@@ -1059,6 +1228,11 @@ function loopBody(now){
      position for this frame rather than whatever the last packet left behind.
      Mouse and webcam already update at their own event rate and are untouched. */
   if(controlMode==="remote") remoteDrive(now);
+  /* The webcam delivers ~20-30 samples a second into a 60fps render, so without
+     this the blade froze for two frames and teleported on the third — measured
+     at 67% of frames frozen. Cutting worked either way; this is about the blade
+     being where you are looking. */
+  else if(controlMode==="cam") camDrive(now);
   /* A lesson owns the frame only while it is SCRIPTED — its own slicing (which
      scores nothing), its own spawns, no mode update underneath.
 

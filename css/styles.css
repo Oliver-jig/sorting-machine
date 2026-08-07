@@ -81,6 +81,11 @@
   #fx{pointer-events:none}
   #cam{position:absolute; right:10px; bottom:10px; width:130px; height:98px; border-radius:12px; object-fit:cover; transform:scaleX(-1); opacity:.92; z-index:4; background:#000; box-shadow:var(--shadow-sm)}
   #camCap{position:absolute; right:10px; bottom:112px; z-index:4; background:rgba(255,255,255,.85); border-radius:980px; padding:4px 10px; font-size:11px; font-weight:600; color:var(--ink)}
+  /* Tracking state has to be READABLE, not inferred from how the blade feels.
+     The caption used to say the same thing whether or not a hand had ever been
+     seen, so "is the camera working?" was unanswerable from the screen. */
+  #camCap.camOn{box-shadow:0 0 0 1px rgba(79,191,127,.55)}
+  #camCap.camOff{box-shadow:0 0 0 1px rgba(255,169,74,.6)}
 
   .overlay{position:absolute; inset:0; z-index:6; display:flex; flex-direction:column; align-items:center; justify-content:center;
     background:rgba(255,255,255,.72); -webkit-backdrop-filter:saturate(180%) blur(20px); backdrop-filter:saturate(180%) blur(20px);

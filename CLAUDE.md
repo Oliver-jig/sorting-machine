@@ -8,7 +8,7 @@ A single-page browser arcade game for **SDG 12** — a Fruit-Ninja-style slicer
 teaching Hong Kong recycling. No build step, no framework, no bundler. Plain
 HTML + CSS + ES5-ish JS with CDN libraries, deployed static to Vercel.
 
-Current state: **build 79**. "Preview V6" dark arcade UI, 50 items, four modes,
+Current state: **build 80**. "Preview V6" dark arcade UI, 50 items, four modes,
 blade skins with an XP/level system.
 
 Repo: `Oliver-jig/sorting-machine`. Two branches, **kept in sync after every
@@ -35,7 +35,7 @@ for f in js/*.js; do node --check $f || echo "FAIL $f"; done
 ```
 
 ```bash
-npm test                  # syntax check + all fourteen invariant harnesses
+npm test                  # syntax check + all sixteen invariant harnesses
 node tests/fairness.js    # or run one on its own
 npm run check             # syntax-check every js file
 ```
@@ -287,6 +287,58 @@ swipe** (80px of travel in 130ms, measured from `BLADE.trail`). Before this, a
 stationary hand selected an answer, because with `x1,y1 == x2,y2` the hit test
 collapses to plain distance. Cards are drawn dimmed until armed — without that
 the gate is invisible.
+
+**The webcam blade is FILTERED, INTERPOLATED and MAPPED — raw landmarks are
+unusable.** Reported as "the webcam mode is kind of unstable". Three separate
+causes, none of them the camera:
+
+1. *Nothing was smoothed.* `BLADE.x=(1-tip.x)*W` put the raw MediaPipe fingertip
+   straight on screen, and that landmark jitters even on a perfectly still hand.
+2. *The blade moved at camera rate.* ~25 samples/sec into a 60fps render: 67% of
+   rendered frames frozen, then a teleport. Cutting still WORKED — the slice
+   segment on a camera frame spans the whole travel since the last one, measured
+   at 2532px of a 2535px swipe — so this was aiming and smoothness, not lost
+   input. Do not "fix" it by lengthening slice segments.
+3. *The whole 4:3 camera frame mapped onto a 16:9 stage.* The same hand movement
+   travelled 64px across but 48px down, and reaching a screen edge meant putting
+   your hand at the very edge of the camera view, where it is half out of frame
+   and tracking drops. The blade died exactly where players reach for it.
+
+`camSmooth` is a One Euro filter in NORMALIZED camera coordinates (so it behaves
+the same on any stage or webcam), `camMap` maps a centred, aspect-matched box
+with a 10% margin onto the stage, and `camDrive` runs every rendered frame.
+Measured through the whole pipeline: wobble 3.46px RMS -> 2.65px, worst
+excursion 8.8px -> 6.8px, frozen frames 67% -> 1%, with 49px of lag on a fast
+swing — inside one item radius, so the blade is still under your hand when you
+swipe. `tests/webcam-track.js` holds the numbers.
+
+**Tuning is a trade, and the table is in the code.** Heavier smoothing (mincut
+1.6 / beta 2) reaches 1.92px wobble but 91px of lag; lighter (4.5/12) gives 31px
+lag and 2.87px wobble. 3.0/6 is the chosen middle. `lerpTau` is 12ms, not 28: at
+28 the interpolation added 23px of lag of its own for smoothness nobody asked
+for. Trailing the hand is the worse failure in a slicer — the same reasoning
+that kept `RCFG.lead` at 120 for phones.
+
+**`minTrackingConfidence` is 0.35, and that is deliberate.** It decides whether
+MediaPipe keeps tracking or re-runs palm detection, and a re-detect is a
+multi-frame dropout. At the old 0.6 a fast swing — motion-blurred, confidence
+dipping — forced exactly that, at the moment you were cutting. The filter
+absorbs the noisier landmark that comes with the lower threshold.
+`modelComplexity` stays 0: the full model is ~2x the CPU and a lower frame rate
+would cost more stability than the accuracy buys.
+
+**Versus sorts the two hands BEFORE filtering.** Each player has their own
+filter (`CAM.f`, `CAM.f2`). Sorting after filtering would swap the two filters'
+state the moment the players' hands crossed, and both blades would jump.
+
+**Never send a frame to MediaPipe before the video has one.** `hands.send` with
+`readyState<2` throws inside MediaPipe and kills the `onFrame` pump for the rest
+of the session — the camera stays on and the blade never moves again.
+
+**Tracking state is shown, not inferred.** `#camCap` used to read "Tracking your
+index fingertip" whether or not a hand had ever been seen, so "is the camera
+working?" was unanswerable from the screen. It now reports the live state and
+the measured tracker frame rate.
 
 **The webcam has a 200ms grace window** (`CAMGRACE`). Dropping the blade on a
 single missed detection made it flash and made fast swipes silently fail to cut.
