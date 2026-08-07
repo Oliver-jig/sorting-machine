@@ -276,7 +276,10 @@ function tsunamiUpdate(dt, now){
   }
 }
 
+/* A lesson never reaches a real game over: tutModeEnded() restarts the practice
+   instead, so no result screen, no recorded run and no life spent for real. */
 function tsunamiGameOver(){
+  if(typeof tutModeEnded==="function" && tutModeEnded()) return;
   TS.running=false;
   el("rScore").textContent=TS.score;
   el("rGrade").textContent="You caught "+TS.right+" item"+(TS.right===1?"":"s")+" correctly and made "+TS.wrong+" mistake"+(TS.wrong===1?"":"s")+".";

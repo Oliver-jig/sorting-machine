@@ -84,7 +84,8 @@ ck('the buttons, library and demo captions are English only', !CJK.test(chrome))
 console.log('\n--- 4. the step machine cannot be handed a broken step ---');
 let bad=0;
 L.forEach(les=>les.steps.forEach((s,i)=>{
-  if(["say","do","demo"].indexOf(s.k)<0){ bad++; console.log(`      unknown kind "${s.k}" on ${les.id} ${i+1}`); }
+  if(["say","do","demo","play"].indexOf(s.k)<0){ bad++; console.log(`      unknown kind "${s.k}" on ${les.id} ${i+1}`); }
+  if(s.k==="play" && ["sort","quiz","tsunami","vsbot"].indexOf(s.play)<0){ bad++; console.log(`      unknown play mode "${s.play}" on ${les.id} ${i+1}`); }
   if(s.k==="do" && typeof s.goal!=="function"){ bad++; console.log(`      do-step with no goal on ${les.id} ${i+1}`); }
   if(s.k==="demo" && !s.demo){ bad++; console.log(`      demo-step with no illustration on ${les.id} ${i+1}`); }
 }));
@@ -183,7 +184,7 @@ console.log('\n--- 11. the lesson must be VISIBLE and PLAYABLE ---');
 /* Scan CODE only — game.js explains this fix in prose right above it. */
 const gameCode=gameSrc.replace(/\/\*[\s\S]*?\*\//g,'').replace(/^\s*\/\/.*$/gm,'');
 ck('the tutorial has its own draw pass', /function tutDraw\(/.test(tutSrc));
-ck('and the render loop actually calls it', /TUT\.active\)\{\s*tutDraw\(now\)/.test(gameCode));
+ck('and the render loop actually calls it', /tutScripted\)\{\s*tutDraw\(now\)/.test(gameCode));
 ck('it is called before the host mode draws, not after',
    gameCode.indexOf('tutDraw(now)') < gameCode.indexOf('quizDraw(now)'));
 const drawFn=tutSrc.match(/function tutDraw[\s\S]*?\n\}/)[0];
@@ -226,6 +227,75 @@ ck('restock only applies to steps that actually spawn items',
 ck('so a step with no items is never re-set-up under the player',
    restockFn.indexOf('spawnedT') < restockFn.indexOf('s.setup()'));
 ck('the card cannot grow back over the playfield', /\.tutCoach\{[\s\S]{0,400}?max-height:/.test(cssSrc));
+
+console.log('\n--- 12. EVERY lesson must be playable, not just readable ---');
+/* THE COMPLAINT THIS GUARDS. "Now this mode is meaningless, user just reading
+   the text and cannot have a taste of it." Quiz, Bin It and Controls had no
+   playable step at all — five or six coach cards and nothing to do. A lesson
+   that only talks is not a tutorial for a game about swinging a blade. */
+L.forEach(les=>{
+  const hands=les.steps.filter(s=>s.k==="do"||s.k==="play").length;
+  ck(`${les.id}: has something to actually do`, hands>0, `${hands} hands-on steps`);
+  ck(`${les.id}: ends with real play, not just reading`,
+     les.steps.some(s=>s.k==="play"), les.steps.filter(s=>s.k==="play").map(s=>s.play).join(','));
+});
+/* Reading-to-doing ratio: a wall of cards before anything happens loses people. */
+L.forEach(les=>{
+  const say=les.steps.filter(s=>s.k==="say").length;
+  ck(`${les.id}: is not mostly reading`, say <= les.steps.length-1,
+     `${say} of ${les.steps.length} are text-only`);
+});
+const secs=L.flatMap(l=>l.steps.filter(s=>s.k==="play")).map(s=>s.secs);
+ck('every practice window is a usable length', secs.every(x=>x>=30&&x<=90), secs.join('s,')+'s');
+
+console.log('\n--- 13. practice runs the REAL mode, and is still isolated ---');
+/* The point of a play step is that nothing is simulated: the real spawner, the
+   real quiz cards, the real bin. So the tutorial must NOT own the frame then. */
+ck('the scripted branch stands down during practice',
+   /TUT\.active\s*&&\s*!TUT\.playing\)\{/.test(gameCode));
+ck('and the draw pass does too', /tutScripted=\(.*!TUT\.playing\)/.test(gameCode));
+ck('the tutorial overlay still draws on top during practice',
+   /!tutScripted[\s\S]{0,60}TUT\.active\)\s*tutDraw\(now\)/.test(gameCode));
+ck('practice starts the real mode launchers',
+   /launchQuiz\(\)/.test(tutSrc) && /launchTsunami\(\)/.test(tutSrc));
+/* launchTsunami stops on a "Start sorting" overlay, which in a lesson lands on
+   top of the coach card as an unexplained second dialog — and left TS.running
+   false, so Bin It practice never actually started. */
+ck('Bin It practice begins without its own overlay in the way',
+   /launchTsunami\(\);[\s\S]{0,400}?tsunamiBegin\(\)/.test(tutSrc));
+/* Isolation must NOT weaken just because the real mode is running. */
+ck('a real game over cannot end a lesson', /function tutModeEnded/.test(tutSrc));
+['js/game.js','js/mode-quiz.js','js/mode-defend.js'].forEach(f=>{
+  const src=fs.readFileSync(R+f,'utf8');
+  ck(`${f} asks tutModeEnded before ending a run`, /tutModeEnded\(\)\)\s*return;/.test(src));
+});
+const overs=(fs.readFileSync(R+'js/game.js','utf8').match(/tutModeEnded\(\)\)\s*return;/g)||[]).length
+          + (fs.readFileSync(R+'js/mode-quiz.js','utf8').match(/tutModeEnded\(\)\)\s*return;/g)||[]).length
+          + (fs.readFileSync(R+'js/mode-defend.js','utf8').match(/tutModeEnded\(\)\)\s*return;/g)||[]).length;
+ck('all four game-overs are intercepted', overs===4, `${overs} of 4`);
+ck('running out of lives restarts practice instead of ending it',
+   /if\(TUT\.playing\)\{[\s\S]{0,400}?launchQuiz\(\)/.test(tutSrc));
+ck('leaving a practice step tears the mode down',
+   /if\(TUT\.playing\) tutPlayStop\(\)/.test(tutSrc));
+ck('and exiting mid-practice does too',
+   (tutSrc.match(/if\(TUT\.playing\) tutPlayStop\(\);/g)||[]).length>=2);
+ck('practice still cannot record a run', !/scoresRecord/.test(tutCode));
+
+console.log('\n--- 14. the blade must actually be wired up ---');
+/* THE BUG THAT MADE THE TUTORIAL UNPLAYABLE. tutStart called setupCam() for the
+   webcam and nothing at all for mouse or touch — the default — so setupMouse()
+   never ran and the blade never moved. Reported twice as "I cannot play". */
+ck('the tutorial installs an input handler', /function tutInput/.test(tutSrc));
+const inputFn=tutSrc.match(/function tutInput[\s\S]*?\n\}/)[0];
+ck('mouse and touch are wired', /setupMouse\(\)/.test(inputFn));
+ck('the webcam is wired', /setupCam\(\)/.test(inputFn));
+ck('it matches what the real mode launchers do',
+   /controlMode==="cam"\) setupCam\(\); else if\(controlMode==="mouse"\) setupMouse\(\);/
+     .test(fs.readFileSync(R+'js/mode-quiz.js','utf8')));
+ck('tutStart uses it', /tutStart[\s\S]{0,900}?tutInput\(\)/.test(tutSrc));
+ck('and so does practice', /tutPlayStart[\s\S]{0,1600}?tutInput\(\)/.test(tutSrc));
+ck('no lesson path calls setupCam directly any more',
+   (tutSrc.match(/setupCam\(\)/g)||[]).length===1);
 
 console.log('\n'+(pass?'ALL PASS':'FAILURES PRESENT'));
 process.exit(pass?0:1);

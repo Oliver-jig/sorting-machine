@@ -267,7 +267,11 @@ function startRound(){
     el("ovlBtn").textContent="Try again";
   }
 }
-function endRound(){ G.running=false; G.round++;
+/* A lesson never reaches a real game over: tutModeEnded() restarts the practice
+   instead, so no result screen, no recorded run and no life spent for real. */
+function endRound(){
+  if(typeof tutModeEnded==="function" && tutModeEnded()) return;
+  G.running=false; G.round++;
   if(G.round>=ROUNDS.length) endGame(); else showOverlayFor(G.round); }
 /* Retiring an item must RELEASE it, not just unparent it.
 
@@ -610,7 +614,10 @@ function vsUpdate(dt, now){
   if(BLADE.active){ vsSliceFor(0,BLADE.px,BLADE.py,BLADE.x,BLADE.y); BLADE.trail.push({x:BLADE.x,y:BLADE.y,t:now}); } BLADE.px=BLADE.x; BLADE.py=BLADE.y;
   if(BLADE2.active){ vsSliceFor(1,BLADE2.px,BLADE2.py,BLADE2.x,BLADE2.y); BLADE2.trail.push({x:BLADE2.x,y:BLADE2.y,t:now}); } BLADE2.px=BLADE2.x; BLADE2.py=BLADE2.y;
 }
+/* A lesson never reaches a real game over: tutModeEnded() restarts the practice
+   instead, so no result screen, no recorded run and no life spent for real. */
 function vsGameOver(){
+  if(typeof tutModeEnded==="function" && tutModeEnded()) return;
   VS.running=false; el("pauseBtn").style.display="";
   var winner = VS.s1>VS.s2? "Player 1 (blue) wins!" : (VS.s2>VS.s1? "Player 2 (red) wins!" : "It's a draw!");
   el("rScore").textContent=VS.s1+" – "+VS.s2;
@@ -1052,11 +1059,15 @@ function loopBody(now){
      position for this frame rather than whatever the last packet left behind.
      Mouse and webcam already update at their own event rate and are untouched. */
   if(controlMode==="remote") remoteDrive(now);
-  /* A lesson owns the frame while it runs: its own slicing (which scores
-     nothing), its own scripted spawns, and no mode update underneath. Checked
-     before the GMODE branches because a lesson borrows a mode's GMODE to get
-     that mode's rendering. */
-  if(typeof TUT!=="undefined" && TUT.active){
+  /* A lesson owns the frame only while it is SCRIPTED — its own slicing (which
+     scores nothing), its own spawns, no mode update underneath.
+
+     A `play` step is the opposite and deliberately so: it hands the frame back
+     to the real mode, so the player gets the actual game rather than a
+     demonstration of it. Isolation does not depend on owning the frame — it is
+     scoresRecord refusing to record and tutModeEnded refusing the result
+     screen — so the real mechanics can run without touching real progress. */
+  if(typeof TUT!=="undefined" && TUT.active && !TUT.playing){
     updatePhysics(dt);
     if(BLADE.active){ tutSliceAlong(BLADE.px,BLADE.py,BLADE.x,BLADE.y); BLADE.trail.push({x:BLADE.x,y:BLADE.y,t:now}); }
     BLADE.px=BLADE.x; BLADE.py=BLADE.y;
@@ -1123,14 +1134,18 @@ function roundedText(txt,x,y){
 }
 function drawFx(now){
   fxc.clearRect(0,0,W,H);
-  /* A lesson draws its own arena furniture (the aim ring, the Versus bot) and
-     suppresses the host mode's, which belongs to a real run. Without this the
-     ring the coach card asks you to reach was never drawn at all. */
-  if(typeof TUT!=="undefined" && TUT.active){ tutDraw(now); }
+  /* A SCRIPTED lesson step draws its own arena furniture (the aim ring, the
+     Versus bot) and suppresses the host mode's, which belongs to a real run —
+     without this the ring the coach card asks you to reach was never drawn.
+     A `play` step draws the mode for real, and gets the tutorial's own overlay
+     on top rather than instead. */
+  var tutScripted=(typeof TUT!=="undefined" && TUT.active && !TUT.playing);
+  if(tutScripted){ tutDraw(now); }
   else if(GMODE==="quiz"){ quizDraw(now); }
   else if(GMODE==="tsunami"){ tsunamiDraw(now); }
   else if(GMODE==="vs"){ vsDraw(now); }
   else if(G.running && !G.paused){ specialDraw(now); }
+  if(!tutScripted && typeof TUT!=="undefined" && TUT.active) tutDraw(now);
   /* item name labels */
   if(G.running || (GMODE==="tsunami" && TS.running) || (GMODE==="vs" && VS.running)){
     for(var i=0;i<G.objs.length;i++){ var o=G.objs[i]; if(o.a<0.5) continue;

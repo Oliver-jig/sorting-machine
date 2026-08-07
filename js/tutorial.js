@@ -32,6 +32,8 @@ var TUT={
   done:false,
   pending:null,       /* lesson id waiting on the phone-connect screen */
   bot:null,           /* Versus demonstration bot */
+  playing:false,      /* a `play` step: the REAL mode owns the frame */
+  playEnd:0,          /* when the practice window closes */
   scratch:{}          /* per-step working state, cleared on every advance */
 };
 
@@ -129,6 +131,8 @@ var TLESSONS=[
       {k:"do", en:"Last one. Slice the magazine and you are ready.",
        setup:function(){ tutSpawn("mag"); },
        goal:function(){ return tutSlicedT("mag"); }, ok:true},
+      {k:"play", play:"sort", secs:30, topic:0,
+       en:"Now play it for real. Paper round — slice the paper, leave everything else. Your score counts here, but only inside this lesson."},
       {k:"say", en:"That is everything you need. Pause any time with the button top-right — it also holds HOW TO PLAY."}
     ]
   },
@@ -151,7 +155,10 @@ var TLESSONS=[
        goal:function(){ return tutSlicedT("pizza"); },
        fail:function(){ return tutSlicedT("bottle"); },
        failEn:"The bottle is recyclable, so in THIS round it is the wrong answer.", ok:true},
-      {k:"say", en:"Specials fall too: a golden item doubles your score for a while, a clock adds time, a snowflake freezes the conveyor. They score nothing themselves — slice them for the effect."}
+      {k:"say", en:"Specials fall too: a golden item doubles your score for a while, a clock adds time, a snowflake freezes the conveyor. They score nothing themselves — slice them for the effect."},
+      {k:"play", play:"sort", secs:45, topic:0,
+       en:"Your turn. A real Paper round for 45 seconds — spawns, specials, scoring and all."},
+      {k:"say", en:"That is Sort. In a real game it is four rounds like that, back to back, and the category changes each time."}
     ]
   },
   {
@@ -163,6 +170,8 @@ var TLESSONS=[
       {k:"say", en:"A run is 12 questions, or 3 lives — whichever ends first. A wrong answer costs a life, and so does running out of time."},
       {k:"say", en:"After every answer you get a short explanation. That is the part worth reading — the questions repeat, the reasons are the lesson."},
       {k:"say", en:"Questions come in a few shapes: which bin an item belongs to, which item belongs in a named bin, and true-or-false claims about recycling in Hong Kong."},
+      {k:"play", play:"quiz", secs:60,
+       en:"Try it. A real quiz for 60 seconds — real questions, real answer cards, real explanations. Lives here cost you nothing."},
       {k:"say", en:"Answer three in a row and your multiplier rises, up to three times. Speed counts too — answering early scores more than answering late."}
     ]
   },
@@ -177,6 +186,8 @@ var TLESSONS=[
       {k:"say", en:"The bin's category changes as you play, and the label above it always tells you which one you are holding."},
       {k:"say", en:"Catch a matching item and you score. Catch the wrong one, or miss one that belonged, and you lose a life. Three lives, then it ends."},
       {k:"say", en:"Two helpers fall here. A Repair Kit gives back a life. A Solar Surge briefly scores everything you catch at a bonus."},
+      {k:"play", play:"tsunami", secs:45,
+       en:"Your turn. Move the bin and catch what matches the label above it. Running out of lives just restarts the practice."},
       {k:"say", en:"Consecutive correct catches build a combo, the same as Sort. Missing breaks it."}
     ]
   },
@@ -188,10 +199,8 @@ var TLESSONS=[
       {k:"say", en:"Versus is a 60-second race. The screen splits in two and each player defends their own half."},
       {k:"say", en:"Scoring is simple: +1 for a correct slice, -1 for a wrong one. No combos, no specials — just speed and accuracy."},
       {k:"say", en:"The target category rotates every 15 seconds, and it is the SAME category for both players. Nobody gets an easier half."},
-      {k:"do", en:"Practice against a demonstration bot. Slice the paper on your side — the bot plays the other.",
-       setup:function(){ tutBotStart(); tutSetTopic(0); tutSpawn("news",W*0.24); tutSpawn("box",W*0.40); },
-       goal:function(){ return tutSlicedCount()>=2; },
-       cleanup:function(){ tutBotStop(); }, ok:true},
+      {k:"play", play:"vsbot", secs:45, topic:0,
+       en:"Practice against a demonstration bot. It plays the right half, you play the left — slice the paper and keep ahead of it."},
       /* Stated plainly and never softened: a mouse player who reaches a real
          Versus match and finds they cannot play has been misled by the tutorial. */
       {k:"say", warn:true,
@@ -215,6 +224,8 @@ var TLESSONS=[
       {k:"say", warn:true,
        en:"On screen you will see the connection state. DIRECT means a straight link to your phone, which is fastest. RELAY / delayed means it fell back to the internet relay and you will feel about a fifth of a second of lag. INPUT LOST means nothing is arriving at all."},
       {k:"say", en:"If you see RELAY, put the laptop and the phones on the same WiFi and reconnect. That is almost always the fix."},
+      {k:"play", play:"sort", secs:40, topic:0,
+       en:function(){ return "Free play — get a feel for the "+tutCtlName()+". Paper round, 40 seconds, nothing at stake."; }},
       {k:"say", en:"Blades are cosmetic ONLY. A rarer blade does not cut better, reach further or score more — it just looks different."},
       {k:"say", en:"You unlock them with XP, and XP comes from the scores you actually post. Playing well is the only way to earn them — this tutorial deliberately earns you none."}
     ]
@@ -299,7 +310,77 @@ function tutBotUpdate(dt){
   b.x+=(b.tx-b.x)*Math.min(1,dt/170);
 }
 
+/* ================= practice: hand the frame to the real mode =================
+
+   THE COMPLAINT THIS ANSWERS. Every lesson was coach cards and scripted single
+   items — "user just reading the text and cannot have a taste of it". Quiz, Bin
+   It and Controls had no playable step at all.
+
+   A `play` step starts the ACTUAL mode: the real spawner, the real quiz cards,
+   the real bin, the real lives and the real score readout, for a fixed number of
+   seconds. Nothing is simulated. What keeps it a tutorial is not a watered-down
+   copy of the mode — it is that the run is never recorded (scoresRecord returns
+   early on TUT.active) and never reaches a result screen (tutModeEnded). */
+
+function tutPlayStart(kind, secs){
+  TUT.playing=true;
+  TUT.playEnd=performance.now()+secs*1000;
+  TUT.scratch.playKind=kind;
+  if(kind==="quiz"){ launchQuiz(); }
+  else if(kind==="tsunami"){
+    launchTsunami();
+    /* launchTsunami stops on its own "Start sorting" overlay. In a lesson the
+       coach card has already said all of that, and the overlay lands on top of
+       it — an unexplained second dialog between the player and the practice.
+       Begin immediately instead. */
+    tsunamiBegin();
+  }
+  else {
+    /* Sort, and the Versus practice, both run the Sort arena: the real spawner
+       in loopBody, the real slicing, the real scoring. Versus adds the bot. */
+    GMODE="sort"; setRoundLbl("round");
+    G.running=true; G.paused=false; G.score=0; G.objs.length && clearObjs();
+    G.spawnT=300; G.pops=[]; G.parts=[]; G.flashes=[]; BLADE.trail=[];
+    el("scoreN").textContent="0";
+    tutSetTopic(TUT.scratch.playTopic||0);
+    el("quizQ").classList.add("hidden");
+    /* Beyond the practice window on purpose: the lesson's own timer ends the
+       step, and endRound is intercepted anyway. */
+    G.roundEndAt=performance.now()+secs*1000+60000;
+    show("play");
+    tutInput();
+    if(kind==="vsbot") tutBotStart();
+  }
+  el("pauseBtn").style.display="none";      /* the lesson still owns the exit */
+  el("tutCoach").classList.remove("hidden");
+}
+
+function tutPlayStop(){
+  TUT.playing=false;
+  TUT.bot=null;
+  Q.running=false; TS.running=false; VS.running=false;
+  G.running=false;
+  el("quizQ").classList.add("hidden");
+  clearObjs();
+  setRoundLbl("round");
+}
+
+/* Seconds left in the practice window, for the live counter on the card. */
+function tutPlayLeft(){ return Math.max(0, Math.ceil((TUT.playEnd-performance.now())/1000)); }
+
 /* ================= the runner ================= */
+
+/* THE BUG THAT MADE THE WHOLE TUTORIAL UNPLAYABLE. tutStart wired up the webcam
+   and nothing else, so on mouse or touch — the default, and what most people
+   open it with — setupMouse() was never called and the blade never moved at
+   all. Every mode launcher does exactly this pair; the tutorial silently did
+   half of it. Kept as one function so a third controller cannot be added to the
+   modes and forgotten here. */
+function tutInput(){
+  if(controlMode==="cam") setupCam();
+  else if(controlMode==="mouse") setupMouse();
+  /* remote is already connected before a lesson starts — see tutStart */
+}
 
 function tutStart(id){
   var L=tutById(id); if(!L) return;
@@ -317,7 +398,7 @@ function tutStart(id){
   el("ovl").classList.add("hidden");
   tutSetTopic(0);
   show("play");
-  if(controlMode==="cam") setupCam();
+  tutInput();
   el("tutCoach").classList.remove("hidden");
   tutAdvance();
   tutMarkSeen();
@@ -328,6 +409,7 @@ function tutCurrent(){ return TUT.lesson && TUT.lesson.steps[TUT.step]; }
 function tutAdvance(){
   var prev=tutCurrent();
   if(prev && prev.cleanup) try{ prev.cleanup(); }catch(e){}
+  if(TUT.playing) tutPlayStop();             /* leaving a practice step tears the mode down */
   TUT.step++;
   TUT.scratch={};                            /* per-step state never leaks forward */
   var s=tutCurrent();
@@ -337,6 +419,7 @@ function tutAdvance(){
      to be on screen at its new height before anything is launched at it. */
   tutRenderCoach();
   if(s.setup) try{ s.setup(); }catch(e){}
+  if(s.k==="play"){ TUT.scratch.playTopic=s.topic||0; tutPlayStart(s.play, s.secs||35); tutRenderCoach(); }
 }
 
 function tutSkipStep(){ if(TUT.lesson) tutAdvance(); }
@@ -351,6 +434,7 @@ function tutFinish(){
 function tutExit(){
   var s=tutCurrent();
   if(s && s.cleanup) try{ s.cleanup(); }catch(e){}
+  if(TUT.playing) tutPlayStop();
   TUT.active=false; TUT.lesson=null; TUT.step=0; TUT.waiting=false;
   TUT.bot=null; TUT.scratch={};
   G.running=false; G.paused=false;
@@ -366,6 +450,18 @@ function tutExit(){
    must never reach a result screen or spend a real life. */
 function tutModeEnded(){
   if(!TUT.active) return false;
+  if(TUT.playing){
+    /* Practice runs the real mode, so it can really run out of lives or finish a
+       round. Neither may end the lesson: restart it and let the practice window
+       be the only thing that decides when the step is over. */
+    var k=TUT.scratch.playKind, left=Math.max(4,(TUT.playEnd-performance.now())/1000);
+    if(k==="quiz"){ launchQuiz(); }
+    else if(k==="tsunami"){ launchTsunami(); }
+    else { G.running=true; G.score=0; el("scoreN").textContent="0";
+           G.roundEndAt=performance.now()+left*1000+60000; }
+    el("pauseBtn").style.display="none";
+    return true;
+  }
   G.running=true;                              /* keep the arena alive under the coach card */
   return true;
 }
@@ -375,6 +471,13 @@ function tutUpdate(dt, now){
   if(!TUT.active || TUT.done) return;
   if(TUT.bot) tutBotUpdate(dt);
   var s=tutCurrent(); if(!s) return;
+  if(s.k==="play"){
+    /* Tick the counter on the card without re-rendering it — a card that
+       rebuilt every frame would drop the button the player is reaching for. */
+    var c=el("tutClock"); if(c) c.textContent=tutPlayLeft()+"s";
+    if(TUT.playing && performance.now()>=TUT.playEnd) tutAdvance();
+    return;
+  }
   if(s.fail && !TUT.scratch.failed){
     var f=false; try{ f=!!s.fail(); }catch(e){}
     if(f){ TUT.scratch.failed=true; tutRenderCoach(true); }
@@ -462,10 +565,13 @@ function tutRenderCoach(failed){
     demo+
     '<p class="tcEn">'+en+'</p>'+
     '<div class="tcRow">'+
-      (TUT.waiting && !failed
-        ? '<span class="tcWait">Try it now</span>'
-        : '<button class="btn" id="tutNext" type="button">Continue</button>')+
-      '<button class="btn ghost" id="tutSkip" type="button">Skip step</button>'+
+      (s.k==="play"
+        ? '<span class="tcWait">Playing — <b id="tutClock">'+tutPlayLeft()+'s</b> left</span>'+
+          '<button class="btn" id="tutNext" type="button">Finish early</button>'
+        : TUT.waiting && !failed
+          ? '<span class="tcWait">Try it now</span>'
+          : '<button class="btn" id="tutNext" type="button">Continue</button>')+
+      (s.k==="play" ? '' : '<button class="btn ghost" id="tutSkip" type="button">Skip step</button>')+
       '<button class="btn ghost" id="tutQuit" type="button">Exit</button>'+
     '</div>';
   tutWireCoach();

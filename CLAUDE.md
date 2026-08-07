@@ -8,7 +8,7 @@ A single-page browser arcade game for **SDG 12** — a Fruit-Ninja-style slicer
 teaching Hong Kong recycling. No build step, no framework, no bundler. Plain
 HTML + CSS + ES5-ish JS with CDN libraries, deployed static to Vercel.
 
-Current state: **build 78**. "Preview V6" dark arcade UI, 50 items, four modes,
+Current state: **build 79**. "Preview V6" dark arcade UI, 50 items, four modes,
 blade skins with an XP/level system.
 
 Repo: `Oliver-jig/sorting-machine`. Two branches, **kept in sync after every
@@ -314,6 +314,38 @@ error — and the step's goal can then never come true, so the lesson hangs on
 That shipped into the first build of this file (`canAlu` was never real; the soda
 can is `canTall`). `tests/tutorial.js` section 1 extracts every `tutSpawn(...)`
 key and checks it against the roster in `items.js`.
+
+**A lesson must be PLAYED, and the tutorial must WIRE UP THE BLADE.** `tutStart`
+called `setupCam()` for the webcam and nothing at all for mouse or touch — the
+default — so `setupMouse()` never ran and the blade never moved. The tutorial was
+literally unplayable for most people, reported twice as "I cannot play". Both
+paths now go through `tutInput()`, which mirrors what every mode launcher does.
+
+**Every lesson ends in real practice, not more reading.** Quiz, Bin It and
+Controls originally had NO hands-on step — five or six coach cards and nothing to
+do ("user just reading the text and cannot have a taste of it"). A `play` step
+starts the ACTUAL mode for a fixed number of seconds: the real spawner, the real
+quiz cards, the real bin, real lives, real score. Nothing is simulated.
+
+What keeps it a tutorial is NOT a watered-down copy of the mode — it is that the
+run is never recorded (`scoresRecord` returns early on `TUT.active`) and never
+reaches a result screen (`tutModeEnded`). So during a `play` step the tutorial
+deliberately does NOT own the frame: `loopBody` and `drawFx` both test
+`TUT.active && !TUT.playing`, letting the real mode branch run, and `tutDraw`
+paints the lesson overlay on top afterwards instead of instead.
+
+`tutModeEnded` was written to intercept the four game-overs and then never
+called from any of them — dead code guarding nothing. It is now called from
+`endRound`, `vsGameOver`, `quizGameOver` and `tsunamiGameOver`, and during
+practice it RESTARTS the mode so running out of lives costs the player nothing
+and only the practice timer ends the step. `tests/tutorial.js` section 13 counts
+all four interception points.
+
+**Bin It practice must skip its own intro overlay.** `launchTsunami()` ends on a
+"Start sorting" overlay and leaves `TS.running` false. Inside a lesson that
+overlay lands on top of the coach card as an unexplained second dialog, and
+until it was dismissed Bin It practice never started at all. `tutPlayStart` calls
+`tsunamiBegin()` straight after.
 
 **The tutorial is ENGLISH ONLY, and that is a layout constraint as well as a
 wording one.** It shipped bilingual, with a Traditional Chinese line under every

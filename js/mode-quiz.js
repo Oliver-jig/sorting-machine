@@ -284,7 +284,10 @@ function quizTeach(ok){
   for(var i=0;i<Q.opts.length;i++){ var o=Q.opts[i]; if(o.correct){ o.showCorrect=true; o.sliced=false; } }
 }
 
+/* A lesson never reaches a real game over: tutModeEnded() restarts the practice
+   instead, so no result screen, no recorded run and no life spent for real. */
 function quizGameOver(){
+  if(typeof tutModeEnded==="function" && tutModeEnded()) return;
   Q.running=false; Q.teach=0;
   el("quizQ").classList.add("hidden");
   el("rScore").textContent=Q.score;
